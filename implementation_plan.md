@@ -1,7 +1,8 @@
 # Implementation Plan: VS Code Agent Workflow Designer & Runtime
 
-**Status:** Planning  
+**Status:** Complete  
 **Created:** 2026-07-18  
+**Completed:** 2026-07-18  
 **Based on:** `product_requirements.md` v0.1 (Prototype)
 
 ---
@@ -18,11 +19,11 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### Tasks
 
-- [ ] 0.1 Create extension scaffolding (`package.json`, `tsconfig.json`, `vscode.config.json`)
-- [ ] 0.2 Configure build tooling (esbuild or webpack)
-- [ ] 0.3 Set up extension entry point (`src/extension.ts`)
-- [ ] 0.4 Create folder structure: `src/designer/`, `src/runtime/`, `src/models/`, `src/utils/`
-- [ ] 0.5 Add `.gitignore` and basic README
+- [x] 0.1 Create extension scaffolding (`package.json`, `tsconfig.json`, `vscode.config.json`)
+- [x] 0.2 Configure build tooling (esbuild or webpack)
+- [x] 0.3 Set up extension entry point (`src/extension.ts`)
+- [x] 0.4 Create folder structure: `src/designer/`, `src/runtime/`, `src/models/`, `src/utils/`
+- [x] 0.5 Add `.gitignore` and basic README
 
 ### ✅ Checkpoint 0
 
@@ -36,10 +37,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.1 Core Data Models
 
-- [ ] 1.1.1 Define `Node` interface (id, type, position, data)
-- [ ] 1.1.2 Define `Edge` interface (id, source, target, label)
-- [ ] 1.1.3 Define `Workflow` interface (nodes, edges, metadata)
-- [ ] 1.1.4 Define node type enum: `Start`, `End`, `Agent`, `Condition`, `HumanApproval`, `Delay`
+- [x] 1.1.1 Define `Node` interface (id, type, position, data)
+- [x] 1.1.2 Define `Edge` interface (id, source, target, label)
+- [x] 1.1.3 Define `Workflow` interface (nodes, edges, metadata)
+- [x] 1.1.4 Define node type enum: `Start`, `End`, `Agent`, `Condition`, `HumanApproval`, `Delay`
 
 ### ✅ Checkpoint 1.1
 
@@ -49,10 +50,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.2 VS Code Custom Editor Registration
 
-- [ ] 1.2.1 Register custom editor for `.workflow.yaml` files in `package.json`
-- [ ] 1.2.2 Implement `CustomEditorProvider` with `openCustomDocument` and `resolveCustomEditor`
-- [ ] 1.2.3 Create webview HTML container with basic layout (toolbar, canvas, properties panel)
-- [ ] 1.2.4 Implement webview ↔ extension host message passing (postMessage pattern)
+- [x] 1.2.1 Register custom editor for `.workflow.yaml` files in `package.json`
+- [x] 1.2.2 Implement `CustomEditorProvider` with `openCustomDocument` and `resolveCustomEditor`
+- [x] 1.2.3 Create webview HTML container with basic layout (toolbar, canvas, properties panel)
+- [x] 1.2.4 Implement webview ↔ extension host message passing (postMessage pattern)
 
 ### ✅ Checkpoint 1.2
 
@@ -62,11 +63,11 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.3 Canvas Rendering Engine
 
-- [ ] 1.3.1 Choose canvas library (React Flow, or lightweight custom SVG/Canvas)
-- [ ] 1.3.2 Render nodes as draggable cards on the canvas
-- [ ] 1.3.3 Implement pan (middle-mouse drag) and zoom (scroll wheel)
-- [ ] 1.3.4 Render edges as bezier curves between node ports
-- [ ] 1.3.5 Implement grid background and snap-to-grid (optional)
+- [x] 1.3.1 Choose canvas library (React Flow, or lightweight custom SVG/Canvas)
+- [x] 1.3.2 Render nodes as draggable cards on the canvas
+- [x] 1.3.3 Implement pan (middle-mouse drag) and zoom (scroll wheel)
+- [x] 1.3.4 Render edges as bezier curves between node ports
+- [x] 1.3.5 Implement grid background and snap-to-grid (optional)
 
 ### ✅ Checkpoint 1.3
 
@@ -76,12 +77,12 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.4 Node Operations
 
-- [ ] 1.4.1 Implement drag-and-drop from toolbox onto canvas
-- [ ] 1.4.2 Implement node selection (click to select, visual highlight)
-- [ ] 1.4.3 Implement node deletion (Delete key or toolbar button)
-- [ ] 1.4.4 Implement multi-select (Shift+Click or drag selection box)
-- [ ] 1.4.5 Implement copy/paste (Ctrl+C / Ctrl+V)
-- [ ] 1.4.6 Implement undo/redo stack
+- [x] 1.4.1 Implement drag-and-drop from toolbox onto canvas
+- [x] 1.4.2 Implement node selection (click to select, visual highlight)
+- [x] 1.4.3 Implement node deletion (Delete key or toolbar button)
+- [x] 1.4.4 Implement multi-select (Shift+Click or drag selection box)
+- [x] 1.4.5 Implement copy/paste (Ctrl+C / Ctrl+V)
+- [x] 1.4.6 Implement undo/redo stack
 
 ### ✅ Checkpoint 1.4
 
@@ -91,11 +92,11 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.5 Edge (Connection) Operations
 
-- [ ] 1.5.1 Click-and-drag from output port to input port creates edge
-- [ ] 1.5.2 Visual feedback during edge creation (rubber-band line)
-- [ ] 1.5.3 Edge deletion (select edge + Delete key)
-- [ ] 1.5.4 Validate connections (e.g., no self-loops, no duplicate edges)
-- [ ] 1.5.5 Support edge labels (click edge to edit label)
+- [x] 1.5.1 Click-and-drag from output port to input port creates edge
+- [x] 1.5.2 Visual feedback during edge creation (rubber-band line)
+- [x] 1.5.3 Edge deletion (select edge + Delete key)
+- [x] 1.5.4 Validate connections (e.g., no self-loops, no duplicate edges)
+- [x] 1.5.5 Support edge labels (click edge to edit label)
 
 ### ✅ Checkpoint 1.5
 
@@ -105,9 +106,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.6 Toolbox Panel
 
-- [ ] 1.6.1 Left panel with draggable items: Start, End, Agent, Condition, Human Approval, Delay
-- [ ] 1.6.2 Each item shows icon, name, and short description
-- [ ] 1.6.3 Drag from toolbox spawns corresponding node on canvas at drop position
+- [x] 1.6.1 Left panel with draggable items: Start, End, Agent, Condition, Human Approval, Delay
+- [x] 1.6.2 Each item shows icon, name, and short description
+- [x] 1.6.3 Drag from toolbox spawns corresponding node on canvas at drop position
 
 ### ✅ Checkpoint 1.6
 
@@ -117,12 +118,12 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.7 Properties Panel
 
-- [ ] 1.7.1 Right panel shows properties for selected node
-- [ ] 1.7.2 Agent Node properties: Agent Name (file browser), Prompt (textarea), Timeout (number), Retries (number)
-- [ ] 1.7.3 Condition Node properties: Expression editor (simple key/value or template)
-- [ ] 1.7.4 Human Approval Node properties: Prompt message
-- [ ] 1.7.5 Delay Node properties: Duration (seconds)
-- [ ] 1.7.6 Property changes update the in-memory workflow model
+- [x] 1.7.1 Right panel shows properties for selected node
+- [x] 1.7.2 Agent Node properties: Agent Name (file browser), Prompt (textarea), Timeout (number), Retries (number)
+- [x] 1.7.3 Condition Node properties: Expression editor (simple key/value or template)
+- [x] 1.7.4 Human Approval Node properties: Prompt message
+- [x] 1.7.5 Delay Node properties: Duration (seconds)
+- [x] 1.7.6 Property changes update the in-memory workflow model
 
 ### ✅ Checkpoint 1.7
 
@@ -132,11 +133,11 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.8 YAML Serialization & File I/O
 
-- [ ] 1.8.1 Implement `workflowToYaml(workflow: Workflow) → string`
-- [ ] 1.8.2 Implement `yamlToWorkflow(yaml: string) → Workflow`
-- [ ] 1.8.3 Save workflow on `Ctrl+S` or explicit "Save" button
-- [ ] 1.8.4 Load workflow from file on open
-- [ ] 1.8.5 Auto-save on changes (optional, configurable)
+- [x] 1.8.1 Implement `workflowToYaml(workflow: Workflow) → string`
+- [x] 1.8.2 Implement `yamlToWorkflow(yaml: string) → Workflow`
+- [x] 1.8.3 Save workflow on `Ctrl+S` or explicit "Save" button
+- [x] 1.8.4 Load workflow from file on open
+- [x] 1.8.5 Auto-save on changes (optional, configurable)
 
 ### ✅ Checkpoint 1.8
 
@@ -146,9 +147,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 1.9 Toolbar & Commands
 
-- [ ] 1.9.1 Implement toolbar with: Save, Validate, Generate Configuration
-- [ ] 1.9.2 Validate workflow (check for: exactly one Start, no orphan nodes, valid connections)
-- [ ] 1.9.3 Show validation errors in VS Code Problems panel or inline
+- [x] 1.9.1 Implement toolbar with: Save, Validate, Generate Configuration
+- [x] 1.9.2 Validate workflow (check for: exactly one Start, no orphan nodes, valid connections)
+- [x] 1.9.3 Show validation errors in VS Code Problems panel or inline
 
 ### ✅ Checkpoint 1.9 (Phase 1 Complete)
 
@@ -162,9 +163,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 2.1 Workflow State Manager
 
-- [ ] 2.1.1 Define `WorkflowState` interface (global state bag, current node, execution status)
-- [ ] 2.1.2 Implement `StateManager` class (get, set, snapshot, restore)
-- [ ] 2.1.3 Support state persistence to disk during execution
+- [x] 2.1.1 Define `WorkflowState` interface (global state bag, current node, execution status)
+- [x] 2.1.2 Implement `StateManager` class (get, set, snapshot, restore)
+- [x] 2.1.3 Support state persistence to disk during execution
 
 ### ✅ Checkpoint 2.1
 
@@ -174,9 +175,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 2.2 Workflow Loader & Validator
 
-- [ ] 2.2.1 Load workflow YAML and parse into internal graph representation
-- [ ] 2.2.2 Validate graph structure (connected, single start, no cycles for Phase 2)
-- [ ] 2.2.3 Return validation errors before execution begins
+- [x] 2.2.1 Load workflow YAML and parse into internal graph representation
+- [x] 2.2.2 Validate graph structure (connected, single start, no cycles for Phase 2)
+- [x] 2.2.3 Return validation errors before execution begins
 
 ### ✅ Checkpoint 2.2
 
@@ -186,11 +187,11 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 2.3 Execution Engine (Sequential)
 
-- [ ] 2.3.1 Implement `WorkflowEngine` class with `execute(workflow, state)` method
-- [ ] 2.3.2 Start node: initialize execution
-- [ ] 2.3.3 Agent node: invoke VS Code custom agent (see 2.4)
-- [ ] 2.3.4 End node: terminate execution
-- [ ] 2.3.5 Track node execution status (Waiting → Running → Completed/Failed)
+- [x] 2.3.1 Implement `WorkflowEngine` class with `execute(workflow, state)` method
+- [x] 2.3.2 Start node: initialize execution
+- [x] 2.3.3 Agent node: invoke VS Code custom agent (see 2.4)
+- [x] 2.3.4 End node: terminate execution
+- [x] 2.3.5 Track node execution status (Waiting → Running → Completed/Failed)
 
 ### ✅ Checkpoint 2.3
 
@@ -200,11 +201,11 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 2.4 VS Code Agent Invocation
 
-- [ ] 2.4.1 Discover agents in `.github/agents/` directory
-- [ ] 2.4.2 Parse `.agent.md` files to extract agent configuration
-- [ ] 2.4.3 Invoke agent via VS Code's agent/chat API (or terminal-based invocation)
-- [ ] 2.4.4 Capture agent output (text, files modified, tool usage)
-- [ ] 2.4.5 Handle agent timeout and retry logic
+- [x] 2.4.1 Discover agents in `.github/agents/` directory
+- [x] 2.4.2 Parse `.agent.md` files to extract agent configuration
+- [x] 2.4.3 Invoke agent via VS Code's agent/chat API (or terminal-based invocation)
+- [x] 2.4.4 Capture agent output (text, files modified, tool usage)
+- [x] 2.4.5 Handle agent timeout and retry logic
 
 ### ✅ Checkpoint 2.4
 
@@ -214,10 +215,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 2.5 Execution UI Integration
 
-- [ ] 2.5.1 Add "▶ Run Workflow" button to toolbar
-- [ ] 2.5.2 Update canvas node colors during execution (Gray→Blue→Green/Red)
-- [ ] 2.5.3 Highlight currently executing node
-- [ ] 2.5.4 Show execution progress in VS Code status bar
+- [x] 2.5.1 Add "▶ Run Workflow" button to toolbar
+- [x] 2.5.2 Update canvas node colors during execution (Gray→Blue→Green/Red)
+- [x] 2.5.3 Highlight currently executing node
+- [x] 2.5.4 Show execution progress in VS Code status bar
 
 ### ✅ Checkpoint 2.5 (Phase 2 Complete)
 
@@ -231,10 +232,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 3.1 Condition Evaluation Engine
 
-- [ ] 3.1.1 Define condition expression syntax (e.g., `state.tests_passed === true`)
-- [ ] 3.1.2 Implement expression evaluator against `WorkflowState`
-- [ ] 3.1.3 Support boolean, numeric, and string comparisons
-- [ ] 3.1.4 Support logical operators (&&, ||, !)
+- [x] 3.1.1 Define condition expression syntax (e.g., `state.tests_passed === true`)
+- [x] 3.1.2 Implement expression evaluator against `WorkflowState`
+- [x] 3.1.3 Support boolean, numeric, and string comparisons
+- [x] 3.1.4 Support logical operators (&&, ||, !)
 
 ### ✅ Checkpoint 3.1
 
@@ -244,10 +245,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 3.2 Branching Execution
 
-- [ ] 3.2.1 Condition node has two outputs: True / False
-- [ ] 3.2.2 Engine routes execution based on condition result
-- [ ] 3.2.3 Support merge points (multiple incoming edges)
-- [ ] 3.2.4 Track which branch was taken in execution logs
+- [x] 3.2.1 Condition node has two outputs: True / False
+- [x] 3.2.2 Engine routes execution based on condition result
+- [x] 3.2.3 Support merge points (multiple incoming edges)
+- [x] 3.2.4 Track which branch was taken in execution logs
 
 ### ✅ Checkpoint 3.2
 
@@ -257,9 +258,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 3.3 State Updates from Nodes
 
-- [ ] 3.3.1 Agent nodes can write to workflow state (structured output → state keys)
-- [ ] 3.3.2 Condition nodes can read from workflow state
-- [ ] 3.3.3 Properties panel allows configuring state read/write mappings per node
+- [x] 3.3.1 Agent nodes can write to workflow state (structured output → state keys)
+- [x] 3.3.2 Condition nodes can read from workflow state
+- [x] 3.3.3 Properties panel allows configuring state read/write mappings per node
 
 ### ✅ Checkpoint 3.3 (Phase 3 Complete)
 
@@ -273,9 +274,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 4.1 Loop Detection & Handling
 
-- [ ] 4.1.1 Detect back-edges in the graph (cycles)
-- [ ] 4.1.2 Track iteration count per loop
-- [ ] 4.1.3 Enforce maximum iteration limit (configurable per loop)
+- [x] 4.1.1 Detect back-edges in the graph (cycles)
+- [x] 4.1.2 Track iteration count per loop
+- [x] 4.1.3 Enforce maximum iteration limit (configurable per loop)
 
 ### ✅ Checkpoint 4.1
 
@@ -285,10 +286,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 4.2 Loop Exit Criteria
 
-- [ ] 4.2.1 Maximum iterations (numeric limit)
-- [ ] 4.2.2 Boolean condition (e.g., `state.tests_passed === true`)
-- [ ] 4.2.3 Timeout (wall-clock time limit)
-- [ ] 4.2.4 Quality score threshold (numeric state comparison)
+- [x] 4.2.1 Maximum iterations (numeric limit)
+- [x] 4.2.2 Boolean condition (e.g., `state.tests_passed === true`)
+- [x] 4.2.3 Timeout (wall-clock time limit)
+- [x] 4.2.4 Quality score threshold (numeric state comparison)
 
 ### ✅ Checkpoint 4.2 (Phase 4 Complete)
 
@@ -302,10 +303,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 5.1 Human Approval Node
 
-- [ ] 5.1.1 Execution pauses at Human Approval node
-- [ ] 5.1.2 Show VS Code notification with Approve/Reject buttons
-- [ ] 5.1.3 Store approval result in workflow state
-- [ ] 5.1.4 Resume execution based on result (Approved → True path, Rejected → False path)
+- [x] 5.1.1 Execution pauses at Human Approval node
+- [x] 5.1.2 Show VS Code notification with Approve/Reject buttons
+- [x] 5.1.3 Store approval result in workflow state
+- [x] 5.1.4 Resume execution based on result (Approved → True path, Rejected → False path)
 
 ### ✅ Checkpoint 5.1
 
@@ -315,10 +316,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 5.2 Pause & Resume Controls
 
-- [ ] 5.2.1 "⏸ Pause" button pauses execution at current node boundary
-- [ ] 5.2.2 "🔄 Resume" button continues execution
-- [ ] 5.2.3 "⏹ Stop" button terminates execution immediately
-- [ ] 5.2.4 Paused state persists if VS Code is closed (optional)
+- [x] 5.2.1 "⏸ Pause" button pauses execution at current node boundary
+- [x] 5.2.2 "🔄 Resume" button continues execution
+- [x] 5.2.3 "⏹ Stop" button terminates execution immediately
+- [x] 5.2.4 Paused state persists if VS Code is closed (optional)
 
 ### ✅ Checkpoint 5.2 (Phase 5 Complete)
 
@@ -332,9 +333,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 6.1 Execution Details Panel
 
-- [ ] 6.1.1 Clicking a completed node opens details panel
-- [ ] 6.1.2 Display: Agent name, start/end time, duration, prompt, context in/out, files modified, tool usage, logs, errors
-- [ ] 6.1.3 Structured output viewer (JSON/tree view)
+- [x] 6.1.1 Clicking a completed node opens details panel
+- [x] 6.1.2 Display: Agent name, start/end time, duration, prompt, context in/out, files modified, tool usage, logs, errors
+- [x] 6.1.3 Structured output viewer (JSON/tree view)
 
 ### ✅ Checkpoint 6.1
 
@@ -344,9 +345,9 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 6.2 Execution Timeline
 
-- [ ] 6.2.1 Timeline view showing node execution order and durations
-- [ ] 6.2.2 Visual Gantt-style bar for each node
-- [ ] 6.2.3 Click timeline item to jump to node details
+- [x] 6.2.1 Timeline view showing node execution order and durations
+- [x] 6.2.2 Visual Gantt-style bar for each node
+- [x] 6.2.3 Click timeline item to jump to node details
 
 ### ✅ Checkpoint 6.2
 
@@ -356,10 +357,10 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 ### 6.3 Run History & State Inspection
 
-- [ ] 6.3.1 Store execution history (last N runs)
-- [ ] 6.3.2 View previous run results
-- [ ] 6.3.3 Inspect state at any point in the execution
-- [ ] 6.3.4 Export execution logs
+- [x] 6.3.1 Store execution history (last N runs)
+- [x] 6.3.2 View previous run results
+- [x] 6.3.3 Inspect state at any point in the execution
+- [x] 6.3.4 Export execution logs
 
 ### ✅ Checkpoint 6.3 (Phase 6 Complete)
 
