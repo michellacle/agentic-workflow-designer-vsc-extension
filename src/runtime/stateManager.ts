@@ -1,0 +1,190 @@
+import {
+    WorkflowState, ExecutionContext, ExecutionStatus,
+    NodeExecutionRecord, NodeStatus
+} from '../models/workflow';
+
+/**
+ * Manages workflow execution state
+ */
+export class StateManager {
+    private _state: WorkflowState = {};
+    private _context: ExecutionContext;
+
+    constructor() {
+        this._context = {
+            status: ExecutionStatus.Idle,
+            state: {},
+            nodeRecords: new Map(),
+            iterationCounts: new Map()
+        };
+    }
+
+    get state(): WorkflowState {
+        return this._context.state;
+    }
+
+    get context(): ExecutionContext {
+        return this._context;
+    }
+
+    /**
+     * Get a value from state
+     */
+    get(key: string): unknown {
+        return this._context.state[key];
+    }
+
+    /**
+     * Set a value in state
+     */
+    set(key: string, value: unknown): void {
+        this._context.state[key] = value;
+    }
+
+    /**
+     * Get the current execution status
+     */
+    getStatus(): ExecutionStatus {
+        return this._context.status;
+    }
+
+    /**
+     * Set the execution status
+     */
+    setStatus(status: ExecutionStatus): void {
+        this._context.status = status;
+    }
+
+    /**
+     * Set the currently executing node
+     */
+    setCurrentNode(nodeId: string | undefined): void {
+        this._context.currentNodeId = nodeId;
+    }
+
+    /**
+     * Create or update a node execution record
+     */
+    createNodeRecord(nodeId: string, status: NodeStatus, nodeName?: string): NodeExecutionRecord {
+        const record: NodeExecutionRecord = {
+            nodeId,
+            nodeName,
+            status,
+            logs: [],
+            errors: []
+        };
+        this._context.nodeRecords.set(nodeId, record);
+        return record;
+    }
+
+    /**
+     * Get a node execution record
+     */
+    getNodeRecord(nodeId: string): NodeExecutionRecord | undefined {
+        return this._context.nodeRecords.get(nodeId);
+    }
+
+    /**
+     * Update node record status
+     */
+    updateNodeStatus(nodeId: string, status: NodeStatus): void {
+        const record = this._context.nodeRecords.get(nodeId);
+        if (record) {
+            record.status = status;
+        }
+    }
+
+    /**
+     * Start timing for a node
+     */
+    startNode(nodeId: string): void {
+        const record = this._context.nodeRecords.get(nodeId);
+        if (record) {
+            record.startTime = Date.now();
+            record.status = NodeStatus.Running;
+        }
+    }
+
+    /**
+     * Complete timing for a node
+     */
+    endNode(nodeId: string, status: NodeStatus): void {
+        const record = this._context.nodeRecords.get(nodeId);
+        if (record) {
+            record.endTime = Date.now();
+            record.duration = record.endTime - (record.startTime || record.endTime);
+            record.status = status;
+        }
+    }
+
+    /**
+     * Add a log entry to a node record
+     */
+    addLog(nodeId: string, message: string): void {
+        const record = this._context.nodeRecords.get(nodeId);
+        if (record) {
+            record.logs?.push(message);
+        }
+    }
+
+    /**
+     * Add an error to a node record
+     */
+    addError(nodeId: string, message: string): void {
+        const record = this._context.nodeRecords.get(nodeId);
+        if (record) {
+            record.errors?.push(message);
+        }
+    }
+
+    /**
+     * Get or increment iteration count for a loop
+     */
+    getIterationCount(loopId: string): number {
+        const count = this._context.iterationCounts.get(loopId) || 0;
+        this._context.iterationCounts.set(loopId, count + 1);
+        return count + 1;
+    }
+
+    /**
+     * Get current iteration count without incrementing
+     */
+    getCurrentIteration(loopId: string): number {
+        return this._context.iterationCounts.get(loopId) || 0;
+    }
+
+    /**
+     * Create a snapshot of current state
+     */
+    snapshot(): WorkflowState {
+        return JSON.parse(JSON.stringify(this._context.state));
+    }
+
+    /**
+     * Restore state from a snapshot
+     */
+    restore(snapshot: WorkflowState): void {
+        this._context.state = JSON.parse(JSON.stringify(snapshot));
+    }
+
+    /**
+     * Initialize a new execution context
+     */
+    initialize(): void {
+        this._context = {
+            status: ExecutionStatus.Running,
+            state: {},
+            nodeRecords: new Map(),
+            iterationCounts: new Map(),
+            startTime: Date.now()
+        };
+    }
+
+    /**
+     * Complete execution
+     */
+    complete(status: ExecutionStatus): void {
+        this._context.status = status;
+        this._context.endTime = Date.now();
+    }
+}
