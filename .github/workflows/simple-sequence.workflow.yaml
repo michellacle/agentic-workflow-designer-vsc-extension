@@ -1,0 +1,32 @@
+name: simple-sequence
+description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)
+nodes:
+  - id: start_1
+    type: start
+    position:
+      x: 200
+      y: 50
+    data:
+      label: Start
+  - id: agent_2
+    type: agent
+    position:
+      x: 200
+      y: 150
+    data:
+      agent: planner
+      prompt: Create a simple plan
+      timeout: 60
+      retries: 0
+  - id: end_3
+    type: end
+    position:
+      x: 200
+      y: 250
+    data:
+      label: End
+edges:
+  - source: start_1
+    target: agent_2
+  - source: agent_2
+    target: end_3

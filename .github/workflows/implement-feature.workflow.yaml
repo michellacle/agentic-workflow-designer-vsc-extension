@@ -1,0 +1,103 @@
+name: implement-feature
+description: Complete workflow for implementing a new feature with planning, implementation, testing, and review
+nodes:
+  - id: start_1
+    type: start
+    position:
+      x: 300
+      y: 20
+    data:
+      label: Start
+  - id: agent_2
+    type: agent
+    position:
+      x: 300
+      y: 120
+    data:
+      agent: planner
+      prompt: Create a development plan for the requested feature
+      timeout: 120
+      retries: 1
+  - id: agent_3
+    type: agent
+    position:
+      x: 300
+      y: 240
+    data:
+      agent: implementer
+      prompt: Implement the feature based on the plan
+      timeout: 300
+      retries: 2
+  - id: agent_4
+    type: agent
+    position:
+      x: 300
+      y: 360
+    data:
+      agent: tester
+      prompt: Create and run tests for the implementation
+      timeout: 180
+      retries: 1
+      stateWrites:
+        - source: tests_passed
+          target: tests_passed
+  - id: condition_5
+    type: condition
+    position:
+      x: 300
+      y: 480
+    data:
+      expression: state.tests_passed === true
+  - id: agent_6
+    type: agent
+    position:
+      x: 100
+      y: 600
+    data:
+      agent: reviewer
+      prompt: Review the implementation for quality
+      timeout: 180
+      retries: 1
+      stateWrites:
+        - source: review_passed
+          target: review_passed
+  - id: human_approval_7
+    type: human_approval
+    position:
+      x: 500
+      y: 600
+    data:
+      message: Tests failed. Do you want to retry implementation?
+  - id: end_8
+    type: end
+    position:
+      x: 100
+      y: 720
+    data:
+      label: Complete
+  - id: end_9
+    type: end
+    position:
+      x: 500
+      y: 720
+    data:
+      label: Needs Fix
+edges:
+  - source: start_1
+    target: agent_2
+  - source: agent_2
+    target: agent_3
+  - source: agent_3
+    target: agent_4
+  - source: agent_4
+    target: condition_5
+  - source: condition_5
+    target: agent_6
+    label: True
+  - source: condition_5
+    target: human_approval_7
+    label: False
+  - source: agent_6
+    target: end_8
+  - source: human_approval_7
+    target: end_9

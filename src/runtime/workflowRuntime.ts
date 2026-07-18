@@ -10,6 +10,7 @@ import {
 import { StateManager } from './stateManager';
 import { ConditionEvaluator } from './conditionEvaluator';
 import { AgentInvoker } from './agentInvoker';
+import { RunHistoryManager, RunRecord } from './runHistory';
 import { validateWorkflow } from '../utils/workflowValidator';
 
 /**
@@ -18,15 +19,18 @@ import { validateWorkflow } from '../utils/workflowValidator';
 export class WorkflowRuntime implements vscode.Disposable {
     private _stateManager: StateManager;
     private _agentInvoker: AgentInvoker;
+    private _runHistory: RunHistoryManager;
     private _disposables: vscode.Disposable[] = [];
     private _currentWorkflow: Workflow | null = null;
     private _currentFileUri: vscode.Uri | null = null;
     private _abortController: AbortController | null = null;
     private _statusBarItem: vscode.StatusBarItem;
+    private _maxLoopIterations: number = 100;
 
     constructor(private readonly context: vscode.ExtensionContext) {
         this._stateManager = new StateManager();
         this._agentInvoker = new AgentInvoker(context);
+        this._runHistory = new RunHistoryManager(context);
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._statusBarItem.text = '$$(eye) Workflow: Idle';
         this._statusBarItem.tooltip = 'Workflow execution status';
@@ -132,8 +136,37 @@ export class WorkflowRuntime implements vscode.Disposable {
             vscode.window.showErrorMessage(`Workflow failed: ${error}`);
         }
 
+        // Save to run history
+        this.saveRunHistory();
+
         this._abortController = null;
         this.notifyExecutionUpdate();
+    }
+
+    /**
+     * Save execution to run history
+     */
+    private saveRunHistory(): void {
+        const execContext = this._stateManager.context;
+        const record: RunRecord = {
+            id: `run_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            timestamp: execContext.startTime || Date.now(),
+            workflowUri: this._currentFileUri?.toString() || 'unknown',
+            workflowName: this._currentWorkflow?.name || 'unknown',
+            status: execContext.status,
+            duration: execContext.endTime && execContext.startTime
+                ? execContext.endTime - execContext.startTime : 0,
+            state: { ...execContext.state },
+            nodeRecords: Array.from(execContext.nodeRecords.entries())
+        };
+        this._runHistory.addRun(record);
+    }
+
+    /**
+     * Get run history
+     */
+    getRunHistory(): RunHistoryManager {
+        return this._runHistory;
     }
 
     /**
