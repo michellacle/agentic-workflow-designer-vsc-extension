@@ -43,12 +43,12 @@ describe('CSS: Theme Variables and Fallbacks', () => {
     });
 
     describe('toolbar background', () => {
-        it('should use --vscode-toolbar-background CSS variable', () => {
-            expect(css).toMatch(/#toolbar[^{]*\{[^}]*var\(--vscode-toolbar-background/);
+        it('should use --vscode-editor-background CSS variable (matching editor theme)', () => {
+            expect(css).toMatch(/#toolbar[^{]*\{[^}]*var\(--vscode-editor-background/);
         });
 
         it('should have a fallback for toolbar background', () => {
-            expect(css).toMatch(/#toolbar[^{]*\{[^}]*var\(--vscode-toolbar-background,\s*#[0-9a-fA-F]+\)/);
+            expect(css).toMatch(/#toolbar[^{]*\{[^}]*var\(--vscode-editor-background,\s*#[0-9a-fA-F]+\)/);
         });
     });
 
@@ -100,7 +100,8 @@ describe('CSS: Theme Variables and Fallbacks', () => {
         const expectedVariables = [
             '--vscode-foreground',
             '--vscode-editor-background',
-            '--vscode-toolbar-background',
+            // Note: --vscode-toolbar-background removed — toolbar now uses
+            // --vscode-editor-background to match the editor theme
             '--vscode-panel-border',
             '--vscode-sideBar-background',
             '--vscode-input-background',
@@ -112,6 +113,7 @@ describe('CSS: Theme Variables and Fallbacks', () => {
             '--vscode-button-hoverBackground',
             '--vscode-descriptionForeground',
             '--vscode-list-activeSelectionBackground',
+            '--vscode-editor-foreground',
         ];
 
         for (const variable of expectedVariables) {
@@ -199,7 +201,7 @@ describe('TypeScript: Theme Color Resolution', () => {
                                      switchBody.includes('theme-color') ||
                                      switchBody.includes('vscode:theme-color') ||
                                      switchBody.includes('themeChange');
-            expect(hasThemeHandling, 'onMessage should handle theme change messages').toBe(true);
+            expect(hasThemeHandling).toBe(true);
         });
 
         it('[REVIEW ISSUE] should re-render canvas when theme changes', () => {
@@ -207,7 +209,7 @@ describe('TypeScript: Theme Color Resolution', () => {
             const hasThemeMessageHandler = ts.match(/case\s+['"]themeColor|theme-color|vscode:theme-color|themeChange['"]/);
             const hasReRenderAfterTheme = hasThemeMessageHandler &&
                 ts.match(/resolveThemeColors\(\)[\s\S]{0,200}render\(\)/);
-            expect(hasReRenderAfterTheme, 'theme change should trigger resolveThemeColors + render').toBeTruthy();
+            expect(hasReRenderAfterTheme).toBeTruthy();
         });
     });
 });
@@ -384,7 +386,8 @@ describe('Compiled Output: Theme Changes Present', () => {
     describe('Compiled CSS', () => {
         it('should contain VS Code CSS variables', () => {
             expect(distCss).toContain('--vscode-editor-background');
-            expect(distCss).toContain('--vscode-toolbar-background');
+            // Toolbar now uses --vscode-editor-background instead of --vscode-toolbar-background
+            expect(distCss).toContain('--vscode-editor-foreground');
         });
 
         it('should have canvas background using VS Code variable', () => {

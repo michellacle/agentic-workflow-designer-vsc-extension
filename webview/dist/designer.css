@@ -68,22 +68,22 @@ body {
 
 .status-badge.running {
     background: var(--vscode-notificationsInfoIcon-foreground, #1976d2);
-    color: var(--vscode-editor-background, #e3f2fd);
+    color: var(--vscode-editor-foreground, #e3f2fd);
 }
 
 .status-badge.completed {
     background: var(--vscode-notificationsSuccessIcon-foreground, #388e3c);
-    color: var(--vscode-editor-background, #e8f5e9);
+    color: var(--vscode-editor-foreground, #e8f5e9);
 }
 
 .status-badge.failed {
     background: var(--vscode-notificationsErrorIcon-foreground, #d32f2f);
-    color: var(--vscode-editor-background, #ffebee);
+    color: var(--vscode-editor-foreground, #ffebee);
 }
 
 .status-badge.paused {
     background: var(--vscode-notificationsWarningIcon-foreground, #f57f17);
-    color: var(--vscode-editor-background, #fff8e1);
+    color: var(--vscode-editor-foreground, #fff8e1);
 }
 
 /* Main Container */
