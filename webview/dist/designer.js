@@ -76,9 +76,41 @@
         paused: '#FFC107',
         skipped: '#BDBDBD'
     };
+    // ===== Theme Colors (read from VS Code CSS variables) =====
+    let themeColors = {};
+    function resolveThemeColors() {
+        const styles = getComputedStyle(document.body);
+        const get = (name) => styles.getPropertyValue(name).trim() || '';
+        themeColors = {
+            editorBackground: get('--vscode-editor-background') || '#1e1e1e',
+            sideBarBackground: get('--vscode-sideBar-background') || '#252526',
+            foreground: get('--vscode-foreground') || '#cccccc',
+            descriptionForeground: get('--vscode-descriptionForeground') || '#858585',
+            inputBackground: get('--vscode-input-background') || '#3c3c3c',
+            inputForeground: get('--vscode-input-foreground') || '#cccccc',
+            inputBorder: get('--vscode-input-border') || '#3c3c3c',
+            focusBorder: get('--vscode-focusBorder') || '#007fd4',
+            listHoverBackground: get('--vscode-list-hoverBackground') || '#2a2d2e',
+            listActiveSelectionBackground: get('--vscode-list-activeSelectionBackground') || '#094771',
+            buttonBackground: get('--vscode-button-background') || '#0e639c',
+            buttonForeground: get('--vscode-button-foreground') || '#ffffff',
+            buttonHoverBackground: get('--vscode-button-hoverBackground') || '#1177bb',
+            buttonSecondaryBackground: get('--vscode-button-secondaryBackground') || '#3a3d41',
+            buttonSecondaryForeground: get('--vscode-button-secondaryForeground') || '#cccccc',
+            toolbarBackground: get('--vscode-toolbar-background') || '#2c2c2c',
+            panelBorder: get('--vscode-panel-border') || '#505050',
+            scrollbarSliderBackground: get('--vscode-scrollbarSlider-background') || '#424242',
+            scrollbarSliderHoverBackground: get('--vscode-scrollbarSlider-hoverBackground') || '#525252',
+        };
+    }
+    function getThemeColor(name) {
+        return themeColors[name] || '#cccccc';
+    }
     // ===== Initialization =====
     function init() {
         console.log('[Designer] init() called');
+        // Resolve VS Code theme colors
+        resolveThemeColors();
         window.addEventListener('resize', resizeCanvas);
         // Canvas events
         canvas.addEventListener('mousedown', onMouseDown);
@@ -161,7 +193,10 @@
     }
     function drawGrid(w, h) {
         const gridSize = 20;
-        ctx.strokeStyle = '#e0e0e0';
+        const gridColor = getThemeColor('editorBackground').startsWith('#1') || getThemeColor('editorBackground').startsWith('#2')
+            ? 'rgba(255, 255, 255, 0.06)'
+            : 'rgba(0, 0, 0, 0.08)';
+        ctx.strokeStyle = gridColor;
         ctx.lineWidth = 0.5;
         const startX = Math.floor(-state.viewport.x / state.viewport.zoom / gridSize) * gridSize;
         const startY = Math.floor(-state.viewport.y / state.viewport.zoom / gridSize) * gridSize;
@@ -196,7 +231,7 @@
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
         // Node body
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = getThemeColor('inputBackground');
         ctx.strokeStyle = color;
         ctx.lineWidth = state.selectedNodeIds.has(node.id) ? 3 : 2;
         roundRect(ctx, x, y, w, h, 8);
@@ -225,7 +260,7 @@
             ctx.textAlign = 'center';
             const agentName = node.data.agent || 'unknown';
             const model = node.data.model || 'no model';
-            ctx.fillStyle = '#666';
+            ctx.fillStyle = getThemeColor('descriptionForeground');
             ctx.font = '10px system-ui, sans-serif';
             ctx.fillText(agentName.substring(0, 18), x + w / 2, y + h * 0.3 + 28);
             // Model name in a badge-like style
@@ -301,7 +336,7 @@
         const cp1y = sy;
         const cp2x = tx - (tx - sx) * 0.5;
         const cp2y = ty;
-        ctx.strokeStyle = '#999';
+        ctx.strokeStyle = getThemeColor('descriptionForeground');
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
@@ -309,7 +344,7 @@
         ctx.stroke();
         // Arrow head
         const angle = Math.atan2(ty - cp2y, tx - cp2x);
-        ctx.fillStyle = '#999';
+        ctx.fillStyle = getThemeColor('descriptionForeground');
         ctx.beginPath();
         ctx.moveTo(tx, ty);
         ctx.lineTo(tx - 10 * Math.cos(angle - Math.PI / 6), ty - 10 * Math.sin(angle - Math.PI / 6));
@@ -320,7 +355,7 @@
         if (edge.label) {
             const midX = (sx + tx) / 2;
             const midY = (sy + ty) / 2 - 8;
-            ctx.fillStyle = '#666';
+            ctx.fillStyle = getThemeColor('descriptionForeground');
             ctx.font = '10px system-ui';
             ctx.textAlign = 'center';
             ctx.fillText(edge.label, midX, midY);
