@@ -2,11 +2,141 @@
 
 # VS Code Agent Workflow Designer & Runtime
 
-**Version:** 0.1 (Prototype)
+**Version:** 0.2 (Prototype)
 
-**Status:** Draft
+**Status:** Draft — implementation status reconciled 2026-07-19
 
 **Author:** OpenAI
+
+---
+
+# 0. Implementation Status
+
+This checklist was reconciled against the extension source on 2026-07-19. A checked item is implemented and connected to the user-facing workflow. An unchecked item is missing, only partially implemented, or present as unreachable scaffolding.
+
+## Visual Workflow Designer
+
+- [x] Register a custom VS Code editor for `*.workflow.yaml` files.
+- [x] Render Start, End, Agent, Condition, Human Approval, and Delay nodes on a visual canvas.
+- [x] Drag nodes from the toolbox and drop them at snapped canvas coordinates.
+- [x] Select a node by clicking it and select multiple nodes with Shift+Click.
+- [ ] Select one or more nodes by dragging a selection box.
+- [x] Delete selected nodes and their attached edges with Delete or Backspace.
+- [ ] Copy and paste nodes and their connections.
+- [x] Undo and redo workflow edits with a bounded in-memory history.
+- [x] Pan the canvas, zoom with the mouse wheel, display a grid, and snap nodes to the grid.
+- [x] Create connections by dragging between ports with a rubber-band preview.
+- [x] Reject self-connections, duplicate connections, connections into Start, and connections out of End.
+- [ ] Select and delete an individual connection.
+- [ ] Edit a connection label after creating it.
+- [ ] Configure or apply connection priority.
+- [x] Enforce at most one Start node in the toolbox and validate that exactly one Start exists.
+- [x] Allow multiple End nodes and warn when no End node exists.
+
+## Node Configuration
+
+- [x] Edit Start and End labels.
+- [x] Edit an Agent node's agent name/path, model hint, prompt, timeout, and retry count.
+- [ ] Choose an Agent node's agent file using a file browser or discovered-agent picker.
+- [ ] Edit the documented node description fields in the properties panel.
+- [x] Edit a Condition node's expression.
+- [x] Edit a Human Approval node's prompt message.
+- [x] Edit a Delay node's duration.
+- [ ] Configure state read/write mappings in the properties panel.
+- [x] Persist supported node properties when saving and loading YAML.
+
+## Workflow Files and Validation
+
+- [x] Serialize the visual workflow to YAML and deserialize YAML back into the visual model.
+- [x] Save with the designer Save button or `Ctrl+S` and load when the file is opened.
+- [x] Support VS Code custom-document save-as, revert, and backup operations.
+- [x] Validate duplicate node IDs, Start/End presence, edge references, self-connections, duplicate edges, orphan nodes, required Agent/Condition data, and Condition output count.
+- [x] Show validation results through VS Code notifications.
+- [ ] Publish validation errors to the VS Code Problems panel or display them inline on the graph.
+- [ ] Provide the documented **Generate Configuration** toolbar action as a distinct command.
+- [ ] Support configurable automatic saving after edits.
+
+## Workflow Runtime and State
+
+- [x] Load, validate, and execute a sequential Start → Agent/Delay → End workflow locally in VS Code.
+- [x] Track Waiting, Running, Completed, Failed, and Paused node records in memory.
+- [x] Maintain a global in-memory state bag and pass its current values to Agent nodes.
+- [x] Store every successful Agent result under `<node-id>_output` and `<node-id>_success` state keys.
+- [x] Apply code-defined Agent `stateWrites` mappings from JSON or raw output to workflow state.
+- [ ] Define initial workflow state in the YAML schema.
+- [ ] Persist an in-progress execution state to disk and restore it after VS Code restarts.
+- [x] Evaluate Condition expressions against state with boolean, numeric, string, comparison, and logical operators.
+- [ ] Follow only the True or False edge selected by a Condition result. The runtime currently evaluates and logs the result but schedules every outgoing edge.
+- [ ] Support merge points without executing the merged node once per incoming branch.
+- [ ] Mark the branch not taken as Skipped.
+
+## Agent Integration
+
+- [x] Discover `.agent.md` files in `.github/agents/`.
+- [x] Parse agent frontmatter and instructions.
+- [x] Invoke a native custom-agent tool when the VS Code provider exposes one.
+- [x] Fall back to direct VS Code Language Model API execution when a native custom-agent tool is unavailable.
+- [x] Capture Agent output and files reported as modified by the direct executor.
+- [x] Enforce Agent timeout and retry settings.
+- [ ] Capture complete tool-usage records and context produced in node execution details.
+
+## Loops and Exit Criteria
+
+- [x] Detect whether a workflow graph contains a cycle through the validator utility API.
+- [ ] Execute cyclic graphs safely with per-loop iteration tracking. The runtime's iteration counter and maximum-loop fields are not connected to graph traversal.
+- [ ] Enforce a configurable maximum iteration count.
+- [ ] Exit a loop on a boolean condition.
+- [ ] Exit a loop on a quality score threshold.
+- [ ] Exit a loop on human approval.
+- [ ] Exit a loop on a wall-clock timeout.
+- [ ] Exit a loop when a budget is exhausted.
+
+## Human Interaction and Execution Controls
+
+- [x] Pause at a Human Approval node and show modal Approve and Reject actions.
+- [x] Store a Human Approval result in workflow state.
+- [ ] Route approval to the True path and rejection to the False path. A rejection currently fails the node and ends that path.
+- [ ] Pause execution at the next node boundary when the Pause control is used. The current control changes status but traversal continues.
+- [ ] Resume a workflow that was actually halted by Pause.
+- [x] Stop scheduling new nodes after a Stop request and interrupt an active Delay node.
+- [ ] Immediately cancel an Agent invocation already in progress when Stop is requested.
+- [ ] Persist a paused execution across VS Code restarts.
+- [ ] Support manual intervention beyond Approve or Reject.
+
+## Live Execution and Debugging
+
+- [x] Provide Run, Pause, Stop, Resume, Save, and Validate toolbar controls.
+- [x] Show overall execution status in the VS Code status bar.
+- [x] Color nodes for Waiting, Running, Completed, Failed, and Paused states.
+- [x] Stream execution messages to a VS Code Output channel and the designer's execution log.
+- [ ] Animate edges to show execution flow.
+- [ ] Open execution details by clicking an executed node. A details panel class exists but is not wired to node selection.
+- [ ] Populate and display all documented details: agent, timing, prompt, context in/out, files modified, tool usage, structured output, logs, and errors.
+- [ ] Expose the execution timeline in the UI and make timeline items open node details. Timeline rendering exists but is not wired to a command or view.
+- [x] Persist up to 50 completed run records in VS Code extension storage.
+- [ ] Provide a UI for viewing previous runs.
+- [ ] Inspect workflow state at any point in an execution rather than only the final saved state.
+- [ ] Export execution logs through a user-facing command. Export formatting exists only as an internal API.
+
+## File-Based Composition
+
+- [x] Keep workflow definitions in version-controllable `*.workflow.yaml` files.
+- [x] List workflow files from `.github/workflows/` in a Workflow Explorer activity-bar view.
+- [x] Create a new starter workflow from the **New Workflow** command.
+- [ ] Compose or nest reusable workflows.
+- [ ] Provide reusable workflow templates or workflow version management.
+
+## Implemented Requirements Discovered During Reconciliation
+
+The following implemented capabilities were not explicit in version 0.1 of this PRD:
+
+- [x] Let each Agent node specify a VS Code language-model ID or vendor/model hint.
+- [x] Provide a **List Available Models** command that writes installed model IDs and vendors to an output channel.
+- [x] Fall back from native custom-agent invocation to a direct, multi-turn Language Model API executor.
+- [x] Give the direct Agent executor workspace tools to create, read, edit, and delete files; list directories; and run shell commands.
+- [x] Automatically expose every successful Agent result and success flag to downstream nodes through workflow state.
+- [x] Provide a Workflow Explorer activity-bar view for opening `.github/workflows/*.workflow.yaml` files.
+- [x] Integrate workflow documents with VS Code backup, revert, and save-as lifecycle operations.
 
 ---
 

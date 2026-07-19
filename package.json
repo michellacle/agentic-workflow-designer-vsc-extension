@@ -39,6 +39,14 @@
         }
       },
       {
+        "command": "workflowDesigner.addWorkflow",
+        "title": "Add Workflow",
+        "icon": {
+          "light": "resources/light/add.svg",
+          "dark": "resources/dark/add.svg"
+        }
+      },
+      {
         "command": "workflowDesigner.runWorkflow",
         "title": "▶ Run Workflow",
         "icon": {
@@ -123,6 +131,13 @@
           "when": "customEditorId == 'workflowDesigner.editor'",
           "group": "navigation"
         }
+      ],
+      "view/title": [
+        {
+          "command": "workflowDesigner.addWorkflow",
+          "when": "view == workflowExplorer.list",
+          "group": "navigation"
+        }
       ]
     },
     "viewsContainers": {
@@ -164,6 +179,8 @@
     "typescript": "^5.6.0"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "jest-environment-jsdom": "^30.4.1",
+    "js-yaml": "^4.1.0",
+    "jsdom": "^29.1.1"
   }
 }

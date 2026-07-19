@@ -15,4 +15,6 @@ You are an implementation agent. Given a development plan or task description, i
 
 ## Output Format
 
-List all files created or modified with a brief description of changes.
+Output a summary of changes made.
+
+1. git commit your changes with a detailed commit log described what you did and why

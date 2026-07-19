@@ -1,0 +1,26 @@
+name: acceptance-testing
+nodes:
+  - id: start
+    type: start
+    position:
+      x: 100
+      'y': 100
+  - id: end
+    type: end
+    position:
+      x: 100
+      'y': 300
+  - id: agent_1
+    type: agent
+    position:
+      x: 250
+      'y': 190
+    data:
+      agent: ''
+      prompt: ''
+      timeout: 120
+      retries: 0
+edges:
+  - source: start
+    target: end
+description: A new workflow

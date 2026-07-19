@@ -4,6 +4,7 @@ import { WorkflowRuntime } from './runtime/workflowRuntime';
 import { WorkflowExplorerProvider } from './panels/workflowExplorer';
 
 let runtime: WorkflowRuntime | undefined;
+let explorerProvider: WorkflowExplorerProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Agent Workflow Designer extension is now active!');
@@ -26,7 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
     designerProvider.setRuntime(runtime);
 
     // Register workflow explorer
-    const explorerProvider = new WorkflowExplorerProvider(context);
+    explorerProvider = new WorkflowExplorerProvider(context);
     context.subscriptions.push(
         vscode.window.createTreeView('workflowExplorer.list', { treeDataProvider: explorerProvider })
     );
@@ -43,6 +44,49 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.commands.executeCommand('vscode.open', uri);
                 }
             });
+        }),
+        vscode.commands.registerCommand('workflowDesigner.addWorkflow', async () => {
+            const name = await vscode.window.showInputBox({
+                prompt: 'Enter a name for the new workflow',
+                placeHolder: 'my-workflow',
+                validateInput: value => {
+                    if (!value || !value.trim()) return 'Workflow name is required';
+                    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(value)) return 'Use only letters, numbers, hyphens, and underscores (start with a letter or number)';
+                    return null;
+                }
+            });
+            if (!name) return;
+
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder open. Open a folder first.');
+                return;
+            }
+
+            const folder = workspaceFolders[0];
+            const workflowsPath = vscode.Uri.joinPath(folder.uri, '.github', 'workflows');
+            const filePath = `${name.trim()}.workflow.yaml`;
+            const fileUri = vscode.Uri.joinPath(workflowsPath, filePath);
+
+            // Ensure .github/workflows directory exists
+            try {
+                await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, '.github'));
+                await vscode.workspace.fs.createDirectory(workflowsPath);
+            } catch {
+                // Directory may already exist
+            }
+
+            // Create the workflow file
+            const yamlContent = generateEmptyWorkflowYaml(name.trim());
+            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(yamlContent));
+
+            // Refresh the explorer tree so the new workflow appears
+            if (explorerProvider) {
+                explorerProvider.refresh();
+            }
+
+            // Open in the workflow designer (custom editor)
+            await vscode.commands.executeCommand('vscode.openWith', fileUri, 'workflowDesigner.editor');
         }),
         vscode.commands.registerCommand('workflowDesigner.runWorkflow', () => {
             if (runtime) runtime.runCurrentWorkflow();
@@ -83,8 +127,8 @@ export function activate(context: vscode.ExtensionContext) {
     );
 }
 
-function generateEmptyWorkflowYaml(): string {
-    return `name: new-workflow
+function generateEmptyWorkflowYaml(name: string = 'new-workflow'): string {
+    return `name: ${name}
 description: A new workflow
 nodes:
   - id: start

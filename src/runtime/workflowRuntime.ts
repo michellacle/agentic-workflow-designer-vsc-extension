@@ -273,15 +273,30 @@ export class WorkflowRuntime implements vscode.Disposable {
                 { ...this._stateManager.state },
                 data.timeout || 120,
                 data.model,
-                record
+                record,
+                (msg: string) => this.log(`     ${msg}`),
+                (msg: string) => this.updateAgentProgress(msg)
             );
 
             if (result.success) {
+                // Clear progress indicator - terminate the progress line and restore status bar
+                this._outputChannel.appendLine(''); // newline to terminate progress line
+                this.updateStatusBar(ExecutionStatus.Running);
+
+                // Log file modifications
+                if (result.filesModified && result.filesModified.length > 0) {
+                    this.log(`     → Files modified: ${result.filesModified.join(', ')}`);
+                }
+
                 // Log the agent output so the user can see it
                 const outputPreview = result.output.length > 500
                     ? result.output.substring(0, 500) + '...\n     (output truncated, see Output panel for full response)'
                     : result.output;
                 this.log(`     → Agent output:\n${outputPreview.split('\n').join('\n')}`);
+
+                // ALWAYS store agent output in state so downstream agents can access it
+                this._stateManager.set(`${node.id}_output`, result.output);
+                this._stateManager.set(`${node.id}_success`, true);
 
                 // Write state outputs if configured
                 if (data.stateWrites) {
@@ -297,6 +312,8 @@ export class WorkflowRuntime implements vscode.Disposable {
 
             lastError = result.output;
             this._stateManager.addLog(node.id, `Attempt ${attempt + 1} failed: ${lastError}`);
+            // Terminate the progress line before logging the error
+            this._outputChannel.appendLine('');
             this.log(`     ✗ Agent failed (attempt ${attempt + 1}): ${lastError}`);
         }
 
@@ -464,6 +481,14 @@ export class WorkflowRuntime implements vscode.Disposable {
     private log(message: string): void {
         this._outputChannel.appendLine(message);
         this._onDidLogMessage.fire(message);
+    }
+
+    private updateAgentProgress(message: string): void {
+        // Update status bar with progress text (keeps spinning icon)
+        this._statusBarItem.text = `$$(sync~spin) ${message}`;
+        this._statusBarItem.show();
+        // Show as a single-line progress in output using \r to overwrite in place
+        this._outputChannel.append(`\r     ⠋ ${message.padEnd(80)}`);
     }
 
     private updateStatusBar(status: ExecutionStatus): void {

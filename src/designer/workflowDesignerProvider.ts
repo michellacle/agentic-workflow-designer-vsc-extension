@@ -73,9 +73,11 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
         this.webviews.set(document.uri.toString(), webviewPanel.webview);
 
         // Send initial workflow data
+        const agentFiles = await this.getAgentFiles();
         this.postMessage(webviewPanel.webview, {
             type: 'init',
-            workflow: document.workflow
+            workflow: document.workflow,
+            agentFiles: agentFiles
         });
 
         // Set current workflow on runtime
@@ -236,6 +238,22 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
 
     private postMessage(webview: vscode.Webview, message: any) {
         webview.postMessage(message);
+    }
+
+    private async getAgentFiles(): Promise<string[]> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+        const agentsPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.github', 'agents');
+        try {
+            const files = await vscode.workspace.fs.readDirectory(agentsPath);
+            return files
+                .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.agent.md'))
+                .map(([name]) => name.replace('.agent.md', ''));
+        } catch {
+            return [];
+        }
     }
 }
 

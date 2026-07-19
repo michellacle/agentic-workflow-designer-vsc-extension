@@ -25,7 +25,8 @@
         nodeCounter: 0,
         executionStatus: null,
         history: [],
-        historyIndex: -1
+        historyIndex: -1,
+        agentFiles: [] as string[]
     };
 
     // ===== VS Code API =====
@@ -794,7 +795,7 @@
 
         let html = `<div class="property-section">
             <label>Node ID</label>
-            <input type="text" value="${node.id}" readonly class="property-input readonly">
+            <input type="text" value="${escapeHtml(node.id)}" readonly class="property-input readonly">
         </div>`;
 
         switch (node.type) {
@@ -803,7 +804,7 @@
                 html += propertyField('Label', 'text', node.data.label || '');
                 break;
             case 'agent':
-                html += propertyField('Agent File', 'text', node.data.agent || '', 'e.g., planner');
+                html += propertySelectField('Agent File', node.data.agent || '', state.agentFiles);
                 html += propertyField('Model', 'text', node.data.model || '', 'e.g., qwen3.6-27b');
                 html += propertyField('Prompt', 'textarea', node.data.prompt || '');
                 html += propertyField('Timeout (sec)', 'number', node.data.timeout || 120);
@@ -824,7 +825,7 @@
         content.innerHTML = html;
 
         // Bind events
-        content.querySelectorAll('input, textarea').forEach(input => {
+        content.querySelectorAll('input, textarea, select').forEach(input => {
             input.addEventListener('change', (e) => {
                 const target = e.target as HTMLElement;
                 const label = target.closest('.property-section')!.querySelector('label')!.textContent;
@@ -849,6 +850,21 @@
         return `<div class="property-section">
             <label>${escLabel}</label>
             ${inputHtml}
+        </div>`;
+    }
+
+    function propertySelectField(label, value, options) {
+        const escLabel = escapeHtml(label);
+        const escValue = escapeHtml(value);
+        let optionsHtml = '<option value="">Select...</option>';
+        for (const opt of options) {
+            const escOpt = escapeHtml(opt);
+            const selected = opt === value ? 'selected' : '';
+            optionsHtml += `<option value="${escOpt}" ${selected}>${escOpt}</option>`;
+        }
+        return `<div class="property-section">
+            <label>${escLabel}</label>
+            <select class="property-input">${optionsHtml}</select>
         </div>`;
     }
 
@@ -935,6 +951,7 @@
         switch (msg.type) {
             case 'init':
                 state.workflow = msg.workflow;
+                state.agentFiles = msg.agentFiles || [];
                 // Initialize node counter
                 for (const node of state.workflow.nodes) {
                     const match = node.id.match(/_(\d+)$/);

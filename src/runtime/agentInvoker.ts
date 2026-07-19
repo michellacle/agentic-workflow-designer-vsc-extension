@@ -4,11 +4,13 @@ import * as path from 'path';
 import {
     AgentNodeData, NodeExecutionRecord, NodeStatus
 } from '../models/workflow';
+import { AgentExecutor } from './agentExecutor';
 
 /**
- * Invokes VS Code custom agents
+ * Invokes VS Code custom agents using the platform's agent_runSubagent tool
  */
 export class AgentInvoker {
+    private nativeSubagentToolRequiresChatContext = false;
 
     constructor(private readonly context: vscode.ExtensionContext) { }
 
@@ -56,7 +58,7 @@ export class AgentInvoker {
     }
 
     /**
-     * Invoke an agent with the given prompt and context
+     * Invoke an agent with the given prompt and context using vscode.lm.invokeTool
      */
     async invokeAgent(
         agentPath: string,
@@ -64,25 +66,64 @@ export class AgentInvoker {
         context: Record<string, unknown>,
         timeout: number = 120,
         modelHint?: string,
-        record?: NodeExecutionRecord
+        record?: NodeExecutionRecord,
+        onLog?: (message: string) => void,
+        onProgress?: (message: string) => void
     ): Promise<{ success: boolean; output: string; filesModified?: string[] }> {
         const startTime = Date.now();
 
         try {
             // Read agent configuration
             const agentConfig = await this.parseAgentFile(agentPath);
+            const agentName = agentConfig.name;
 
             if (record) {
                 record.prompt = prompt;
                 record.contextIn = context;
-                record.logs?.push(`Invoking agent: ${agentConfig.name}`);
+                record.logs?.push(`Invoking agent: ${agentName}`);
             }
 
-            // Build the full prompt with agent instructions + user prompt + context
-            const fullPrompt = this.buildPrompt(agentConfig.instructions, prompt, context);
+            // Prefer VS Code's native custom-agent tool when the active chat provider
+            // exposes it. Providers that only implement the Language Model API do not
+            // register this tool, so use the local agent loop in that case.
+            const subagentTool = this.nativeSubagentToolRequiresChatContext
+                ? undefined
+                : this.findSubagentTool();
+            let result = subagentTool
+                ? await this.executeAgentViaTool(
+                    subagentTool,
+                    agentName,
+                    this.buildPrompt(agentConfig.instructions, prompt, context),
+                    modelHint,
+                    timeout,
+                    onLog,
+                    onProgress
+                )
+                : await this.executeAgentDirect(
+                    agentPath,
+                    agentConfig.instructions,
+                    prompt,
+                    context,
+                    modelHint,
+                    timeout,
+                    onLog,
+                    onProgress
+                );
 
-            // Invoke the agent using VS Code's chat/terminal interface
-            const result = await this.executeAgent(agentPath, fullPrompt, timeout, modelHint);
+            if (subagentTool && !result.success && this.requiresToolInvocationToken(result.output)) {
+                this.nativeSubagentToolRequiresChatContext = true;
+                onLog?.(`[AgentInvoker] ${subagentTool.name} requires a chat invocation token; using the direct executor`);
+                result = await this.executeAgentDirect(
+                    agentPath,
+                    agentConfig.instructions,
+                    prompt,
+                    context,
+                    modelHint,
+                    timeout,
+                    onLog,
+                    onProgress
+                );
+            }
 
             if (record) {
                 record.structuredOutput = result.output;
@@ -102,13 +143,18 @@ export class AgentInvoker {
     }
 
     /**
-     * Execute the agent by sending its instructions + prompt to VS Code's Language Model API
+     * Execute the agent using the native custom-agent tool.
+     * This delegates to VS Code's built-in agent orchestration system, which handles
+     * tool access, file operations, and model selection automatically.
      */
-    private async executeAgent(
-        _agentPath: string,
+    private async executeAgentViaTool(
+        subagentTool: vscode.LanguageModelToolInformation,
+        agentName: string,
         fullPrompt: string,
-        timeout: number,
-        modelHint?: string
+        modelHint?: string,
+        timeout: number = 120,
+        onLog?: (message: string) => void,
+        onProgress?: (message: string) => void
     ): Promise<{ success: boolean; output: string; filesModified?: string[] }> {
         const tokenSource = new vscode.CancellationTokenSource();
         const timeoutHandle = setTimeout(() => {
@@ -116,99 +162,73 @@ export class AgentInvoker {
         }, timeout * 1000);
 
         try {
-            let languageModelChat: vscode.LanguageModelChat | null = null;
-
-            // Always fetch all available models first
-            const allModels = await vscode.lm.selectChatModels();
-            console.log(`[AgentInvoker] Available models: ${allModels.map(m => `${m.id} (${m.vendor})`).join(', ') || 'none'}`);
-
+            console.log(`[AgentInvoker] Found ${subagentTool.name} tool, invoking agent: ${agentName}`);
             if (modelHint) {
                 console.log(`[AgentInvoker] Model hint: "${modelHint}"`);
-                const slashIdx = modelHint.indexOf('/');
-                if (slashIdx >= 0) {
-                    // Format: "vendor/model"
-                    const vendor = modelHint.substring(0, slashIdx);
-                    const modelPart = modelHint.substring(slashIdx + 1);
-                    console.log(`[AgentInvoker] Searching vendor="${vendor}" for model containing "${modelPart}"`);
-                    const vendorModels = allModels.filter(m => m.vendor.toLowerCase() === vendor.toLowerCase());
-                    const match = vendorModels.find(m => m.id.toLowerCase().includes(modelPart.toLowerCase()));
-                    if (match) {
-                        languageModelChat = match;
-                    } else {
-                        // Fallback: search all models for the model part
-                        const globalMatch = allModels.find(m => m.id.toLowerCase().includes(modelPart.toLowerCase()));
-                        if (globalMatch) {
-                            languageModelChat = globalMatch;
-                        }
-                    }
-                } else {
-                    // Model name — search all models by substring match
-                    console.log(`[AgentInvoker] Searching all models for "${modelHint}"`);
-                    const match = allModels.find(m => m.id.toLowerCase().includes(modelHint.toLowerCase()));
-                    if (match) {
-                        languageModelChat = match;
-                    } else {
-                        // Try matching against vendor as last resort
-                        const vendorMatch = allModels.find(m => m.vendor.toLowerCase().includes(modelHint.toLowerCase()));
-                        if (vendorMatch) {
-                            languageModelChat = vendorMatch;
-                        }
-                    }
-                }
-            } else {
-                // No model specified — require it
-                clearTimeout(timeoutHandle);
-                return {
-                    success: false,
-                    output: 'No model specified. Add a "model" field to the agent node (e.g. model: qwen3.6-27b, model: anthropic/claude-sonnet-4-20250514).',
-                    filesModified: []
-                };
             }
 
-            if (!languageModelChat) {
-                clearTimeout(timeoutHandle);
-                const available = allModels.map(m => `  - ${m.id} (${m.vendor})`).join('\n');
-                return {
-                    success: false,
-                    output: `Model "${modelHint}" not found.\nAvailable models:\n${available}`,
-                    filesModified: []
-                };
+            onLog?.(`[AgentInvoker] Invoking ${subagentTool.name} for "${agentName}"`);
+            onProgress?.(`Starting agent ${agentName}...`);
+
+            // Build tool input matching the agent_runSubagent schema
+            const toolInput: Record<string, unknown> = {
+                agent: agentName,
+                prompt: fullPrompt,
+            };
+
+            // Add model hint if provided
+            if (modelHint) {
+                toolInput.model = modelHint;
             }
 
-            console.log(`[AgentInvoker] Selected model: ${languageModelChat.id} (vendor: ${languageModelChat.vendor})`);
+            // Add description for better UX
+            toolInput.description = `Workflow agent: ${agentName}`;
 
-            // Send the prompt to the model
-            console.log(`[AgentInvoker] Sending request to LLM (${fullPrompt.length} chars)...`);
-            const response = await languageModelChat.sendRequest(
-                [vscode.LanguageModelChatMessage.User(fullPrompt)],
-                {},
+            console.log(`[AgentInvoker] Tool input: ${JSON.stringify(toolInput, null, 2)}`);
+
+            // Invoke the tool via VS Code's LM API
+            const toolResult = await vscode.lm.invokeTool(
+                subagentTool.name,
+                {
+                    toolInvocationToken: undefined, // Not in chat context
+                    input: toolInput
+                },
                 tokenSource.token
             );
-            console.log('[AgentInvoker] Response received, collecting fragments...');
 
-            // Collect the streamed response
+            // Extract text content from the tool result
             let output = '';
-            for await (const fragment of response.text) {
-                output += fragment;
+            for (const part of toolResult.content) {
+                if (part instanceof vscode.LanguageModelTextPart) {
+                    output += part.value;
+                }
             }
 
-            console.log(`[AgentInvoker] LLM response collected (${output.length} chars)`);
+            console.log(`[AgentInvoker] Agent completed, output length: ${output.length}`);
             clearTimeout(timeoutHandle);
             return {
                 success: true,
                 output: output.trim(),
-                filesModified: []
+                filesModified: [] // The agent handles file operations internally
             };
         } catch (error) {
             clearTimeout(timeoutHandle);
-            // Log full error details for debugging
+
+            // Handle cancellation
+            if (error instanceof Error && error.message.includes('cancel')) {
+                console.log('[AgentInvoker] Agent execution cancelled');
+                return {
+                    success: false,
+                    output: 'Agent execution cancelled',
+                    filesModified: []
+                };
+            }
+
+            // Handle language model errors
             if (error instanceof vscode.LanguageModelError) {
                 console.error('[AgentInvoker] LanguageModelError:', {
                     code: error.code,
-                    message: error.message,
-                    cause: error.cause,
-                    name: error.name,
-                    stack: error.stack
+                    message: error.message
                 });
                 return {
                     success: false,
@@ -216,6 +236,7 @@ export class AgentInvoker {
                     filesModified: []
                 };
             }
+
             console.error('[AgentInvoker] Unexpected error:', error);
             return {
                 success: false,
@@ -225,6 +246,88 @@ export class AgentInvoker {
         } finally {
             tokenSource.dispose();
         }
+    }
+
+    /**
+     * Locate the generic custom-agent tool. execution_subagent, search_subagent,
+     * and explore_subagent are specialized helpers and cannot run an .agent.md file.
+     */
+    private findSubagentTool(): vscode.LanguageModelToolInformation | undefined {
+        const supportedNames = new Set([
+            'agent_runSubagent',
+            'agent/runSubagent',
+            'runSubagent'
+        ]);
+        return vscode.lm.tools.find(tool => supportedNames.has(tool.name));
+    }
+
+    private requiresToolInvocationToken(output: string): boolean {
+        const normalizedOutput = output.toLowerCase();
+        return normalizedOutput.includes('toolinvocationtoken') ||
+            normalizedOutput.includes('tool invocation token');
+    }
+
+    /**
+     * Run the agent through the public Language Model API when the active provider
+     * does not expose VS Code's generic custom-agent tool.
+     */
+    private async executeAgentDirect(
+        agentPath: string,
+        instructions: string,
+        prompt: string,
+        context: Record<string, unknown>,
+        modelHint: string | undefined,
+        timeout: number,
+        onLog?: (message: string) => void,
+        onProgress?: (message: string) => void
+    ): Promise<{ success: boolean; output: string; filesModified?: string[] }> {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(agentPath))
+            ?? vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            return { success: false, output: 'No workspace folder found.', filesModified: [] };
+        }
+
+        const models = await vscode.lm.selectChatModels();
+        const model = this.selectModel(models, modelHint);
+        if (!model) {
+            const available = models.map(candidate => `  - ${candidate.id} (${candidate.vendor})`).join('\n');
+            const reason = modelHint
+                ? `Model "${modelHint}" not found.`
+                : 'No model specified for this agent node.';
+            return {
+                success: false,
+                output: `${reason}\nAvailable models:\n${available || '  - none'}`,
+                filesModified: []
+            };
+        }
+
+        onLog?.(`[AgentInvoker] Using direct model ${model.id} (${model.vendor})`);
+        const executor = new AgentExecutor(workspaceFolder.uri.fsPath, onLog, onProgress);
+        return executor.execute(instructions, prompt, context, model, timeout);
+    }
+
+    private selectModel(
+        models: readonly vscode.LanguageModelChat[],
+        modelHint?: string
+    ): vscode.LanguageModelChat | undefined {
+        if (!modelHint) {
+            return undefined;
+        }
+
+        const normalizedHint = modelHint.toLowerCase();
+        const slashIndex = normalizedHint.indexOf('/');
+        if (slashIndex >= 0) {
+            const vendor = normalizedHint.substring(0, slashIndex);
+            const modelName = normalizedHint.substring(slashIndex + 1);
+            return models.find(model =>
+                model.vendor.toLowerCase() === vendor &&
+                model.id.toLowerCase().includes(modelName)
+            ) ?? models.find(model => model.id.toLowerCase().includes(modelName));
+        }
+
+        return models.find(model => model.id.toLowerCase() === normalizedHint)
+            ?? models.find(model => model.id.toLowerCase().includes(normalizedHint))
+            ?? models.find(model => model.vendor.toLowerCase().includes(normalizedHint));
     }
 
     /**

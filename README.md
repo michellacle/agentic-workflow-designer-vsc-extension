@@ -25,6 +25,37 @@ A Visual Studio Code extension that allows developers to visually design, execut
 | **Human Approval** | Pauses execution for user approval/rejection |
 | **Delay** | Waits a specified duration before continuing |
 
+## Installation
+
+### Prerequisites
+
+- **Node.js** ≥ 18
+- **npm** ≥ 9
+- **VS Code** (stable or Insiders)
+
+### Install from Source
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Full build & install (one command)
+rm -rf out && npm run compile && npm run build-webview && rm -f *.vsix && npx vsce package && code --install-extension vscode-workflow-designer-0.1.0.vsix
+```
+
+After installing, **reload the VS Code window**:
+- `Ctrl+Shift+P` → "Developer: Reload Window" → Enter
+
+### Build Steps (Manual)
+
+| Step | Command | Output |
+|------|---------|--------|
+| Clean | `rm -rf out` | Removes old build artifacts |
+| Compile | `npm run compile` | `src/` → `out/` |
+| Build webview | `npm run build-webview` | `webview/src/designer.ts` → `webview/dist/designer.js` |
+| Package | `npx vsce package` | `vscode-workflow-designer-0.1.0.vsix` |
+| Install | `code --install-extension *.vsix` | Installs extension in VS Code |
+
 ## Project Structure
 
 ```
@@ -42,23 +73,8 @@ A Visual Studio Code extension that allows developers to visually design, execut
 
 ## Quick Start
 
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Build
-
-```bash
-npm run compile
-npm run build-webview
-```
-
-### 3. Run in VS Code
-
 1. Open this folder in VS Code
-2. Press `F5` to launch the Extension Development Host
+2. Follow the **Installation** steps above
 3. Create a new workflow: `Ctrl+Shift+P` → "New Workflow"
 4. Or open an existing `.workflow.yaml` file
 
@@ -185,15 +201,24 @@ Workflows maintain a global state that nodes can read and write:
 # Install dependencies
 npm install
 
-# Watch for changes
+# Full build & install
+rm -rf out && npm run compile && npm run build-webview && npx vsce package && code --install-extension *.vsix
+
+# Watch for TypeScript changes (extension code only)
 npm run watch
 
-# Build webview
+# Rebuild webview after changing webview/src/ files
 npm run build-webview
+
+# Test webview in browser (no VS Code needed)
+npm run build-webview
+# Then open webview/test.html in your browser
 
 # Lint
 npm run lint
 ```
+
+> **Note:** After any build & install, always reload the VS Code window (`Ctrl+Shift+P` → "Developer: Reload Window").
 
 ## Architecture
 

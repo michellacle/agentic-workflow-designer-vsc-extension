@@ -10,21 +10,21 @@ nodes:
   - id: agent_2
     type: agent
     position:
-      x: 380
-      'y': -20
+      x: 330
+      'y': 10
     data:
       agent: planner
-      prompt: build a smiple terminal tic tac toe game.
+      prompt: on the node properties component, in the workflow designe window, there is an agent_file text box. This should be a dropdown sourced from the .github/agents folder. Go ahead and build that. You may have already implemented this work in that case just double check for correctness and identify areas of small improvements.
       model: qwen3.6-27b
       timeout: 300
       retries: 0
   - id: agent_11
     type: agent
     position:
-      x: 370
-      'y': 120
+      x: 320
+      'y': 140
     data:
-      agent: implementer
+      agent: builder
       prompt: ''
       model: qwen3.6-27b
       timeout: 300
@@ -32,17 +32,54 @@ nodes:
   - id: agent_14
     type: agent
     position:
-      x: 370
-      'y': 250
+      x: 320
+      'y': 270
     data:
       agent: reviewer
       prompt: ''
       model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: agent_15
+    type: agent
+    position:
+      x: 310
+      'y': 400
+    data:
+      agent: tester
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: agent_16
+    type: agent
+    position:
+      x: 270
+      'y': 540
+    data:
+      agent: builder
+      prompt: ''
+      model: qwen3.6-27b
       timeout: 120
       retries: 0
+  - id: end_17
+    type: end
+    position:
+      x: 230
+      'y': 680
+    data:
+      label: End
 edges:
   - source: start_1
     target: agent_2
   - source: agent_2
     target: agent_11
+  - source: agent_11
+    target: agent_14
+  - source: agent_14
+    target: agent_15
+  - source: agent_15
+    target: agent_16
+  - source: agent_16
+    target: end_17
 description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)
