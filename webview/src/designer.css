@@ -52,6 +52,11 @@ body {
     opacity: 0.8;
 }
 
+#toolbar button.active {
+    background: var(--vscode-list-activeSelectionBackground, #094771);
+    box-shadow: inset 0 0 0 1px var(--vscode-focusBorder, #0078d4);
+}
+
 .status-badge {
     margin-left: auto;
     padding: 2px 8px;
@@ -96,6 +101,17 @@ body {
     padding: 8px;
     overflow-y: auto;
     flex-shrink: 0;
+    transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease, opacity 0.25s ease;
+    min-width: 180px;
+}
+
+#toolbox.hidden {
+    width: 0;
+    min-width: 0;
+    padding: 8px 0;
+    overflow: hidden;
+    opacity: 0;
+    border-right: none;
 }
 
 .toolbox-header {
@@ -160,6 +176,17 @@ body {
     padding: 8px;
     overflow-y: auto;
     flex-shrink: 0;
+    transition: width 0.25s ease, min-width 0.25s ease, padding 0.25s ease, opacity 0.25s ease;
+    min-width: 260px;
+}
+
+#properties-panel.hidden {
+    width: 0;
+    min-width: 0;
+    padding: 8px 0;
+    overflow: hidden;
+    opacity: 0;
+    border-left: none;
 }
 
 .properties-header {

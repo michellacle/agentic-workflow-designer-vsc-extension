@@ -178,6 +178,7 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
             <button id="btn-resume" title="Resume Workflow">🔄 Resume</button>
             <button id="btn-save" title="Save Workflow">💾 Save</button>
             <button id="btn-validate" title="Validate Workflow">✓ Validate</button>
+            <button id="btn-edit-mode" title="Toggle Edit Mode (hide panels for full canvas)">⚙ Edit Mode</button>
             <span id="execution-status" class="status-badge"></span>
         </div>
         <div id="main-container">

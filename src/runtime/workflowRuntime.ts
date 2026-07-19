@@ -14,6 +14,18 @@ import { RunHistoryManager, RunRecord } from './runHistory';
 import { validateWorkflow } from '../utils/workflowValidator';
 
 /**
+ * Context from the Copilot Chat request, passed to the workflow so agent
+ * nodes can reference the user's original prompt and any file/selection
+ * references.
+ */
+export interface ChatRequestContext {
+    /** The user's prompt text from the chat message */
+    prompt?: string;
+    /** File URIs, selections, or other references attached to the chat message */
+    references?: readonly vscode.ChatPromptReference[];
+}
+
+/**
  * Main workflow execution engine
  */
 export class WorkflowRuntime implements vscode.Disposable {
@@ -52,10 +64,82 @@ export class WorkflowRuntime implements vscode.Disposable {
     }
 
     /**
+     * Load a workflow directly from a .workflow.yaml file on disk.
+     * Returns true if successfully loaded.
+     */
+    async loadWorkflowFromFile(uri: vscode.Uri): Promise<boolean> {
+        try {
+            const content = await vscode.workspace.fs.readFile(uri);
+            const yamlStr = Buffer.from(content).toString('utf-8');
+            const { yamlToWorkflow } = await import('../utils/yamlSerializer');
+            const workflow = yamlToWorkflow(yamlStr);
+            this._currentWorkflow = workflow;
+            this._currentFileUri = uri;
+            return true;
+        } catch (error) {
+            this.log(`Failed to load workflow from ${uri.fsPath}: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Try to discover and load a workflow file from the active editor or chat references.
+     */
+    async tryLoadWorkflowFromContext(chatContext?: ChatRequestContext): Promise<boolean> {
+        // First check if we already have a workflow
+        if (this._currentWorkflow && this._currentFileUri) {
+            return true;
+        }
+
+        // Try to find a workflow file in chat references
+        if (chatContext?.references) {
+            for (const ref of chatContext.references) {
+                if ('documentUri' in ref) {
+                    const uri = ref.documentUri as vscode.Uri | string;
+                    const uriStr = typeof uri === 'string' ? uri : uri.toString();
+                    if (uriStr.endsWith('.workflow.yaml')) {
+                        const fileUri = typeof uri === 'string' ? vscode.Uri.parse(uri) : uri;
+                        const loaded = await this.loadWorkflowFromFile(fileUri);
+                        if (loaded) return true;
+                    }
+                }
+            }
+        }
+
+        // Try the active text editor (plain YAML view)
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor && activeEditor.document.uri.fsPath.endsWith('.workflow.yaml')) {
+            return await this.loadWorkflowFromFile(activeEditor.document.uri);
+        }
+
+        // Try the active custom editor (visual designer) - check tab groups
+        for (const group of vscode.window.tabGroups.all) {
+            for (const tab of group.tabs) {
+                if (tab.isActive && tab.input instanceof vscode.TabInputCustom && tab.input.uri.fsPath.endsWith('.workflow.yaml')) {
+                    return await this.loadWorkflowFromFile(tab.input.uri);
+                }
+                if (tab.input instanceof vscode.TabInputText && tab.input.uri.fsPath.endsWith('.workflow.yaml')) {
+                    return await this.loadWorkflowFromFile(tab.input.uri);
+                }
+            }
+        }
+
+        // Fallback: try visible text editors
+        for (const editor of vscode.window.visibleTextEditors) {
+            if (editor.document.uri.fsPath.endsWith('.workflow.yaml')) {
+                return await this.loadWorkflowFromFile(editor.document.uri);
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Run the current workflow inside a Copilot Chat participant request.
      */
     async runCurrentWorkflow(
-        executionContext: CopilotSubagentExecutionContext
+        executionContext: CopilotSubagentExecutionContext,
+        chatContext?: ChatRequestContext
     ): Promise<ExecutionStatus | undefined> {
         if (!this._currentWorkflow || !this._currentFileUri) {
             vscode.window.showWarningMessage('No workflow loaded. Open a .workflow.yaml file first.');
@@ -88,7 +172,7 @@ export class WorkflowRuntime implements vscode.Disposable {
         });
 
         try {
-            await this.execute(this._currentWorkflow);
+            await this.execute(this._currentWorkflow, chatContext);
             return this._stateManager.getStatus();
         } finally {
             chatCancellation.dispose();
@@ -107,10 +191,28 @@ export class WorkflowRuntime implements vscode.Disposable {
     /**
      * Execute a workflow
      */
-    private async execute(workflow: Workflow): Promise<void> {
+    private async execute(workflow: Workflow, chatContext?: ChatRequestContext): Promise<void> {
         this._stateManager.initialize();
         this._abortController = new AbortController();
         this.updateStatusBar(ExecutionStatus.Running);
+
+        // Store chat context in workflow state AFTER initialize() clears state
+        if (chatContext) {
+            if (chatContext.prompt) {
+                this._stateManager.set('chatPrompt', chatContext.prompt);
+            }
+            if (chatContext.references && chatContext.references.length > 0) {
+                const refUris = chatContext.references.map(r => {
+                    if ('documentUri' in r) {
+                        return (r.documentUri as vscode.Uri)?.toString() || (r.documentUri as string);
+                    }
+                    return null;
+                }).filter(Boolean);
+                if (refUris.length > 0) {
+                    this._stateManager.set('chatReferences', refUris);
+                }
+            }
+        }
 
         const startNode = workflow.nodes.find(n => n.type === NodeType.Start);
         if (!startNode) {

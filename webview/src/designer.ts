@@ -26,7 +26,8 @@
         executionStatus: null,
         history: [],
         historyIndex: -1,
-        agentFiles: [] as string[]
+        agentFiles: [] as string[],
+        editMode: false,
     };
 
     // ===== VS Code API =====
@@ -770,6 +771,30 @@
         document.getElementById('btn-stop').addEventListener('click', () => notifyStop());
         document.getElementById('btn-resume').addEventListener('click', () => notifyResume());
         document.getElementById('btn-validate').addEventListener('click', () => notifyValidate());
+        document.getElementById('btn-edit-mode').addEventListener('click', () => toggleEditMode());
+    }
+
+    // ===== Edit Mode =====
+    function toggleEditMode() {
+        state.editMode = !state.editMode;
+        const toolbox = document.getElementById('toolbox');
+        const propertiesPanel = document.getElementById('properties-panel');
+        const btn = document.getElementById('btn-edit-mode');
+
+        if (state.editMode) {
+            toolbox.classList.add('hidden');
+            propertiesPanel.classList.add('hidden');
+            btn.classList.add('active');
+            btn.textContent = '⚙ Edit Mode: ON';
+        } else {
+            toolbox.classList.remove('hidden');
+            propertiesPanel.classList.remove('hidden');
+            btn.classList.remove('active');
+            btn.textContent = '⚙ Edit Mode';
+        }
+
+        // Resize canvas after panels slide away
+        setTimeout(() => resizeCanvas(), 250);
     }
 
     // ===== Properties Panel =====

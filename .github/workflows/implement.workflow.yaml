@@ -4,27 +4,16 @@ nodes:
     type: start
     position:
       x: 180
-      'y': -20
+      'y': -10
     data:
       label: Start
-  - id: agent_2
-    type: agent
-    position:
-      x: 330
-      'y': 10
-    data:
-      agent: planner
-      prompt: ''
-      model: qwen3.6-27b
-      timeout: 300
-      retries: 0
   - id: agent_11
     type: agent
     position:
       x: 320
       'y': 140
     data:
-      agent: builder
+      agent: implementer
       prompt: ''
       model: qwen3.6-27b
       timeout: 300
@@ -70,10 +59,6 @@ nodes:
     data:
       label: End
 edges:
-  - source: start_1
-    target: agent_2
-  - source: agent_2
-    target: agent_11
   - source: agent_11
     target: agent_14
   - source: agent_14
@@ -82,4 +67,6 @@ edges:
     target: agent_16
   - source: agent_16
     target: end_17
+  - source: start_1
+    target: agent_11
 description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)

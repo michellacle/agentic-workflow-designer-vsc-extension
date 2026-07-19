@@ -24,6 +24,15 @@ export function registerWorkflowChatParticipant(
             return {};
         }
 
+        // Build chat context from the request
+        const chatContext = {
+            prompt: request.prompt,
+            references: request.references
+        };
+
+        // Auto-discover workflow file if not already loaded by the designer
+        await runtime.tryLoadWorkflowFromContext(chatContext);
+
         if (!runtime.hasCurrentWorkflow()) {
             const message = 'No workflow is loaded. Open a `.workflow.yaml` file in the visual designer and run it again.';
             stream.markdown(message);
@@ -37,6 +46,9 @@ export function registerWorkflowChatParticipant(
             toolInvocationToken: request.toolInvocationToken,
             cancellationToken,
             reportProgress: message => stream.progress(message)
+        }, {
+            prompt: request.prompt,
+            references: request.references
         });
 
         switch (status) {

@@ -32,6 +32,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [ ] Configure or apply connection priority.
 - [x] Enforce at most one Start node in the toolbox and validate that exactly one Start exists.
 - [x] Allow multiple End nodes and warn when no End node exists.
+- [x] Toggle **Edit Mode** via a toolbar button; when enabled, the Components (toolbox) and Properties panels are hidden so the canvas occupies the full available width. Useful for viewing the entire workflow while it runs, especially with the chat window open on the right.
 
 ## Node Configuration
 
