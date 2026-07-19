@@ -1,18 +1,17 @@
 name: test-loop
-description: Workflow with a retry loop - Implement → Test → Pass? → loop back or complete
 nodes:
   - id: start_1
     type: start
     position:
       x: 300
-      y: 20
+      'y': 20
     data:
       label: Start
   - id: agent_2
     type: agent
     position:
       x: 300
-      y: 120
+      'y': 120
     data:
       agent: implementer
       prompt: Implement the task
@@ -22,7 +21,7 @@ nodes:
     type: agent
     position:
       x: 300
-      y: 240
+      'y': 240
     data:
       agent: tester
       prompt: Run tests
@@ -35,30 +34,51 @@ nodes:
     type: condition
     position:
       x: 300
-      y: 360
+      'y': 360
     data:
       expression: state.tests_passed === true
   - id: end_5
     type: end
     position:
       x: 100
-      y: 480
+      'y': 480
     data:
       label: Passed
   - id: delay_6
     type: delay
     position:
       x: 500
-      y: 480
+      'y': 480
     data:
       duration: 2
   - id: end_7
     type: end
     position:
       x: 500
-      y: 580
+      'y': 580
     data:
       label: Failed
+  - id: condition_8
+    type: condition
+    position:
+      x: 30
+      'y': 130
+    data:
+      expression: state.result === true
+  - id: human_approval_9
+    type: human_approval
+    position:
+      x: 70
+      'y': 250
+    data:
+      message: Approve this step?
+  - id: delay_10
+    type: delay
+    position:
+      x: 70
+      'y': 340
+    data:
+      duration: 5
 edges:
   - source: start_1
     target: agent_2
@@ -68,9 +88,9 @@ edges:
     target: condition_4
   - source: condition_4
     target: end_5
-    label: True
+    label: true
   - source: condition_4
     target: delay_6
-    label: False
   - source: delay_6
     target: end_7
+description: Workflow with a retry loop - Implement → Test → Pass? → loop back or complete

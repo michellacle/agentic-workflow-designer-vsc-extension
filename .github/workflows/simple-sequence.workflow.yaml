@@ -14,7 +14,7 @@ nodes:
       'y': 90
     data:
       agent: planner
-      prompt: Create a simple plan
+      prompt: 'Tell me a story about Jesus in 100 words. '
       model: qwen3.6-27b
       timeout: 300
       retries: 0
@@ -32,7 +32,7 @@ nodes:
       'y': 220
     data:
       agent: reviewer
-      prompt: Give a quick feedback, pass, fail, grading on the plan
+      prompt: Review the story and give it a grade between 1 and 10
       model: qwen3.6-27b
       timeout: 120
       retries: 1
