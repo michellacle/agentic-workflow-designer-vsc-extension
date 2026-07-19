@@ -106,6 +106,28 @@
     function getThemeColor(name) {
         return themeColors[name] || '#cccccc';
     }
+    /** Parse a hex color and return its relative luminance (0=black, 1=white). */
+    function parseLuminance(hex) {
+        const cleaned = hex.replace('#', '');
+        if (cleaned.length === 3) {
+            const r = parseInt(cleaned[0] + cleaned[0], 16) / 255;
+            const g = parseInt(cleaned[1] + cleaned[1], 16) / 255;
+            const b = parseInt(cleaned[2] + cleaned[2], 16) / 255;
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        }
+        if (cleaned.length === 6) {
+            const r = parseInt(cleaned.substring(0, 2), 16) / 255;
+            const g = parseInt(cleaned.substring(2, 4), 16) / 255;
+            const b = parseInt(cleaned.substring(4, 6), 16) / 255;
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        }
+        return 1; // default to "light" if unparseable
+    }
+    /** Determine if the current theme is dark based on editor background luminance. */
+    function isDarkTheme() {
+        const bg = getThemeColor('editorBackground');
+        return parseLuminance(bg) < 0.5;
+    }
     // ===== Initialization =====
     function init() {
         console.log('[Designer] init() called');
@@ -193,7 +215,7 @@
     }
     function drawGrid(w, h) {
         const gridSize = 20;
-        const gridColor = getThemeColor('editorBackground').startsWith('#1') || getThemeColor('editorBackground').startsWith('#2')
+        const gridColor = isDarkTheme()
             ? 'rgba(255, 255, 255, 0.06)'
             : 'rgba(0, 0, 0, 0.08)';
         ctx.strokeStyle = gridColor;
@@ -898,6 +920,12 @@
                     }
                 }
                 saveHistory();
+                render();
+                break;
+            case 'themeColor':
+            case 'vscode:theme-color':
+                // VS Code sends this when the user switches themes (dark ↔ light)
+                resolveThemeColors();
                 render();
                 break;
             case 'executionUpdate':
