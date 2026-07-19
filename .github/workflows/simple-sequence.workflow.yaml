@@ -3,44 +3,46 @@ nodes:
   - id: start_1
     type: start
     position:
-      x: 160
-      'y': 50
+      x: 180
+      'y': -20
     data:
       label: Start
   - id: agent_2
     type: agent
     position:
-      x: 370
-      'y': 90
+      x: 380
+      'y': -20
     data:
       agent: planner
-      prompt: 'Tell me a story about Jesus in 100 words. '
+      prompt: build a smiple terminal tic tac toe game.
       model: qwen3.6-27b
       timeout: 300
       retries: 0
-  - id: end_5
-    type: end
-    position:
-      x: 240
-      'y': 340
-    data:
-      label: End
-  - id: agent_10
+  - id: agent_11
     type: agent
     position:
-      x: 350
-      'y': 220
+      x: 370
+      'y': 120
+    data:
+      agent: implementer
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: agent_14
+    type: agent
+    position:
+      x: 370
+      'y': 250
     data:
       agent: reviewer
-      prompt: Review the story and give it a grade between 1 and 10
+      prompt: ''
       model: qwen3.6-27b
       timeout: 120
-      retries: 1
+      retries: 0
 edges:
   - source: start_1
     target: agent_2
   - source: agent_2
-    target: agent_10
-  - source: agent_10
-    target: end_5
+    target: agent_11
 description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)

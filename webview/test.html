@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Designer - Test</title>
+    <link href="dist/designer.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <div id="toolbar">
+            <button id="btn-run" title="Run Workflow">▶ Run</button>
+            <button id="btn-pause" title="Pause Workflow">⏸ Pause</button>
+            <button id="btn-stop" title="Stop Workflow">⏹ Stop</button>
+            <button id="btn-resume" title="Resume Workflow">🔄 Resume</button>
+            <button id="btn-save" title="Save Workflow">💾 Save</button>
+            <button id="btn-validate" title="Validate Workflow">✓ Validate</button>
+            <span id="execution-status" class="status-badge"></span>
+        </div>
+        <div id="main-container">
+            <div id="toolbox">
+                <div class="toolbox-header">Components</div>
+                <div class="toolbox-item" draggable="true" data-type="start">
+                    <span class="icon">⬤</span> Start
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="end">
+                    <span class="icon">⬤</span> End
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="agent">
+                    <span class="icon">🤖</span> Agent
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="condition">
+                    <span class="icon">◇</span> Condition
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="human_approval">
+                    <span class="icon">👤</span> Human Approval
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="delay">
+                    <span class="icon">⏱</span> Delay
+                </div>
+            </div>
+            <div id="canvas-container">
+                <canvas id="canvas"></canvas>
+            </div>
+            <div id="properties-panel">
+                <div class="properties-header">Properties</div>
+                <div id="properties-content">
+                    <p class="empty-state">Select a node to edit properties</p>
+                </div>
+            </div>
+        </div>
+        <div id="execution-panel" class="hidden">
+            <div class="panel-header">
+                <span>Execution Log</span>
+                <button id="btn-clear-log" title="Clear Log">✕</button>
+            </div>
+            <div id="execution-log"></div>
+        </div>
+    </div>
+
+    <!-- Mock VS Code API -->
+    <script>
+        window.acquireVsCodeApi = function() {
+            return {
+                postMessage: function(msg) { console.log('[Mock VS Code] postMessage:', msg); },
+                getState: function() { return null; },
+                setState: function(state) { console.log('[Mock VS Code] setState:', state); }
+            };
+        };
+    </script>
+    <script src="dist/designer.js"></script>
+
+    <!-- Send a test workflow after a short delay -->
+    <script>
+        setTimeout(() => {
+            const testWorkflow = {
+                name: 'test-workflow',
+                nodes: [
+                    { id: 'start_1', type: 'start', position: { x: 140, y: 50 }, data: { label: 'Start' } },
+                    { id: 'agent_2', type: 'agent', position: { x: 380, y: 30 }, data: { agent: 'planner', prompt: 'test prompt', model: 'gpt-4o', timeout: 300, retries: 0 } },
+                    { id: 'agent_3', type: 'agent', position: { x: 350, y: 180 }, data: { agent: 'reviewer', prompt: 'review', model: 'gpt-4o', timeout: 120, retries: 1 } },
+                    { id: 'end_4', type: 'end', position: { x: 430, y: 350 }, data: { label: 'End' } }
+                ],
+                edges: [
+                    { source: 'start_1', target: 'agent_2' },
+                    { source: 'agent_2', target: 'agent_3' },
+                    { source: 'agent_3', target: 'end_4' }
+                ]
+            };
+            window.dispatchEvent(new MessageEvent('message', {
+                data: { type: 'init', workflow: testWorkflow }
+            }));
+            console.log('[Test] Sent init message with test workflow');
+        }, 500);
+    </script>
+</body>
+</html>

@@ -6,6 +6,12 @@
 (function () {
     'use strict';
 
+    // ===== Error Display =====
+    function showError(msg) {
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1e1e1e;color:#f44336;font-family:system-ui;padding:40px;text-align:center;"><div><h2>Workflow Designer Error</h2><p>' + msg + '</p><p style="color:#888;margin-top:16px;font-size:12px;">Check the Developer Tools console for details.</p></div></div>';
+        console.error('Workflow Designer Error:', msg);
+    }
+
     // ===== State =====
     const state = {
         workflow: { name: 'untitled', nodes: [], edges: [] },
@@ -23,12 +29,38 @@
     };
 
     // ===== VS Code API =====
-    const vscode = acquireVsCodeApi();
+    let vscode: any;
+    try {
+        vscode = acquireVsCodeApi();
+    } catch (e: any) {
+        showError('Failed to acquire VS Code API: ' + e.message);
+        return;
+    }
 
     // ===== Canvas Setup =====
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const canvasContainer = document.getElementById('canvas-container');
+    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+    if (!canvas) {
+        showError('Canvas element not found. DOM may not be ready.');
+        return;
+    }
+
+    let ctx: CanvasRenderingContext2D | null;
+    try {
+        ctx = canvas.getContext('2d');
+    } catch (e: any) {
+        showError('Failed to get canvas 2D context: ' + e.message);
+        return;
+    }
+    if (!ctx) {
+        showError('Failed to get canvas 2D context.');
+        return;
+    }
+
+    const canvasContainer = document.getElementById('canvas-container') as HTMLElement;
+    if (!canvasContainer) {
+        showError('Canvas container element not found.');
+        return;
+    }
 
     // ===== Node Configurations =====
     const NODE_CONFIGS = {
@@ -52,7 +84,8 @@
 
     // ===== Initialization =====
     function init() {
-        resizeCanvas();
+        console.log('[Designer] init() called');
+
         window.addEventListener('resize', resizeCanvas);
 
         // Canvas events
@@ -74,18 +107,47 @@
         // VS Code messages
         window.addEventListener('message', onMessage);
 
-        // Initial render
-        render();
+        // Try to size canvas - use multiple strategies for reliability
+        function tryResize() {
+            const rect = canvasContainer.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                resizeCanvas();
+                return true;
+            }
+            return false;
+        }
+
+        // Strategy 1: ResizeObserver (most reliable)
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => {
+                if (tryResize()) ro.disconnect();
+            });
+            ro.observe(canvasContainer);
+        }
+
+        // Strategy 2: requestAnimationFrame (runs after layout)
+        requestAnimationFrame(tryResize);
+
+        // Strategy 3: setTimeout fallback (in case layout is delayed)
+        setTimeout(() => tryResize(), 100);
+        setTimeout(() => tryResize(), 500);
     }
 
     // ===== Canvas Resize =====
     function resizeCanvas() {
         const rect = canvasContainer.getBoundingClientRect();
+        console.log('[Designer] resizeCanvas:', rect.width, 'x', rect.height);
+        if (rect.width === 0 || rect.height === 0) {
+            console.warn('[Designer] Container has zero dimensions, skipping resize');
+            return;
+        }
         canvas.width = rect.width * window.devicePixelRatio;
         canvas.height = rect.height * window.devicePixelRatio;
         canvas.style.width = rect.width + 'px';
         canvas.style.height = rect.height + 'px';
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        // Reset transform before re-applying scale (avoids compounding on resize)
+        ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+        console.log('[Designer] canvas set to', canvas.width, 'x', canvas.height);
         render();
     }
 
@@ -336,8 +398,8 @@
     function onMouseDown(e) {
         const pos = getCanvasPosition(e);
 
-        // Check if clicking on a port (start edge creation)
-        const portHit = hitTestPorts(pos);
+// Check if clicking on an output port (start edge creation)
+            const portHit = hitTestOutputPorts(pos);
         if (portHit) {
             state.creatingEdge = {
                 sourceNodeId: portHit.nodeId,
@@ -419,7 +481,7 @@
 
         if (state.creatingEdge) {
             // Check if we released on a valid input port
-            const portHit = hitTestPorts(pos);
+            const portHit = hitTestInputPorts(pos);
             if (portHit && portHit.nodeId !== state.creatingEdge.sourceNodeId) {
                 const targetNode = state.workflow.nodes.find(n => n.id === portHit.nodeId);
                 const sourceNode = state.workflow.nodes.find(n => n.id === state.creatingEdge.sourceNodeId);
@@ -470,6 +532,12 @@
 
     // ===== Keyboard Events =====
     function onKeyDown(e) {
+        // Don't intercept keys when typing in an input or textarea
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') {
+            return;
+        }
+
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if (state.selectedNodeIds.size > 0) {
                 deleteSelectedNodes();
@@ -569,13 +637,74 @@
         return null;
     }
 
+    function hitTestOutputPorts(pos) {
+        for (const node of state.workflow.nodes) {
+            const config = NODE_CONFIGS[node.type];
+            if (!config) continue;
+
+            const x = node.position.x;
+            const y = node.position.y;
+            const w = config.width;
+            const h = config.height;
+
+            // Condition node special output ports first
+            if (node.type === 'condition') {
+                // True port (top-right)
+                const dx1 = pos.x - (x + w);
+                const dy1 = pos.y - (y + 15);
+                if (dx1 * dx1 + dy1 * dy1 < 64) {
+                    return { nodeId: node.id, port: 'true' };
+                }
+                // False port (bottom-right)
+                const dx2 = pos.x - (x + w);
+                const dy2 = pos.y - (y + h - 15);
+                if (dx2 * dx2 + dy2 * dy2 < 64) {
+                    return { nodeId: node.id, port: 'false' };
+                }
+                continue; // Skip default output port for condition nodes
+            }
+
+            // Default output port (right)
+            if (node.type !== 'end') {
+                const dx = pos.x - (x + w);
+                const dy = pos.y - (y + h / 2);
+                if (dx * dx + dy * dy < 64) {
+                    return { nodeId: node.id, port: 'output' };
+                }
+            }
+        }
+        return null;
+    }
+
+    function hitTestInputPorts(pos) {
+        for (const node of state.workflow.nodes) {
+            const config = NODE_CONFIGS[node.type];
+            if (!config) continue;
+
+            const x = node.position.x;
+            const y = node.position.y;
+            const w = config.width;
+            const h = config.height;
+
+            // Input port (left) — not for start nodes
+            if (node.type !== 'start') {
+                const dx = pos.x - x;
+                const dy = pos.y - (y + h / 2);
+                if (dx * dx + dy * dy < 64) {
+                    return { nodeId: node.id, port: 'input' };
+                }
+            }
+        }
+        return null;
+    }
+
     // ===== Toolbox =====
     function setupToolbox() {
         const items = document.querySelectorAll('.toolbox-item');
         items.forEach(item => {
             item.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('nodeType', item.dataset.type);
-                e.dataTransfer.effectAllowed = 'copy';
+                (e as DragEvent).dataTransfer!.setData('nodeType', (item as HTMLElement).dataset!.type);
+                (e as DragEvent).dataTransfer!.effectAllowed = 'copy';
             });
         });
 
@@ -592,7 +721,7 @@
 
             // Check constraints
             if (nodeType === 'start' && state.workflow.nodes.some(n => n.type === 'start')) {
-                vscode.window.showErrorMessage('Workflow can only have one Start node');
+                vscode.postMessage({ type: 'showError', message: 'Workflow can only have one Start node' });
                 return;
             }
 
@@ -675,6 +804,7 @@
                 break;
             case 'agent':
                 html += propertyField('Agent File', 'text', node.data.agent || '', 'e.g., planner');
+                html += propertyField('Model', 'text', node.data.model || '', 'e.g., qwen3.6-27b');
                 html += propertyField('Prompt', 'textarea', node.data.prompt || '');
                 html += propertyField('Timeout (sec)', 'number', node.data.timeout || 120);
                 html += propertyField('Retries', 'number', node.data.retries || 0);
@@ -696,19 +826,28 @@
         // Bind events
         content.querySelectorAll('input, textarea').forEach(input => {
             input.addEventListener('change', (e) => {
-                const label = e.target.closest('.property-section').querySelector('label').textContent;
-                updateNodeProperty(node, label, e.target.value);
+                const target = e.target as HTMLElement;
+                const label = target.closest('.property-section')!.querySelector('label')!.textContent;
+                updateNodeProperty(node, label, (target as HTMLInputElement).value);
             });
         });
     }
 
-    function propertyField(label, type, value, placeholder) {
+    function escapeHtml(str) {
+        const s = String(str ?? '');
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function propertyField(label, type, value, placeholder?) {
+        const escValue = escapeHtml(value);
+        const escPlaceholder = escapeHtml(placeholder || '');
+        const escLabel = escapeHtml(label);
         const inputHtml = type === 'textarea'
-            ? `<textarea class="property-input" placeholder="${placeholder || ''}">${value}</textarea>`
-            : `<input type="${type}" value="${value}" class="property-input" placeholder="${placeholder || ''}">`;
+            ? `<textarea class="property-input" placeholder="${escPlaceholder}">${escValue}</textarea>`
+            : `<input type="${type}" value="${escValue}" class="property-input" placeholder="${escPlaceholder}">`;
 
         return `<div class="property-section">
-            <label>${label}</label>
+            <label>${escLabel}</label>
             ${inputHtml}
         </div>`;
     }
@@ -717,6 +856,7 @@
         const keyMap = {
             'Label': 'label',
             'Agent File': 'agent',
+            'Model': 'model',
             'Prompt': 'prompt',
             'Timeout (sec)': 'timeout',
             'Retries': 'retries',
@@ -771,7 +911,9 @@
         if (state.historyIndex > 0) {
             state.historyIndex--;
             state.workflow = JSON.parse(state.history[state.historyIndex]);
+            state.selectedNodeIds.clear();
             render();
+            updatePropertiesPanel(null);
             notifyWorkflowUpdate();
         }
     }
@@ -780,7 +922,9 @@
         if (state.historyIndex < state.history.length - 1) {
             state.historyIndex++;
             state.workflow = JSON.parse(state.history[state.historyIndex]);
+            state.selectedNodeIds.clear();
             render();
+            updatePropertiesPanel(null);
             notifyWorkflowUpdate();
         }
     }
@@ -818,10 +962,16 @@
                 break;
             case 'validationResult':
                 if (msg.errors && msg.errors.length > 0) {
-                    vscode.postMessage({ type: 'error', message: msg.errors.map(e => e.message).join('\n') });
+                    vscode.postMessage({ type: 'showError', message: msg.errors.map(e => e.message).join('\n') });
                 } else {
-                    vscode.postMessage({ type: 'info', message: 'Workflow is valid!' });
+                    vscode.postMessage({ type: 'showInfo', message: 'Workflow is valid!' });
                 }
+                break;
+            case 'showError':
+                // No-op: error already shown by extension host
+                break;
+            case 'showInfo':
+                // No-op: info already shown by extension host
                 break;
         }
     }

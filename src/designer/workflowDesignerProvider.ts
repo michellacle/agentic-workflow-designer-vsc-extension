@@ -117,7 +117,11 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                     // Could open details panel
                     break;
                 case 'error':
+                case 'showError':
                     vscode.window.showErrorMessage(`Workflow Designer: ${msg.message}`);
+                    break;
+                case 'showInfo':
+                    vscode.window.showInformationMessage(msg.message);
                     break;
                 case 'validate':
                     // Validate and send results back to webview
