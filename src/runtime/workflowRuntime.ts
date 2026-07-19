@@ -5,7 +5,7 @@ import {
     Workflow, Node, NodeType,
     ExecutionStatus, NodeStatus,
     AgentNodeData, ConditionNodeData,
-    HumanApprovalNodeData, DelayNodeData
+    HumanApprovalNodeData, DelayNodeData, EndNodeData
 } from '../models/workflow';
 import { StateManager } from './stateManager';
 import { ConditionEvaluator } from './conditionEvaluator';
@@ -359,8 +359,12 @@ export class WorkflowRuntime implements vscode.Disposable {
         try {
             switch (node.type) {
                 case NodeType.Start:
-                case NodeType.End:
                     // No execution needed
+                    this._stateManager.endNode(node.id, NodeStatus.Completed);
+                    return { success: true };
+
+                case NodeType.End:
+                    this.executeEndNode(node);
                     this._stateManager.endNode(node.id, NodeStatus.Completed);
                     return { success: true };
 
@@ -551,6 +555,85 @@ export class WorkflowRuntime implements vscode.Disposable {
 
         this._stateManager.endNode(node.id, NodeStatus.Completed);
         return { success: true };
+    }
+
+    /**
+     * Execute an End node - generates a summary of the workflow execution.
+     */
+    private executeEndNode(node: Node): void {
+        const data = node.data as EndNodeData;
+        // Default to showing summary unless explicitly disabled
+        if (data.summary === false) return;
+
+        const execContext = this._stateManager.context;
+        const nodeRecords = execContext.nodeRecords;
+
+        // Build summary
+        const lines: string[] = [];
+        lines.push('');
+        lines.push('═══ Workflow Execution Summary ═══');
+        lines.push(`Workflow: ${this._currentWorkflow?.name || 'unknown'}`);
+
+        if (execContext.startTime && execContext.endTime) {
+            const duration = execContext.endTime - execContext.startTime;
+            lines.push(`Duration: ${this.formatDuration(duration)}`);
+        }
+
+        lines.push(`Status: ${execContext.status}`);
+        lines.push('');
+        lines.push('Nodes Executed:');
+
+        const statusIcon: Record<NodeStatus, string> = {
+            [NodeStatus.Waiting]: '⏳',
+            [NodeStatus.Running]: '▶',
+            [NodeStatus.Completed]: '✓',
+            [NodeStatus.Failed]: '✗',
+            [NodeStatus.Paused]: '⏸',
+            [NodeStatus.Skipped]: '⊘'
+        };
+
+        for (const [nodeId, record] of nodeRecords) {
+            if (nodeId === node.id) continue; // Skip the End node itself
+
+            const icon = statusIcon[record.status] || '?';
+            const label = record.nodeName || nodeId;
+            const durationStr = record.duration ? ` (${this.formatDuration(record.duration)})` : '';
+            lines.push(`  ${icon} ${label}${durationStr}`);
+
+            // Include agent output if available
+            const agentOutput = this._stateManager.get(`${nodeId}_output`);
+            if (agentOutput && typeof agentOutput === 'string') {
+                const preview = (agentOutput as string).length > 200
+                    ? (agentOutput as string).substring(0, 200) + '...'
+                    : agentOutput;
+                lines.push(`    Output: ${preview}`);
+            }
+        }
+
+        lines.push('');
+        lines.push('═══════════════════════════════════');
+
+        // Log summary to output channel
+        for (const line of lines) {
+            this.log(line);
+        }
+
+        // Store summary in state for downstream use
+        const summary = lines.join('\n');
+        this._stateManager.set('executionSummary', summary);
+        this._stateManager.addLog(node.id, summary);
+    }
+
+    /**
+     * Format a duration in milliseconds to a human-readable string.
+     */
+    private formatDuration(ms: number): string {
+        if (ms < 1000) return `${ms}ms`;
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
     }
 
     /**

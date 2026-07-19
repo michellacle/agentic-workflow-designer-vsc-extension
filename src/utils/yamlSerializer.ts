@@ -35,8 +35,9 @@ export function workflowToYaml(workflow: Workflow): string {
                 }
                 break;
             case NodeType.End:
-                if ((node.data as EndNodeData).label) {
-                    nodeObj.data = { label: (node.data as EndNodeData).label };
+                const endData = node.data as EndNodeData;
+                if (endData.label || endData.summary !== undefined) {
+                    nodeObj.data = { label: endData.label, summary: endData.summary };
                 }
                 break;
             case NodeType.Agent:
@@ -135,7 +136,7 @@ function parseNodeData(type: NodeType, raw: any): NodeData {
         case NodeType.Start:
             return { label: raw.label } as StartNodeData;
         case NodeType.End:
-            return { label: raw.label } as EndNodeData;
+            return { label: raw.label, summary: raw.summary !== undefined ? raw.summary : true } as EndNodeData;
         case NodeType.Agent:
             return {
                 agent: raw.agent || '',

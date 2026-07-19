@@ -51,6 +51,8 @@ export interface StartNodeData {
  */
 export interface EndNodeData {
     label?: string;
+    /** If true (default), generate a summary of the workflow execution when this node is reached. */
+    summary?: boolean;
 }
 
 /**
