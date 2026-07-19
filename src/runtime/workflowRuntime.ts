@@ -14,6 +14,17 @@ import { RunHistoryManager, RunRecord } from './runHistory';
 import { validateWorkflow } from '../utils/workflowValidator';
 
 /**
+ * Node execution result with optional branch information.
+ * For branching nodes (Condition, HumanApproval), `branchResult` indicates
+ * which path was taken so the runtime can follow only the matching edge.
+ */
+export interface NodeExecutionResult {
+    success: boolean;
+    /** True = follow True/Approve edge, False = follow False/Reject edge. Undefined means follow all edges. */
+    branchResult?: boolean;
+}
+
+/**
  * Context from the Copilot Chat request, passed to the workflow so agent
  * nodes can reference the user's original prompt and any file/selection
  * references.
@@ -230,12 +241,13 @@ export class WorkflowRuntime implements vscode.Disposable {
             this.notifyExecutionUpdate();
 
             // Get next nodes from start
-            let currentNodeIds = this.getNextNodes(startNode.id, workflow);
+            let currentNodeIds = this.getAllNextNodes(startNode.id, workflow);
 
             // Execute until no more nodes or stopped
             let hadFailure = false;
             while (currentNodeIds.length > 0 && !this.isAborted()) {
                 const nextNodeIds: string[] = [];
+                const skippedNodeIds = new Set<string>();
 
                 for (const nodeId of currentNodeIds) {
                     if (this.isAborted()) break;
@@ -249,18 +261,34 @@ export class WorkflowRuntime implements vscode.Disposable {
 
                     const label = this.getNodeLabel(node);
                     this.log(`  ⠋ Running ${nodeId} (${label})...`);
-                    const success = await this.executeNode(node, workflow);
+                    const result = await this.executeNode(node, workflow);
                     this.notifyExecutionUpdate();
 
-                    if (success) {
+                    if (result.success) {
                         this.log(`  ✓ ${nodeId} completed`);
-                        // Get next nodes
-                        const children = this.getNextNodes(nodeId, workflow);
+                        // Get next nodes, filtering by branch result if applicable
+                        const children = this.getNextNodes(nodeId, node, workflow, result.branchResult);
                         nextNodeIds.push(...children);
+
+                        // Collect nodes on untaken branches for skipping
+                        if (result.branchResult !== undefined) {
+                            const allChildren = this.getAllNextNodes(nodeId, workflow);
+                            const takenTargets = new Set(children);
+                            for (const childId of allChildren) {
+                                if (!takenTargets.has(childId)) {
+                                    skippedNodeIds.add(childId);
+                                }
+                            }
+                        }
                     } else {
                         this.log(`  ✗ ${nodeId} failed`);
                         hadFailure = true;
                     }
+                }
+
+                // Mark skipped nodes recursively
+                for (const skipId of skippedNodeIds) {
+                    this.markSkipped(skipId, workflow);
                 }
 
                 currentNodeIds = nextNodeIds;
@@ -324,7 +352,7 @@ export class WorkflowRuntime implements vscode.Disposable {
     /**
      * Execute a single node
      */
-    private async executeNode(node: Node, workflow: Workflow): Promise<boolean> {
+    private async executeNode(node: Node, workflow: Workflow): Promise<NodeExecutionResult> {
         this._stateManager.updateNodeStatus(node.id, NodeStatus.Running);
         this._stateManager.startNode(node.id);
 
@@ -334,10 +362,11 @@ export class WorkflowRuntime implements vscode.Disposable {
                 case NodeType.End:
                     // No execution needed
                     this._stateManager.endNode(node.id, NodeStatus.Completed);
-                    return true;
+                    return { success: true };
 
                 case NodeType.Agent:
-                    return this.executeAgentNode(node, workflow);
+                    const agentOk = await this.executeAgentNode(node, workflow);
+                    return { success: agentOk };
 
                 case NodeType.Condition:
                     return this.executeConditionNode(node, workflow);
@@ -350,12 +379,12 @@ export class WorkflowRuntime implements vscode.Disposable {
 
                 default:
                     this._stateManager.endNode(node.id, NodeStatus.Completed);
-                    return true;
+                    return { success: true };
             }
         } catch (error) {
             this._stateManager.endNode(node.id, NodeStatus.Failed);
             this._stateManager.addError(node.id, String(error));
-            return false;
+            return { success: false };
         }
     }
 
@@ -459,8 +488,9 @@ export class WorkflowRuntime implements vscode.Disposable {
 
     /**
      * Execute a Condition node
+     * Returns a branch result so the runtime follows only the matching edge.
      */
-    private async executeConditionNode(node: Node, workflow: Workflow): Promise<boolean> {
+    private async executeConditionNode(node: Node, workflow: Workflow): Promise<NodeExecutionResult> {
         const data = node.data as ConditionNodeData;
         const result = ConditionEvaluator.evaluate(data.expression, this._stateManager.state);
 
@@ -470,20 +500,22 @@ export class WorkflowRuntime implements vscode.Disposable {
         // Update edge labels for visualization
         const outgoingEdges = workflow.edges.filter(e => e.source === node.id);
         for (const edge of outgoingEdges) {
-            const isTruePath = edge.label?.toLowerCase() === 'true' || edge.label?.toLowerCase() === 'pass';
+            const isTruePath = this.isTrueEdge(edge);
             if ((result && isTruePath) || (!result && !isTruePath)) {
                 this._stateManager.addLog(node.id, `Taking branch: ${edge.label || (result ? 'True' : 'False')}`);
             }
         }
 
         this._stateManager.endNode(node.id, NodeStatus.Completed);
-        return true;
+        return { success: true, branchResult: result };
     }
 
     /**
      * Execute a Human Approval node
+     * Returns a branch result: true for Approve, false for Reject.
+     * The runtime routes to the matching edge (True/False or Approve/Reject).
      */
-    private async executeHumanApprovalNode(node: Node): Promise<boolean> {
+    private async executeHumanApprovalNode(node: Node): Promise<NodeExecutionResult> {
         const data = node.data as HumanApprovalNodeData;
         this._stateManager.updateNodeStatus(node.id, NodeStatus.Paused);
         this.notifyExecutionUpdate();
@@ -499,31 +531,26 @@ export class WorkflowRuntime implements vscode.Disposable {
         this._stateManager.set(`${node.id}_approved`, approved);
         this._stateManager.addLog(node.id, `Approval result: ${approved ? 'Approved' : 'Rejected'}`);
 
-        if (approved) {
-            this._stateManager.endNode(node.id, NodeStatus.Completed);
-            return true;
-        } else {
-            this._stateManager.endNode(node.id, NodeStatus.Failed);
-            return false;
-        }
+        this._stateManager.endNode(node.id, NodeStatus.Completed);
+        return { success: true, branchResult: approved };
     }
 
     /**
      * Execute a Delay node
      */
-    private async executeDelayNode(node: Node): Promise<boolean> {
+    private async executeDelayNode(node: Node): Promise<NodeExecutionResult> {
         const data = node.data as DelayNodeData;
         this._stateManager.addLog(node.id, `Waiting ${data.duration} seconds...`);
 
         // Use interval-based wait so we can check for abort
         const start = Date.now();
         while (Date.now() - start < data.duration * 1000) {
-            if (this.isAborted()) return false;
+            if (this.isAborted()) return { success: false };
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         this._stateManager.endNode(node.id, NodeStatus.Completed);
-        return true;
+        return { success: true };
     }
 
     /**
@@ -574,10 +601,76 @@ export class WorkflowRuntime implements vscode.Disposable {
 
     // ---- Private helpers ----
 
-    private getNextNodes(nodeId: string, workflow: Workflow): string[] {
+    /**
+     * Get outgoing target node IDs, optionally filtered by branch result.
+     * When `node` and `branchResult` are provided (for Condition/HumanApproval nodes),
+     * only edges matching the True/False label are returned.
+     */
+    private getNextNodes(nodeId: string, node: Node, workflow: Workflow, branchResult?: boolean): string[] {
+        const allEdges = workflow.edges.filter(e => e.source === nodeId);
+
+        // For branching nodes, filter edges by the branch result
+        if (branchResult !== undefined && (node.type === NodeType.Condition || node.type === NodeType.HumanApproval)) {
+            return allEdges
+                .filter(e => this.edgeMatchesBranch(e, branchResult))
+                .map(e => e.target);
+        }
+
+        return allEdges.map(e => e.target);
+    }
+
+    /**
+     * Get all outgoing target node IDs for a given node (no branch filtering).
+     */
+    private getAllNextNodes(nodeId: string, workflow: Workflow): string[] {
         return workflow.edges
             .filter(e => e.source === nodeId)
             .map(e => e.target);
+    }
+
+    /**
+     * Check whether an edge represents the True/Approve branch.
+     */
+    private isTrueEdge(edge: { label?: string }): boolean {
+        const label = edge.label?.toLowerCase();
+        return label === 'true' || label === 'pass' || label === 'approve';
+    }
+
+    /**
+     * Check whether an edge matches the given branch result.
+     */
+    private edgeMatchesBranch(edge: { label?: string }, branchResult: boolean): boolean {
+        if (branchResult) {
+            return this.isTrueEdge(edge);
+        } else {
+            // False branch: edge labeled False/Fail/Reject, or unlabeled (fallback)
+            const label = edge.label?.toLowerCase();
+            return label === 'false' || label === 'fail' || label === 'reject' || !label;
+        }
+    }
+
+    /**
+     * Mark a node and its descendants as Skipped (untaken branch).
+     */
+    private markSkipped(nodeId: string, workflow: Workflow): void {
+        // Avoid re-marking already-processed nodes
+        const existing = this._stateManager.getNodeRecord(nodeId);
+        if (existing && (existing.status === NodeStatus.Skipped || existing.status === NodeStatus.Completed || existing.status === NodeStatus.Failed)) {
+            return;
+        }
+
+        const node = workflow.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        this._stateManager.createNodeRecord(nodeId, NodeStatus.Skipped, this.getNodeLabel(node));
+        this.log(`  ⊘ ${nodeId} skipped (untaken branch)`);
+        this.notifyExecutionUpdate();
+
+        // Recursively skip descendants
+        const children = this.getAllNextNodes(nodeId, workflow);
+        for (const childId of children) {
+            this.markSkipped(childId, workflow);
+        }
     }
 
     private getNodeLabel(node: Node): string {
