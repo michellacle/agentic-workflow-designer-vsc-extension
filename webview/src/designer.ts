@@ -166,6 +166,9 @@
         // Toolbar events
         setupToolbar();
 
+        // Apply initial edit mode (OFF / read-only)
+        applyInitialEditMode();
+
         // VS Code messages
         window.addEventListener('message', onMessage);
 
@@ -463,42 +466,51 @@
     function onMouseDown(e) {
         const pos = getCanvasPosition(e);
 
-// Check if clicking on an output port (start edge creation)
+        // Check if clicking on an output port (start edge creation) — edit mode only
+        if (state.editMode) {
             const portHit = hitTestOutputPorts(pos);
-        if (portHit) {
-            state.creatingEdge = {
-                sourceNodeId: portHit.nodeId,
-                sourcePort: portHit.port,
-                currentX: pos.x,
-                currentY: pos.y
-            };
-            return;
+            if (portHit) {
+                state.creatingEdge = {
+                    sourceNodeId: portHit.nodeId,
+                    sourcePort: portHit.port,
+                    currentX: pos.x,
+                    currentY: pos.y
+                };
+                return;
+            }
         }
 
         // Check if clicking on a node
         const node = hitTestNodes(pos);
         if (node) {
-            if (e.shiftKey) {
-                // Toggle selection
-                if (state.selectedNodeIds.has(node.id)) {
-                    state.selectedNodeIds.delete(node.id);
-                } else {
+            if (state.editMode) {
+                if (e.shiftKey) {
+                    // Toggle selection
+                    if (state.selectedNodeIds.has(node.id)) {
+                        state.selectedNodeIds.delete(node.id);
+                    } else {
+                        state.selectedNodeIds.add(node.id);
+                    }
+                } else if (!state.selectedNodeIds.has(node.id)) {
+                    state.selectedNodeIds.clear();
                     state.selectedNodeIds.add(node.id);
                 }
-            } else if (!state.selectedNodeIds.has(node.id)) {
+
+                // Start dragging — edit mode only
+                state.draggingNode = node.id;
+                state.draggingOffset = {
+                    x: pos.x - node.position.x,
+                    y: pos.y - node.position.y
+                };
+                saveHistory();
+                render();
+                updatePropertiesPanel(node);
+            } else {
+                // View mode: just select for visual feedback, no dragging
                 state.selectedNodeIds.clear();
                 state.selectedNodeIds.add(node.id);
+                render();
             }
-
-            // Start dragging
-            state.draggingNode = node.id;
-            state.draggingOffset = {
-                x: pos.x - node.position.x,
-                y: pos.y - node.position.y
-            };
-            saveHistory();
-            render();
-            updatePropertiesPanel(node);
             return;
         }
 
@@ -523,7 +535,7 @@
             return;
         }
 
-        if (state.draggingNode) {
+        if (state.draggingNode && state.editMode) {
             const node = state.workflow.nodes.find(n => n.id === state.draggingNode);
             if (node) {
                 node.position.x = Math.round((pos.x - state.draggingOffset.x) / 10) * 10;
@@ -544,7 +556,7 @@
     function onMouseUp(e) {
         const pos = getCanvasPosition(e);
 
-        if (state.creatingEdge) {
+        if (state.creatingEdge && state.editMode) {
             // Check if we released on a valid input port
             const portHit = hitTestInputPorts(pos);
             if (portHit && portHit.nodeId !== state.creatingEdge.sourceNodeId) {
@@ -603,7 +615,7 @@
             return;
         }
 
-        if (e.key === 'Delete' || e.key === 'Backspace') {
+        if ((e.key === 'Delete' || e.key === 'Backspace') && state.editMode) {
             if (state.selectedNodeIds.size > 0) {
                 deleteSelectedNodes();
                 saveHistory();
@@ -781,6 +793,10 @@
 
         canvasContainer.addEventListener('drop', (e) => {
             e.preventDefault();
+
+            // Drop nodes only in edit mode
+            if (!state.editMode) return;
+
             const nodeType = e.dataTransfer.getData('nodeType');
             if (!nodeType || !NODE_CONFIGS[nodeType]) return;
 
@@ -845,19 +861,29 @@
         const btn = document.getElementById('btn-edit-mode');
 
         if (state.editMode) {
-            toolbox.classList.add('hidden');
-            propertiesPanel.classList.add('hidden');
-            btn.classList.add('active');
-            btn.textContent = '⚙ Edit Mode: ON';
-        } else {
+            // Edit mode ON — show panels, enable editing
             toolbox.classList.remove('hidden');
             propertiesPanel.classList.remove('hidden');
+            btn.classList.add('active');
+            btn.textContent = '✎ Edit';
+        } else {
+            // Edit mode OFF — hide panels, read-only canvas
+            toolbox.classList.add('hidden');
+            propertiesPanel.classList.add('hidden');
             btn.classList.remove('active');
-            btn.textContent = '⚙ Edit Mode';
+            btn.textContent = '✎ Edit';
         }
 
-        // Resize canvas after panels slide away
+        // Resize canvas after panels slide in/out
         setTimeout(() => resizeCanvas(), 250);
+    }
+
+    // Apply initial edit mode state (default: OFF / read-only)
+    function applyInitialEditMode() {
+        const toolbox = document.getElementById('toolbox');
+        const propertiesPanel = document.getElementById('properties-panel');
+        if (toolbox) toolbox.classList.add('hidden');
+        if (propertiesPanel) propertiesPanel.classList.add('hidden');
     }
 
     // ===== Properties Panel =====

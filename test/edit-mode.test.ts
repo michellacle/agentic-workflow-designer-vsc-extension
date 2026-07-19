@@ -1,15 +1,17 @@
 /**
  * Tests for the Edit Mode feature in the workflow designer.
  *
- * Edit Mode hides the Components (toolbox) and Properties panels,
- * giving the canvas full available width. This is useful when
- * running a workflow while watching the chat window on the right.
+ * The workflow designer starts in view mode (edit mode OFF) by default.
+ * Panels (toolbox and properties) are hidden, and the canvas is read-only.
+ * The user can toggle Edit Mode ON to enable editing: panels appear,
+ * nodes can be dragged, edges created, and nodes deleted.
  *
  * These tests verify:
  * 1. Edit Mode button exists in the toolbar HTML template
  * 2. toggleEditMode function correctly toggles state and DOM classes
  * 3. CSS transitions and .hidden states are properly defined
  * 4. Product requirements document the feature
+ * 5. Edit mode guards editing interactions (drag, drop, delete)
  */
 
 import * as fs from 'fs';
@@ -38,8 +40,8 @@ describe('Task 1: Edit Mode button in toolbar HTML template', () => {
         expect(content).toMatch(/id="btn-edit-mode"[^>]*title="[^"]*Edit Mode[^"]*"/i);
     });
 
-    it('should have visible button text containing "Edit Mode"', () => {
-        expect(content).toMatch(/id="btn-edit-mode"[^>]*>.*Edit Mode/s);
+    it('should have visible button text containing "Edit"', () => {
+        expect(content).toMatch(/id="btn-edit-mode"[^>]*>.*Edit/s);
     });
 
     it('should be placed before the execution-status badge', () => {
@@ -121,12 +123,12 @@ describe('Task 2: toggleEditMode function in webview designer.ts', () => {
         expect(fnBody).toContain("getElementById('properties-panel')");
     });
 
-    it('should add .hidden class to both panels when editMode is true', () => {
-        expect(fnBody).toMatch(/classList\.add\(['"]hidden['"]\)/);
+    it('should remove .hidden class from both panels when editMode is true (edit mode ON shows panels)', () => {
+        expect(fnBody).toMatch(/classList\.remove\(['"]hidden['"]\)/);
     });
 
-    it('should remove .hidden class from both panels when editMode is false', () => {
-        expect(fnBody).toMatch(/classList\.remove\(['"]hidden['"]\)/);
+    it('should add .hidden class to both panels when editMode is false (edit mode OFF hides panels)', () => {
+        expect(fnBody).toMatch(/classList\.add\(['"]hidden['"]\)/);
     });
 
     it('should toggle .active class on the button', () => {
@@ -134,12 +136,8 @@ describe('Task 2: toggleEditMode function in webview designer.ts', () => {
         expect(fnBody).toMatch(/classList\.remove\(['"]active['"]\)/);
     });
 
-    it('should update button text to indicate ON state when enabled', () => {
-        expect(fnBody).toMatch(/textContent\s*=.*ON/i);
-    });
-
-    it('should reset button text when disabled', () => {
-        expect(fnBody).toMatch(/textContent\s*=.*Edit Mode[^O]/);
+    it('should update button text when toggled', () => {
+        expect(fnBody).toMatch(/textContent\s*=/);
     });
 
     it('should trigger resizeCanvas after a delay for CSS transition', () => {
@@ -432,5 +430,41 @@ describe('Task 6: Edge cases and robustness', () => {
         const matches = designerContent.match(/function\s+toggleEditMode/g);
         expect(matches).not.toBeNull();
         expect(matches!.length).toBe(1);
+    });
+
+    it('should have applyInitialEditMode function to hide panels on load', () => {
+        expect(designerContent).toMatch(/function\s+applyInitialEditMode/);
+    });
+
+    it('should call applyInitialEditMode during init', () => {
+        // Verify applyInitialEditMode is called in the init function
+        const initFn = extractFunctionBody(designerContent, 'init');
+        expect(initFn).toContain('applyInitialEditMode');
+    });
+
+    it('should guard node dragging behind editMode flag in onMouseDown', () => {
+        const fnBody = extractFunctionBody(designerContent, 'onMouseDown')!;
+        expect(fnBody).toContain('state.editMode');
+    });
+
+    it('should guard edge creation behind editMode flag in onMouseDown', () => {
+        const fnBody = extractFunctionBody(designerContent, 'onMouseDown')!;
+        // Creating edges (port hit test) should be guarded
+        expect(fnBody).toMatch(/editMode.*hitTestOutputPorts|hitTestOutputPorts.*editMode/s);
+    });
+
+    it('should guard node deletion behind editMode flag in onKeyDown', () => {
+        const fnBody = extractFunctionBody(designerContent, 'onKeyDown')!;
+        expect(fnBody).toMatch(/editMode.*Delete|Delete.*editMode/s);
+    });
+
+    it('should guard toolbox drop behind editMode flag', () => {
+        // The drop handler on canvasContainer should check editMode
+        expect(designerContent).toMatch(/addEventListener\('drop'.*editMode/s);
+    });
+
+    it('should guard node dragging behind editMode flag in onMouseMove', () => {
+        const fnBody = extractFunctionBody(designerContent, 'onMouseMove')!;
+        expect(fnBody).toMatch(/draggingNode.*editMode|editMode.*draggingNode/s);
     });
 });
