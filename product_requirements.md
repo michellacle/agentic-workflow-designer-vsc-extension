@@ -2,9 +2,9 @@
 
 # VS Code Agent Workflow Designer & Runtime
 
-**Version:** 0.2 (Prototype)
+**Version:** 0.3 (Prototype)
 
-**Status:** Draft — implementation status reconciled 2026-07-19
+**Status:** Draft — Genuine Copilot subagent runtime implemented 2026-07-19
 
 **Author:** OpenAI
 
@@ -74,9 +74,12 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 
 - [x] Discover `.agent.md` files in `.github/agents/`.
 - [x] Parse agent frontmatter and instructions.
-- [x] Invoke a native custom-agent tool when the VS Code provider exposes one.
-- [x] Fall back to direct VS Code Language Model API execution when a native custom-agent tool is unavailable.
-- [x] Capture Agent output and files reported as modified by the direct executor.
+- [x] Run every Agent node as a genuine GitHub Copilot subagent through VS Code's `runSubagent` tool.
+- [x] Start workflow execution inside a Copilot Chat participant request so every subagent invocation receives a valid `toolInvocationToken`.
+- [x] Select the requested custom agent with the native `agentName` parameter and let VS Code load that agent's instructions, tools, hooks, and model configuration.
+- [x] Fail closed with a clear diagnostic when Copilot, `runSubagent`, the requested custom agent, or a valid chat context is unavailable.
+- [x] Never silently substitute a direct Language Model API request or extension-owned agent loop for a required Copilot subagent.
+- [x] Capture genuine Copilot subagent output for workflow state and execution records.
 - [x] Enforce Agent timeout and retry settings.
 - [ ] Capture complete tool-usage records and context produced in node execution details.
 
@@ -99,7 +102,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [ ] Pause execution at the next node boundary when the Pause control is used. The current control changes status but traversal continues.
 - [ ] Resume a workflow that was actually halted by Pause.
 - [x] Stop scheduling new nodes after a Stop request and interrupt an active Delay node.
-- [ ] Immediately cancel an Agent invocation already in progress when Stop is requested.
+- [x] Immediately cancel an Agent invocation already in progress when Stop is requested.
 - [ ] Persist a paused execution across VS Code restarts.
 - [ ] Support manual intervention beyond Approve or Reject.
 
@@ -128,12 +131,12 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 
 ## Implemented Requirements Discovered During Reconciliation
 
-The following implemented capabilities were not explicit in version 0.1 of this PRD:
+The following capabilities exist in the current code but do not necessarily satisfy the Version 0.3 architecture requirements:
 
 - [x] Let each Agent node specify a VS Code language-model ID or vendor/model hint.
 - [x] Provide a **List Available Models** command that writes installed model IDs and vendors to an output channel.
-- [x] Fall back from native custom-agent invocation to a direct, multi-turn Language Model API executor.
-- [x] Give the direct Agent executor workspace tools to create, read, edit, and delete files; list directories; and run shell commands.
+- [x] A direct, multi-turn Language Model API executor exists as legacy implementation, but it must not be used as a fallback for Copilot Agent nodes.
+- [x] The legacy direct executor has workspace tools to create, read, edit, and delete files; list directories; and run shell commands.
 - [x] Automatically expose every successful Agent result and success flag to downstream nodes through workflow state.
 - [x] Provide a Workflow Explorer activity-bar view for opening `.github/workflows/*.workflow.yaml` files.
 - [x] Integrate workflow documents with VS Code backup, revert, and save-as lifecycle operations.
@@ -182,6 +185,8 @@ The initial implementation will NOT include:
 
 * Distributed execution
 * Cloud execution
+* An explicit agent-runtime provider interface, with GitHub Copilot as the required Version 0 provider
+* Additional local or remote agent-runtime providers selected explicitly by workflow configuration
 * Multiple machines
 * Authentication
 * Scheduling
@@ -681,7 +686,7 @@ Workflow resumes.
 
 # 20. VS Code Agent Integration
 
-Nodes represent native VS Code custom agents.
+For Version 0, Agent nodes represent native VS Code custom agents and MUST execute as genuine GitHub Copilot subagents.
 
 Example
 
@@ -695,9 +700,13 @@ tester.agent.md
 reviewer.agent.md
 ```
 
-The runtime launches those agents.
+The visual Run action MUST submit `@workflow /run` to the extension’s Copilot Chat participant. The participant supplies the valid `toolInvocationToken` required to invoke VS Code’s native `runSubagent` language-model tool.
 
-It does not execute raw LLM prompts.
+For each Agent node, the runtime MUST pass the configured agent name through `agentName`. VS Code and GitHub Copilot, rather than the extension, are responsible for loading and applying the selected custom agent’s instructions, tools, hooks, and model configuration. The returned native subagent output becomes the node result and is available to downstream workflow state.
+
+The runtime MUST fail closed with a clear diagnostic if a genuine subagent cannot be started. It MUST NOT silently fall back to a direct Language Model API call, raw prompt execution, or an extension-owned emulation of an agent loop.
+
+The runtime architecture SHOULD evolve toward an agent-runtime provider boundary. GitHub Copilot remains the required and only Version 0 provider; future providers may be added only through an explicit provider interface and MUST preserve provider identity in execution records. A failed Copilot invocation must never be rerouted to another provider implicitly.
 
 ---
 
@@ -854,7 +863,7 @@ No branching.
 
 Goal:
 
-Verify that VS Code custom agents can be invoked successfully from the runtime.
+Verify that VS Code custom agents can be invoked successfully as genuine GitHub Copilot subagents from a token-bearing Copilot Chat participant request, without a direct-model fallback.
 
 ---
 
@@ -920,6 +929,8 @@ Potential future capabilities include:
 * Automatic workflow validation
 * Remote execution
 * Cloud execution
+* An explicit agent-runtime provider interface, with GitHub Copilot as the required Version 0 provider
+* Additional local or remote agent-runtime providers selected explicitly by workflow configuration
 * Team collaboration
 * MCP-native nodes
 * Shell command nodes
@@ -939,6 +950,6 @@ Version 0 will be considered successful if a user can:
 5. Save the workflow.
 6. Reload the workflow.
 7. Generate a valid YAML workflow definition from the visual graph.
-8. Press **Run Workflow** and execute a simple sequential workflow composed of VS Code custom agents without leaving Visual Studio Code.
+8. Press **Run Workflow** and execute a simple sequential workflow as genuine GitHub Copilot subagents, without leaving Visual Studio Code or silently falling back to direct model calls.
 
 If these capabilities are achieved, the project has established a solid foundation for a full-featured visual orchestration platform for native VS Code AI agents.

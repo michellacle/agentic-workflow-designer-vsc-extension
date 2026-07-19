@@ -6,17 +6,33 @@
   "publisher": "local-dev",
   "repository": "https://github.com/local-dev/agentic-workflows",
   "engines": {
-    "vscode": "^1.96.0"
+    "vscode": "^1.129.0"
   },
   "categories": [
     "Other",
     "Visualization"
   ],
   "activationEvents": [
-    "onCustomEditor:workflowDesigner.editor"
+    "onCustomEditor:workflowDesigner.editor",
+    "onChatParticipant:workflowDesigner.workflow"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "chatParticipants": [
+      {
+        "id": "workflowDesigner.workflow",
+        "name": "workflow",
+        "fullName": "Workflow Designer",
+        "description": "Run the current visual workflow with genuine GitHub Copilot subagents",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "run",
+            "description": "Run the current visual workflow with genuine Copilot subagents"
+          }
+        ]
+      }
+    ],
     "customEditors": [
       {
         "viewType": "workflowDesigner.editor",
@@ -48,7 +64,7 @@
       },
       {
         "command": "workflowDesigner.runWorkflow",
-        "title": "▶ Run Workflow",
+        "title": "▶ Run Workflow with Copilot Subagents",
         "icon": {
           "light": "resources/light/play.svg",
           "dark": "resources/dark/play.svg"
@@ -167,15 +183,18 @@
     "build-webview": "node scripts/build-webview.js",
     "dev": "npm run compile && npm run build-webview",
     "rebuild": "rm -rf out && npm run compile && npm run build-webview && npx vsce package --out vscode-workflow-designer-0.1.0.vsix 2>/dev/null && code --install-extension vscode-workflow-designer-0.1.0.vsix 2>/dev/null && echo '✅ Extension rebuilt and installed! Reload VS Code window to activate.'",
-    "dev:watch": "npm-run-all -p watch build-webview"
+    "dev:watch": "npm-run-all -p watch build-webview",
+    "test": "jest --forceExit"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.96.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.6.0"
   },
   "dependencies": {

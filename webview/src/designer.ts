@@ -765,23 +765,11 @@
     // ===== Toolbar =====
     function setupToolbar() {
         document.getElementById('btn-save').addEventListener('click', () => notifySave());
-        document.getElementById('btn-run').addEventListener('click', () => {
-            document.getElementById('execution-panel').classList.remove('hidden');
-            document.getElementById('execution-log').innerHTML = '';
-            notifyRun();
-        });
+        document.getElementById('btn-run').addEventListener('click', () => notifyRun());
         document.getElementById('btn-pause').addEventListener('click', () => notifyPause());
         document.getElementById('btn-stop').addEventListener('click', () => notifyStop());
         document.getElementById('btn-resume').addEventListener('click', () => notifyResume());
         document.getElementById('btn-validate').addEventListener('click', () => notifyValidate());
-        document.getElementById('btn-clear-log').addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.getElementById('execution-log').innerHTML = '';
-        });
-        // Toggle panel on header click
-        document.querySelector('.panel-header').addEventListener('click', () => {
-            document.getElementById('execution-panel').classList.toggle('hidden');
-        });
     }
 
     // ===== Properties Panel =====
@@ -805,7 +793,7 @@
                 break;
             case 'agent':
                 html += propertySelectField('Agent File', node.data.agent || '', state.agentFiles);
-                html += propertyField('Model', 'text', node.data.model || '', 'e.g., qwen3.6-27b');
+                html += propertyField('Model', 'text', node.data.model || '', 'e.g., Claude Sonnet 4.6 (copilot)');
                 html += propertyField('Prompt', 'textarea', node.data.prompt || '');
                 html += propertyField('Timeout (sec)', 'number', node.data.timeout || 120);
                 html += propertyField('Retries', 'number', node.data.retries || 0);
@@ -966,16 +954,9 @@
                 state.executionStatus = msg.status;
                 render();
                 updateExecutionStatusUI(msg.status);
-                // Show execution panel when running
-                if (msg.status && (msg.status.overall === 'running' || msg.status.overall === 'paused')) {
-                    document.getElementById('execution-panel').classList.remove('hidden');
-                }
-                if (msg.status && (msg.status.overall === 'completed' || msg.status.overall === 'failed' || msg.status.overall === 'stopped')) {
-                    document.getElementById('execution-panel').classList.remove('hidden');
-                }
                 break;
             case 'logMessage':
-                addLogMessage(msg.message);
+                // No-op: logs go to VS Code Output Channel
                 break;
             case 'validationResult':
                 if (msg.errors && msg.errors.length > 0) {
@@ -1043,21 +1024,7 @@
         if (status.overall === 'paused') badge.classList.add('paused');
     }
 
-    function addLogMessage(message) {
-        const logEl = document.getElementById('execution-log');
-        const line = document.createElement('div');
-        line.className = 'log-line';
-        if (message.includes('✗') || message.includes('failed') || message.includes('error')) {
-            line.classList.add('error');
-        } else if (message.includes('✓') || message.includes('completed') || message.includes('success')) {
-            line.classList.add('success');
-        } else if (message.includes('▶') || message.includes('Starting')) {
-            line.classList.add('info');
-        }
-        line.textContent = message;
-        logEl.appendChild(line);
-        logEl.scrollTop = logEl.scrollHeight;
-    }
+
 
     // ===== Utilities =====
     function getCanvasPosition(e) {

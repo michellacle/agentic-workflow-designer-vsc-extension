@@ -9,7 +9,7 @@ import {
 } from '../models/workflow';
 import { StateManager } from './stateManager';
 import { ConditionEvaluator } from './conditionEvaluator';
-import { AgentInvoker } from './agentInvoker';
+import { AgentInvoker, CopilotSubagentExecutionContext } from './agentInvoker';
 import { RunHistoryManager, RunRecord } from './runHistory';
 import { validateWorkflow } from '../utils/workflowValidator';
 
@@ -24,18 +24,17 @@ export class WorkflowRuntime implements vscode.Disposable {
     private _currentWorkflow: Workflow | null = null;
     private _currentFileUri: vscode.Uri | null = null;
     private _abortController: AbortController | null = null;
+    private _activeCopilotContext: CopilotSubagentExecutionContext | null = null;
     private _statusBarItem: vscode.StatusBarItem;
     private _outputChannel: vscode.OutputChannel;
     private _maxLoopIterations: number = 100;
     private readonly _onDidChangeExecutionState = new vscode.EventEmitter<any>();
-    private readonly _onDidLogMessage = new vscode.EventEmitter<string>();
 
     public readonly onDidChangeExecutionState = this._onDidChangeExecutionState.event;
-    public readonly onDidLogMessage = this._onDidLogMessage.event;
 
     constructor(private readonly context: vscode.ExtensionContext) {
         this._stateManager = new StateManager();
-        this._agentInvoker = new AgentInvoker(context);
+        this._agentInvoker = new AgentInvoker();
         this._runHistory = new RunHistoryManager(context);
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._statusBarItem.text = '$$(eye) Workflow: Idle';
@@ -53,35 +52,56 @@ export class WorkflowRuntime implements vscode.Disposable {
     }
 
     /**
-     * Run the current workflow
+     * Run the current workflow inside a Copilot Chat participant request.
      */
-    async runCurrentWorkflow(): Promise<void> {
+    async runCurrentWorkflow(
+        executionContext: CopilotSubagentExecutionContext
+    ): Promise<ExecutionStatus | undefined> {
         if (!this._currentWorkflow || !this._currentFileUri) {
             vscode.window.showWarningMessage('No workflow loaded. Open a .workflow.yaml file first.');
-            return;
+            return undefined;
         }
 
         if (this._stateManager.getStatus() === ExecutionStatus.Running) {
             vscode.window.showWarningMessage('Workflow is already running.');
-            return;
+            return this._stateManager.getStatus();
         }
 
-        // Validate before running
         const errors = validateWorkflow(this._currentWorkflow);
         const fatalErrors = errors.filter(e => e.severity === 'error');
         if (fatalErrors.length > 0) {
             this.showValidationErrors(fatalErrors);
-            return;
+            return undefined;
         }
 
-        // Clear previous output and show the channel
         this._outputChannel.clear();
         this._outputChannel.show(true);
-        this.log(`▶ Starting workflow: ${this._currentWorkflow.name}`);
+        this.log(`▶ Starting workflow with genuine Copilot subagents: ${this._currentWorkflow.name}`);
         this.log(`   Nodes: ${this._currentWorkflow.nodes.length}, Edges: ${this._currentWorkflow.edges.length}`);
         this.log('');
 
-        await this.execute(this._currentWorkflow);
+        this._activeCopilotContext = executionContext;
+        const chatCancellation = executionContext.cancellationToken.onCancellationRequested(() => {
+            this._abortController?.abort();
+            this._stateManager.complete(ExecutionStatus.Stopped);
+            this.updateStatusBar(ExecutionStatus.Stopped);
+        });
+
+        try {
+            await this.execute(this._currentWorkflow);
+            return this._stateManager.getStatus();
+        } finally {
+            chatCancellation.dispose();
+            this._activeCopilotContext = null;
+        }
+    }
+
+    hasCurrentWorkflow(): boolean {
+        return this._currentWorkflow !== null && this._currentFileUri !== null;
+    }
+
+    getCurrentWorkflowName(): string | undefined {
+        return this._currentWorkflow?.name;
     }
 
     /**
@@ -260,7 +280,16 @@ export class WorkflowRuntime implements vscode.Disposable {
             this.log(`     → Model: ${data.model}`);
         }
 
-        // Handle retries
+        const copilotContext = this._activeCopilotContext;
+        if (!copilotContext) {
+            const message = 'Agent nodes require execution from the @workflow Copilot Chat participant.';
+            this._stateManager.addError(node.id, message);
+            this._stateManager.endNode(node.id, NodeStatus.Failed);
+            this.log(`     ✗ ${message}`);
+            return false;
+        }
+
+        // Handle retries. Every attempt remains a genuine Copilot subagent call.
         const maxRetries = data.retries || 0;
         let lastError = '';
 
@@ -273,6 +302,10 @@ export class WorkflowRuntime implements vscode.Disposable {
                 { ...this._stateManager.state },
                 data.timeout || 120,
                 data.model,
+                {
+                    ...copilotContext,
+                    workflowAbortSignal: this._abortController?.signal
+                },
                 record,
                 (msg: string) => this.log(`     ${msg}`),
                 (msg: string) => this.updateAgentProgress(msg)
@@ -480,15 +513,13 @@ export class WorkflowRuntime implements vscode.Disposable {
 
     private log(message: string): void {
         this._outputChannel.appendLine(message);
-        this._onDidLogMessage.fire(message);
     }
 
     private updateAgentProgress(message: string): void {
-        // Update status bar with progress text (keeps spinning icon)
         this._statusBarItem.text = `$$(sync~spin) ${message}`;
         this._statusBarItem.show();
-        // Show as a single-line progress in output using \r to overwrite in place
         this._outputChannel.append(`\r     ⠋ ${message.padEnd(80)}`);
+        this._activeCopilotContext?.reportProgress?.(message);
     }
 
     private updateStatusBar(status: ExecutionStatus): void {

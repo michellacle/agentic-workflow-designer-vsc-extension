@@ -1,0 +1,16 @@
+name: etest
+description: A new workflow
+nodes:
+  - id: start
+    type: start
+    position:
+      x: 100
+      y: 100
+  - id: end
+    type: end
+    position:
+      x: 100
+      y: 300
+edges:
+  - source: start
+    target: end

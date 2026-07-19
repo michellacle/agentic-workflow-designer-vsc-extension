@@ -14,7 +14,7 @@ nodes:
       'y': 10
     data:
       agent: planner
-      prompt: on the node properties component, in the workflow designe window, there is an agent_file text box. This should be a dropdown sourced from the .github/agents folder. Go ahead and build that. You may have already implemented this work in that case just double check for correctness and identify areas of small improvements.
+      prompt: ''
       model: qwen3.6-27b
       timeout: 300
       retries: 0

@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 import { WorkflowDesignerProvider } from './designer/workflowDesignerProvider';
 import { WorkflowRuntime } from './runtime/workflowRuntime';
 import { WorkflowExplorerProvider } from './panels/workflowExplorer';
+import {
+    registerWorkflowChatParticipant,
+    requestWorkflowRunInCopilotChat
+} from './chat/workflowChatParticipant';
 
 let runtime: WorkflowRuntime | undefined;
 let explorerProvider: WorkflowExplorerProvider | undefined;
@@ -22,6 +26,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize runtime
     runtime = new WorkflowRuntime(context);
     context.subscriptions.push(runtime);
+
+    // Genuine Copilot subagents require the Chat participant's tool token.
+    context.subscriptions.push(registerWorkflowChatParticipant(context, runtime));
 
     // Wire runtime into designer provider so toolbar buttons work
     designerProvider.setRuntime(runtime);
@@ -88,8 +95,10 @@ export function activate(context: vscode.ExtensionContext) {
             // Open in the workflow designer (custom editor)
             await vscode.commands.executeCommand('vscode.openWith', fileUri, 'workflowDesigner.editor');
         }),
-        vscode.commands.registerCommand('workflowDesigner.runWorkflow', () => {
-            if (runtime) runtime.runCurrentWorkflow();
+        vscode.commands.registerCommand('workflowDesigner.runWorkflow', async () => {
+            if (runtime) {
+                await requestWorkflowRunInCopilotChat(runtime);
+            }
         }),
         vscode.commands.registerCommand('workflowDesigner.pauseWorkflow', () => {
             if (runtime) runtime.pause();
@@ -117,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
                 } else {
                     output.appendLine(`Found ${models.length} model(s):`);
                     for (const m of models) {
-                        output.appendLine(`  - ${m.id} (vendor: ${m.vendor})`);
+                        output.appendLine(`  - ${m.name} (${m.vendor}) [id: ${m.id}]`);
                     }
                 }
             } catch (error) {

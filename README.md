@@ -6,7 +6,7 @@ A Visual Studio Code extension that allows developers to visually design, execut
 
 - **Visual Workflow Designer** — Drag-and-drop canvas for building workflows
 - **Multiple Node Types** — Start, End, Agent, Condition, Human Approval, Delay
-- **Workflow Runtime** — Execute workflows directly from VS Code
+- **Workflow Runtime** — Execute Agent nodes as genuine GitHub Copilot subagents
 - **Conditional Branching** — Route execution based on workflow state
 - **Loop Support** — Retry loops with configurable exit criteria
 - **Human Approval** — Pause execution for manual review
@@ -31,7 +31,8 @@ A Visual Studio Code extension that allows developers to visually design, execut
 
 - **Node.js** ≥ 18
 - **npm** ≥ 9
-- **VS Code** (stable or Insiders)
+- **VS Code** 1.129 or newer
+- **GitHub Copilot** with Chat and custom-agent/subagent support enabled
 
 ### Install from Source
 
@@ -89,7 +90,9 @@ After installing, **reload the VS Code window**:
 
 1. Open a `.workflow.yaml` file in the designer
 2. Click `▶ Run` in the toolbar
-3. Watch nodes execute in real-time with color-coded status:
+3. The extension opens Copilot Chat and submits `@workflow /run`
+4. Each Agent node runs through Copilot as the named `.agent.md` custom subagent
+5. Watch nodes execute in real-time with color-coded status:
    - 🔵 Blue = Running
    - 🟢 Green = Completed
    - 🔴 Red = Failed
@@ -148,7 +151,7 @@ edges:
 
 ## Agent Files
 
-Agents are defined as Markdown files in `.github/agents/`:
+Agents are defined as Markdown files in `.github/agents/`. The extension passes the configured name to VS Code’s native `runSubagent` tool; VS Code and Copilot load the agent instructions and configuration. There is no direct-model fallback:
 
 ```markdown
 ---
@@ -177,7 +180,7 @@ Workflows maintain a global state that nodes can read and write:
 | Command | Description |
 |---------|-------------|
 | `New Workflow` | Create a new workflow file |
-| `▶ Run Workflow` | Execute the current workflow |
+| `▶ Run Workflow with Copilot Subagents` | Submit `@workflow /run` and execute the current workflow through native Copilot subagents |
 | `⏸ Pause Workflow` | Pause execution |
 | `⏹ Stop Workflow` | Stop execution immediately |
 | `🔄 Resume Workflow` | Resume paused execution |

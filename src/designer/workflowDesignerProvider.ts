@@ -25,15 +25,6 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                 });
             }
         });
-        // Subscribe to log messages and forward to all webviews
-        runtime.onDidLogMessage((message: string) => {
-            for (const webview of this.webviews.values()) {
-                webview.postMessage({
-                    type: 'logMessage',
-                    message
-                });
-            }
-        });
     }
 
     get onDidChangeCustomDocument() {
@@ -101,10 +92,8 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                 case 'run':
                     if (this.runtime) {
                         this.runtime.setCurrentWorkflow(document.workflow, document.uri);
-                        await this.runtime.runCurrentWorkflow();
-                    } else {
-                        vscode.window.showErrorMessage('Workflow runtime is not initialized.');
                     }
+                    await vscode.commands.executeCommand('workflowDesigner.runWorkflow');
                     break;
                 case 'pause':
                     if (this.runtime) this.runtime.pause();
@@ -222,13 +211,6 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                     <p class="empty-state">Select a node to edit properties</p>
                 </div>
             </div>
-        </div>
-        <div id="execution-panel" class="hidden">
-            <div class="panel-header">
-                <span>Execution Log</span>
-                <button id="btn-clear-log" title="Clear Log">✕</button>
-            </div>
-            <div id="execution-log"></div>
         </div>
     </div>
     <script src="${scriptUri}"></script>
