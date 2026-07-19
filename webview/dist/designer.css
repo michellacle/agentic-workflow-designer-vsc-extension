@@ -244,7 +244,7 @@ textarea.property-input {
     bottom: 0;
     left: 180px;
     right: 260px;
-    height: 200px;
+    height: 180px;
     background: var(--vscode-editor-background, #fff);
     border-top: 1px solid var(--vscode-panel-border, #ddd);
     z-index: 100;
@@ -257,6 +257,9 @@ textarea.property-input {
 }
 
 .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -265,14 +268,52 @@ textarea.property-input {
     background: var(--vscode-toolbar-background, #f3f3f3);
     border-bottom: 1px solid var(--vscode-panel-border, #ddd);
     letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: none;
 }
 
-#execution-content {
+.panel-header:hover {
+    background: var(--vscode-toolbar-hoverBackground, #e8e8e8);
+}
+
+#btn-clear-log {
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground, #888);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+#btn-clear-log:hover {
+    color: var(--vscode-foreground, #333);
+}
+
+#execution-log {
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    padding: 8px 12px;
     font-size: 12px;
     font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+    line-height: 1.5;
+}
+
+#execution-log .log-line {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#execution-log .log-line.error {
+    color: #d32f2f;
+}
+
+#execution-log .log-line.success {
+    color: #388e3c;
+}
+
+#execution-log .log-line.info {
+    color: #1976d2;
 }
 
 /* Scrollbar styling */

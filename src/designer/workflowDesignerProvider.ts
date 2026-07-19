@@ -10,8 +10,31 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
     public static readonly viewType = 'workflowDesigner.editor';
     private readonly webviews: Map<string, vscode.Webview> = new Map();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<WorkflowDocument>>();
+    private runtime: any; // WorkflowRuntime reference set via setRuntime()
 
     constructor(private readonly context: vscode.ExtensionContext) { }
+
+    setRuntime(runtime: any): void {
+        this.runtime = runtime;
+        // Subscribe to execution state changes and forward to all webviews
+        runtime.onDidChangeExecutionState((status: any) => {
+            for (const webview of this.webviews.values()) {
+                webview.postMessage({
+                    type: 'executionUpdate',
+                    status
+                });
+            }
+        });
+        // Subscribe to log messages and forward to all webviews
+        runtime.onDidLogMessage((message: string) => {
+            for (const webview of this.webviews.values()) {
+                webview.postMessage({
+                    type: 'logMessage',
+                    message
+                });
+            }
+        });
+    }
 
     get onDidChangeCustomDocument() {
         return this._onDidChangeCustomDocument.event;
@@ -55,20 +78,56 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
             workflow: document.workflow
         });
 
+        // Set current workflow on runtime
+        if (this.runtime) {
+            this.runtime.setCurrentWorkflow(document.workflow, document.uri);
+        }
+
         // Handle messages from webview
         webviewPanel.webview.onDidReceiveMessage(async (msg) => {
             switch (msg.type) {
                 case 'updateWorkflow':
                     document.updateWorkflow(msg.workflow);
+                    // Update runtime with latest workflow
+                    if (this.runtime) {
+                        this.runtime.setCurrentWorkflow(document.workflow, document.uri);
+                    }
                     break;
                 case 'save':
                     await document.save();
+                    break;
+                case 'run':
+                    if (this.runtime) {
+                        this.runtime.setCurrentWorkflow(document.workflow, document.uri);
+                        await this.runtime.runCurrentWorkflow();
+                    } else {
+                        vscode.window.showErrorMessage('Workflow runtime is not initialized.');
+                    }
+                    break;
+                case 'pause':
+                    if (this.runtime) this.runtime.pause();
+                    break;
+                case 'stop':
+                    if (this.runtime) this.runtime.stop();
+                    break;
+                case 'resume':
+                    if (this.runtime) this.runtime.resume();
                     break;
                 case 'nodeSelected':
                     // Could open details panel
                     break;
                 case 'error':
                     vscode.window.showErrorMessage(`Workflow Designer: ${msg.message}`);
+                    break;
+                case 'validate':
+                    // Validate and send results back to webview
+                    if (this.runtime) {
+                        const errors = this.runtime.validate(document.workflow);
+                        webviewPanel.webview.postMessage({
+                            type: 'validationResult',
+                            errors
+                        });
+                    }
                     break;
             }
         });
@@ -159,8 +218,11 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
             </div>
         </div>
         <div id="execution-panel" class="hidden">
-            <div class="panel-header">Execution Details</div>
-            <div id="execution-content"></div>
+            <div class="panel-header">
+                <span>Execution Log</span>
+                <button id="btn-clear-log" title="Clear Log">✕</button>
+            </div>
+            <div id="execution-log"></div>
         </div>
     </div>
     <script src="${scriptUri}"></script>

@@ -45,6 +45,7 @@ export function workflowToYaml(workflow: Workflow): string {
                     agent: agentData.agent,
                     prompt: agentData.prompt,
                     description: agentData.description,
+                    model: agentData.model,
                     timeout: agentData.timeout,
                     retries: agentData.retries,
                     stateWrites: agentData.stateWrites
@@ -140,6 +141,7 @@ function parseNodeData(type: NodeType, raw: any): NodeData {
                 agent: raw.agent || '',
                 prompt: raw.prompt,
                 description: raw.description,
+                model: raw.model,
                 timeout: raw.timeout,
                 retries: raw.retries,
                 stateWrites: raw.stateWrites

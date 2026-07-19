@@ -63,6 +63,7 @@ export class AgentInvoker {
         prompt: string,
         context: Record<string, unknown>,
         timeout: number = 120,
+        modelHint?: string,
         record?: NodeExecutionRecord
     ): Promise<{ success: boolean; output: string; filesModified?: string[] }> {
         const startTime = Date.now();
@@ -81,8 +82,7 @@ export class AgentInvoker {
             const fullPrompt = this.buildPrompt(agentConfig.instructions, prompt, context);
 
             // Invoke the agent using VS Code's chat/terminal interface
-            // For Phase 2, we use a terminal-based approach
-            const result = await this.executeAgent(agentPath, fullPrompt, timeout);
+            const result = await this.executeAgent(agentPath, fullPrompt, timeout, modelHint);
 
             if (record) {
                 record.structuredOutput = result.output;
@@ -102,40 +102,129 @@ export class AgentInvoker {
     }
 
     /**
-     * Execute the agent via terminal (Phase 2 approach)
+     * Execute the agent by sending its instructions + prompt to VS Code's Language Model API
      */
     private async executeAgent(
-        agentPath: string,
-        prompt: string,
-        timeout: number
+        _agentPath: string,
+        fullPrompt: string,
+        timeout: number,
+        modelHint?: string
     ): Promise<{ success: boolean; output: string; filesModified?: string[] }> {
-        return new Promise((resolve) => {
-            const timeoutHandle = setTimeout(() => {
-                resolve({
+        const tokenSource = new vscode.CancellationTokenSource();
+        const timeoutHandle = setTimeout(() => {
+            tokenSource.cancel();
+        }, timeout * 1000);
+
+        try {
+            let languageModelChat: vscode.LanguageModelChat | null = null;
+
+            // Always fetch all available models first
+            const allModels = await vscode.lm.selectChatModels();
+            console.log(`[AgentInvoker] Available models: ${allModels.map(m => `${m.id} (${m.vendor})`).join(', ') || 'none'}`);
+
+            if (modelHint) {
+                console.log(`[AgentInvoker] Model hint: "${modelHint}"`);
+                const slashIdx = modelHint.indexOf('/');
+                if (slashIdx >= 0) {
+                    // Format: "vendor/model"
+                    const vendor = modelHint.substring(0, slashIdx);
+                    const modelPart = modelHint.substring(slashIdx + 1);
+                    console.log(`[AgentInvoker] Searching vendor="${vendor}" for model containing "${modelPart}"`);
+                    const vendorModels = allModels.filter(m => m.vendor.toLowerCase() === vendor.toLowerCase());
+                    const match = vendorModels.find(m => m.id.toLowerCase().includes(modelPart.toLowerCase()));
+                    if (match) {
+                        languageModelChat = match;
+                    } else {
+                        // Fallback: search all models for the model part
+                        const globalMatch = allModels.find(m => m.id.toLowerCase().includes(modelPart.toLowerCase()));
+                        if (globalMatch) {
+                            languageModelChat = globalMatch;
+                        }
+                    }
+                } else {
+                    // Model name — search all models by substring match
+                    console.log(`[AgentInvoker] Searching all models for "${modelHint}"`);
+                    const match = allModels.find(m => m.id.toLowerCase().includes(modelHint.toLowerCase()));
+                    if (match) {
+                        languageModelChat = match;
+                    } else {
+                        // Try matching against vendor as last resort
+                        const vendorMatch = allModels.find(m => m.vendor.toLowerCase().includes(modelHint.toLowerCase()));
+                        if (vendorMatch) {
+                            languageModelChat = vendorMatch;
+                        }
+                    }
+                }
+            } else {
+                // No model specified — require it
+                clearTimeout(timeoutHandle);
+                return {
                     success: false,
-                    output: `Agent execution timed out after ${timeout} seconds`
-                });
-            }, timeout * 1000);
-
-            // In a real implementation, this would invoke the VS Code agent
-            // For now, we simulate the execution
-            clearTimeout(timeoutHandle);
-
-            // Read the agent file content as the "output" for prototype
-            try {
-                const content = fs.readFileSync(agentPath, 'utf-8');
-                resolve({
-                    success: true,
-                    output: `Agent executed successfully. Agent definition:\n${content.substring(0, 500)}`,
+                    output: 'No model specified. Add a "model" field to the agent node (e.g. model: qwen3.6-27b, model: anthropic/claude-sonnet-4-20250514).',
                     filesModified: []
-                });
-            } catch {
-                resolve({
-                    success: false,
-                    output: `Could not read agent file: ${agentPath}`
-                });
+                };
             }
-        });
+
+            if (!languageModelChat) {
+                clearTimeout(timeoutHandle);
+                const available = allModels.map(m => `  - ${m.id} (${m.vendor})`).join('\n');
+                return {
+                    success: false,
+                    output: `Model "${modelHint}" not found.\nAvailable models:\n${available}`,
+                    filesModified: []
+                };
+            }
+
+            console.log(`[AgentInvoker] Selected model: ${languageModelChat.id} (vendor: ${languageModelChat.vendor})`);
+
+            // Send the prompt to the model
+            console.log(`[AgentInvoker] Sending request to LLM (${fullPrompt.length} chars)...`);
+            const response = await languageModelChat.sendRequest(
+                [vscode.LanguageModelChatMessage.User(fullPrompt)],
+                {},
+                tokenSource.token
+            );
+            console.log('[AgentInvoker] Response received, collecting fragments...');
+
+            // Collect the streamed response
+            let output = '';
+            for await (const fragment of response.text) {
+                output += fragment;
+            }
+
+            console.log(`[AgentInvoker] LLM response collected (${output.length} chars)`);
+            clearTimeout(timeoutHandle);
+            return {
+                success: true,
+                output: output.trim(),
+                filesModified: []
+            };
+        } catch (error) {
+            clearTimeout(timeoutHandle);
+            // Log full error details for debugging
+            if (error instanceof vscode.LanguageModelError) {
+                console.error('[AgentInvoker] LanguageModelError:', {
+                    code: error.code,
+                    message: error.message,
+                    cause: error.cause,
+                    name: error.name,
+                    stack: error.stack
+                });
+                return {
+                    success: false,
+                    output: `Language model error (${error.code}): ${error.message}`,
+                    filesModified: []
+                };
+            }
+            console.error('[AgentInvoker] Unexpected error:', error);
+            return {
+                success: false,
+                output: error instanceof Error ? error.message : String(error),
+                filesModified: []
+            };
+        } finally {
+            tokenSource.dispose();
+        }
     }
 
     /**

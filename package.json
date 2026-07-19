@@ -82,6 +82,10 @@
           "light": "resources/light/validate.svg",
           "dark": "resources/dark/validate.svg"
         }
+      },
+      {
+        "command": "workflowDesigner.listModels",
+        "title": "List Available Models"
       }
     ],
     "menus": {
@@ -142,7 +146,10 @@
     "watch": "tsc -watch -p ./",
     "package": "tsc -p ./ --sourceMap false",
     "lint": "eslint src --ext ts",
-    "build-webview": "node scripts/build-webview.js"
+    "build-webview": "node scripts/build-webview.js",
+    "dev": "npm run compile && npm run build-webview",
+    "rebuild": "rm -rf out && npm run compile && npm run build-webview && npx vsce package --out vscode-workflow-designer-0.1.0.vsix 2>/dev/null && code --install-extension vscode-workflow-designer-0.1.0.vsix 2>/dev/null && echo '✅ Extension rebuilt and installed! Reload VS Code window to activate.'",
+    "dev:watch": "npm-run-all -p watch build-webview"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

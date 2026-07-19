@@ -60,6 +60,7 @@ export interface AgentNodeData {
     agent: string;        // path to .agent.md file
     prompt?: string;
     description?: string;
+    model?: string;       // model hint, e.g. "gpt-4o", "claude-sonnet-4-20250514", or vendor "copilot", "anthropic", "openai"
     timeout?: number;     // seconds
     retries?: number;
     stateWrites?: StateWriteMapping[];

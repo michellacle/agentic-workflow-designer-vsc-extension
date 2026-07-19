@@ -22,6 +22,9 @@ export function activate(context: vscode.ExtensionContext) {
     runtime = new WorkflowRuntime(context);
     context.subscriptions.push(runtime);
 
+    // Wire runtime into designer provider so toolbar buttons work
+    designerProvider.setRuntime(runtime);
+
     // Register workflow explorer
     const explorerProvider = new WorkflowExplorerProvider(context);
     context.subscriptions.push(
@@ -58,6 +61,24 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('workflowDesigner.validateWorkflow', () => {
             vscode.commands.executeCommand('workbench.action.files.save');
+        }),
+        vscode.commands.registerCommand('workflowDesigner.listModels', async () => {
+            try {
+                const models = await vscode.lm.selectChatModels();
+                const output = vscode.window.createOutputChannel('Available Models');
+                output.clear();
+                output.show();
+                if (models.length === 0) {
+                    output.appendLine('No language models available.');
+                } else {
+                    output.appendLine(`Found ${models.length} model(s):`);
+                    for (const m of models) {
+                        output.appendLine(`  - ${m.id} (vendor: ${m.vendor})`);
+                    }
+                }
+            } catch (error) {
+                vscode.window.showErrorMessage(`Failed to list models: ${error}`);
+            }
         })
     );
 }

@@ -1,32 +1,46 @@
 name: simple-sequence
-description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)
 nodes:
   - id: start_1
     type: start
     position:
-      x: 200
-      y: 50
+      x: 160
+      'y': 50
     data:
       label: Start
   - id: agent_2
     type: agent
     position:
-      x: 200
-      y: 150
+      x: 370
+      'y': 90
     data:
       agent: planner
       prompt: Create a simple plan
-      timeout: 60
+      model: qwen3.6-27b
+      timeout: 300
       retries: 0
-  - id: end_3
+  - id: end_5
     type: end
     position:
-      x: 200
-      y: 250
+      x: 240
+      'y': 340
     data:
       label: End
+  - id: agent_10
+    type: agent
+    position:
+      x: 350
+      'y': 220
+    data:
+      agent: reviewer
+      prompt: Give a quick feedback, pass, fail, grading on the plan
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 1
 edges:
   - source: start_1
     target: agent_2
   - source: agent_2
-    target: end_3
+    target: agent_10
+  - source: agent_10
+    target: end_5
+description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)

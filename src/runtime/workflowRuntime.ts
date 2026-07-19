@@ -25,7 +25,13 @@ export class WorkflowRuntime implements vscode.Disposable {
     private _currentFileUri: vscode.Uri | null = null;
     private _abortController: AbortController | null = null;
     private _statusBarItem: vscode.StatusBarItem;
+    private _outputChannel: vscode.OutputChannel;
     private _maxLoopIterations: number = 100;
+    private readonly _onDidChangeExecutionState = new vscode.EventEmitter<any>();
+    private readonly _onDidLogMessage = new vscode.EventEmitter<string>();
+
+    public readonly onDidChangeExecutionState = this._onDidChangeExecutionState.event;
+    public readonly onDidLogMessage = this._onDidLogMessage.event;
 
     constructor(private readonly context: vscode.ExtensionContext) {
         this._stateManager = new StateManager();
@@ -34,7 +40,8 @@ export class WorkflowRuntime implements vscode.Disposable {
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._statusBarItem.text = '$$(eye) Workflow: Idle';
         this._statusBarItem.tooltip = 'Workflow execution status';
-        this._disposables.push(this._statusBarItem);
+        this._outputChannel = vscode.window.createOutputChannel('Workflow Executor');
+        this._disposables.push(this._statusBarItem, this._outputChannel);
     }
 
     /**
@@ -67,8 +74,12 @@ export class WorkflowRuntime implements vscode.Disposable {
             return;
         }
 
-        // For Phase 2 (sequential), warn about cycles
-        // For Phase 4+, cycles are allowed as loops
+        // Clear previous output and show the channel
+        this._outputChannel.clear();
+        this._outputChannel.show(true);
+        this.log(`▶ Starting workflow: ${this._currentWorkflow.name}`);
+        this.log(`   Nodes: ${this._currentWorkflow.nodes.length}, Edges: ${this._currentWorkflow.edges.length}`);
+        this.log('');
 
         await this.execute(this._currentWorkflow);
     }
@@ -83,6 +94,7 @@ export class WorkflowRuntime implements vscode.Disposable {
 
         const startNode = workflow.nodes.find(n => n.type === NodeType.Start);
         if (!startNode) {
+            this.log('✗ No Start node found in workflow.');
             vscode.window.showErrorMessage('No Start node found in workflow.');
             this._stateManager.complete(ExecutionStatus.Failed);
             this.updateStatusBar(ExecutionStatus.Failed);
@@ -91,6 +103,7 @@ export class WorkflowRuntime implements vscode.Disposable {
 
         try {
             // Initialize start node
+            this.log(`✓ Start node: ${startNode.id}`);
             this._stateManager.createNodeRecord(startNode.id, NodeStatus.Completed, this.getNodeLabel(startNode));
             this._stateManager.setCurrentNode(startNode.id);
             this.notifyExecutionUpdate();
@@ -99,6 +112,7 @@ export class WorkflowRuntime implements vscode.Disposable {
             let currentNodeIds = this.getNextNodes(startNode.id, workflow);
 
             // Execute until no more nodes or stopped
+            let hadFailure = false;
             while (currentNodeIds.length > 0 && !this.isAborted()) {
                 const nextNodeIds: string[] = [];
 
@@ -112,13 +126,19 @@ export class WorkflowRuntime implements vscode.Disposable {
                     this._stateManager.createNodeRecord(nodeId, NodeStatus.Waiting, this.getNodeLabel(node));
                     this.notifyExecutionUpdate();
 
+                    const label = this.getNodeLabel(node);
+                    this.log(`  ⠋ Running ${nodeId} (${label})...`);
                     const success = await this.executeNode(node, workflow);
                     this.notifyExecutionUpdate();
 
                     if (success) {
+                        this.log(`  ✓ ${nodeId} completed`);
                         // Get next nodes
                         const children = this.getNextNodes(nodeId, workflow);
                         nextNodeIds.push(...children);
+                    } else {
+                        this.log(`  ✗ ${nodeId} failed`);
+                        hadFailure = true;
                     }
                 }
 
@@ -126,13 +146,24 @@ export class WorkflowRuntime implements vscode.Disposable {
             }
 
             if (!this.isAborted()) {
-                this._stateManager.complete(ExecutionStatus.Completed);
-                this.updateStatusBar(ExecutionStatus.Completed);
-                vscode.window.showInformationMessage('Workflow completed successfully.');
+                if (hadFailure) {
+                    this._stateManager.complete(ExecutionStatus.Failed);
+                    this.updateStatusBar(ExecutionStatus.Failed);
+                    this.log('');
+                    this.log('✗ Workflow finished with errors.');
+                    vscode.window.showWarningMessage('Workflow finished with errors.');
+                } else {
+                    this._stateManager.complete(ExecutionStatus.Completed);
+                    this.updateStatusBar(ExecutionStatus.Completed);
+                    this.log('');
+                    this.log('✓ Workflow completed successfully!');
+                    vscode.window.showInformationMessage('Workflow completed successfully.');
+                }
             }
         } catch (error) {
             this._stateManager.complete(ExecutionStatus.Failed);
             this.updateStatusBar(ExecutionStatus.Failed);
+            this.log(`\n✗ Workflow failed: ${error}`);
             vscode.window.showErrorMessage(`Workflow failed: ${error}`);
         }
 
@@ -217,12 +248,17 @@ export class WorkflowRuntime implements vscode.Disposable {
         // Find the agent file
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
+            this.log(`     ✗ No workspace folder found`);
             this._stateManager.addError(node.id, 'No workspace folder found');
             this._stateManager.endNode(node.id, NodeStatus.Failed);
             return false;
         }
 
         const agentPath = this.resolveAgentPath(data.agent, workspaceFolder);
+        this.log(`     → Agent: ${data.agent} (${agentPath})`);
+        if (data.model) {
+            this.log(`     → Model: ${data.model}`);
+        }
 
         // Handle retries
         const maxRetries = data.retries || 0;
@@ -236,10 +272,17 @@ export class WorkflowRuntime implements vscode.Disposable {
                 data.prompt || '',
                 { ...this._stateManager.state },
                 data.timeout || 120,
+                data.model,
                 record
             );
 
             if (result.success) {
+                // Log the agent output so the user can see it
+                const outputPreview = result.output.length > 500
+                    ? result.output.substring(0, 500) + '...\n     (output truncated, see Output panel for full response)'
+                    : result.output;
+                this.log(`     → Agent output:\n${outputPreview.split('\n').join('\n')}`);
+
                 // Write state outputs if configured
                 if (data.stateWrites) {
                     for (const mapping of data.stateWrites) {
@@ -254,10 +297,12 @@ export class WorkflowRuntime implements vscode.Disposable {
 
             lastError = result.output;
             this._stateManager.addLog(node.id, `Attempt ${attempt + 1} failed: ${lastError}`);
+            this.log(`     ✗ Agent failed (attempt ${attempt + 1}): ${lastError}`);
         }
 
         this._stateManager.endNode(node.id, NodeStatus.Failed);
         this._stateManager.addError(node.id, `All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
+        this.log(`     ✗ All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
         return false;
     }
 
@@ -416,6 +461,11 @@ export class WorkflowRuntime implements vscode.Disposable {
         return this._abortController?.signal.aborted ?? false;
     }
 
+    private log(message: string): void {
+        this._outputChannel.appendLine(message);
+        this._onDidLogMessage.fire(message);
+    }
+
     private updateStatusBar(status: ExecutionStatus): void {
         const icons: Record<ExecutionStatus, string> = {
             [ExecutionStatus.Idle]: '$$(eye)',
@@ -441,12 +491,34 @@ export class WorkflowRuntime implements vscode.Disposable {
         // Notify webviews about execution state changes
         vscode.commands.executeCommand('setContext', 'workflow.running',
             this._stateManager.getStatus() === ExecutionStatus.Running);
+        // Build node status map for webview
+        const nodeStatuses: Record<string, any> = {};
+        for (const [id, record] of this._stateManager.context.nodeRecords) {
+            nodeStatuses[id] = {
+                status: record.status, // Already lowercase string (e.g., 'running')
+                startTime: record.startTime,
+                endTime: record.endTime,
+                duration: record.duration
+            };
+        }
+        this._onDidChangeExecutionState.fire({
+            overall: this._stateManager.getStatus(), // Already lowercase string (e.g., 'running')
+            currentNodeId: this._stateManager.context.currentNodeId,
+            nodeStatuses
+        });
     }
 
     private showValidationErrors(errors: any[]): void {
         for (const error of errors) {
             vscode.window.showErrorMessage(`Validation: ${error.message}`);
         }
+    }
+
+    /**
+     * Validate a workflow and return errors
+     */
+    validate(workflow: Workflow): any[] {
+        return validateWorkflow(workflow);
     }
 
     private extractValue(output: string, field: string): unknown {

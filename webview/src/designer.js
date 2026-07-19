@@ -34,7 +34,7 @@
     const NODE_CONFIGS = {
         start: { label: 'Start', color: '#4CAF50', width: 120, height: 50, icon: '●' },
         end: { label: 'End', color: '#f44336', width: 120, height: 50, icon: '●' },
-        agent: { label: 'Agent', color: '#2196F3', width: 140, height: 70, icon: '🤖' },
+        agent: { label: 'Agent', color: '#2196F3', width: 140, height: 90, icon: '🤖' },
         condition: { label: 'Condition', color: '#FF9800', width: 140, height: 70, icon: '◇' },
         human_approval: { label: 'Approval', color: '#9C27B0', width: 140, height: 70, icon: '👤' },
         delay: { label: 'Delay', color: '#607D8B', width: 140, height: 70, icon: '⏱' }
@@ -154,8 +154,8 @@
         // Determine color
         let color = config.color;
         if (state.executionStatus && state.executionStatus.nodeStatuses && state.executionStatus.nodeStatuses[node.id]) {
-            const execStatus = state.executionStatus.nodeStatuses[node.id];
-            color = STATUS_COLORS[execStatus] || config.color;
+            const execRecord = state.executionStatus.nodeStatuses[node.id];
+            color = STATUS_COLORS[execRecord.status] || config.color;
         }
 
         // Shadow
@@ -193,11 +193,18 @@
         ctx.textAlign = 'center';
         ctx.fillText(config.icon + ' ' + (node.data.label || config.label), x + w / 2, y + h * 0.3 + 14);
 
-        // Sub-label for agent nodes
-        if (node.type === 'agent' && node.data.agent) {
+        // Sub-labels for agent nodes: agent name + model
+        if (node.type === 'agent') {
+            ctx.textAlign = 'center';
+            const agentName = node.data.agent || 'unknown';
+            const model = node.data.model || 'no model';
             ctx.fillStyle = '#666';
             ctx.font = '10px system-ui, sans-serif';
-            ctx.fillText(node.data.agent.substring(0, 15), x + w / 2, y + h * 0.3 + 28);
+            ctx.fillText(agentName.substring(0, 18), x + w / 2, y + h * 0.3 + 28);
+            // Model name in a badge-like style
+            ctx.fillStyle = '#2196F3';
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            ctx.fillText(model.substring(0, 20), x + w / 2, y + h * 0.3 + 42);
         }
 
         // Ports
@@ -628,11 +635,23 @@
     // ===== Toolbar =====
     function setupToolbar() {
         document.getElementById('btn-save').addEventListener('click', () => notifySave());
-        document.getElementById('btn-run').addEventListener('click', () => notifyRun());
+        document.getElementById('btn-run').addEventListener('click', () => {
+            document.getElementById('execution-panel').classList.remove('hidden');
+            document.getElementById('execution-log').innerHTML = '';
+            notifyRun();
+        });
         document.getElementById('btn-pause').addEventListener('click', () => notifyPause());
         document.getElementById('btn-stop').addEventListener('click', () => notifyStop());
         document.getElementById('btn-resume').addEventListener('click', () => notifyResume());
         document.getElementById('btn-validate').addEventListener('click', () => notifyValidate());
+        document.getElementById('btn-clear-log').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('execution-log').innerHTML = '';
+        });
+        // Toggle panel on header click
+        document.querySelector('.panel-header').addEventListener('click', () => {
+            document.getElementById('execution-panel').classList.toggle('hidden');
+        });
     }
 
     // ===== Properties Panel =====
@@ -786,6 +805,16 @@
                 state.executionStatus = msg.status;
                 render();
                 updateExecutionStatusUI(msg.status);
+                // Show execution panel when running
+                if (msg.status && (msg.status.overall === 'running' || msg.status.overall === 'paused')) {
+                    document.getElementById('execution-panel').classList.remove('hidden');
+                }
+                if (msg.status && (msg.status.overall === 'completed' || msg.status.overall === 'failed' || msg.status.overall === 'stopped')) {
+                    document.getElementById('execution-panel').classList.remove('hidden');
+                }
+                break;
+            case 'logMessage':
+                addLogMessage(msg.message);
                 break;
             case 'validationResult':
                 if (msg.errors && msg.errors.length > 0) {
@@ -845,6 +874,22 @@
         if (status.overall === 'completed') badge.classList.add('completed');
         if (status.overall === 'failed') badge.classList.add('failed');
         if (status.overall === 'paused') badge.classList.add('paused');
+    }
+
+    function addLogMessage(message) {
+        const logEl = document.getElementById('execution-log');
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        if (message.includes('✗') || message.includes('failed') || message.includes('error')) {
+            line.classList.add('error');
+        } else if (message.includes('✓') || message.includes('completed') || message.includes('success')) {
+            line.classList.add('success');
+        } else if (message.includes('▶') || message.includes('Starting')) {
+            line.classList.add('info');
+        }
+        line.textContent = message;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
     }
 
     // ===== Utilities =====
