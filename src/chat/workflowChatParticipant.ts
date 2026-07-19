@@ -59,7 +59,7 @@ export function registerWorkflowChatParticipant(
                 stream.markdown(`\n\n⏹ Workflow **${workflowName}** was stopped.`);
                 return { metadata: { workflowName, status } };
             case ExecutionStatus.Failed: {
-                const message = `Workflow **${workflowName}** failed. See the Workflow Executor output channel for node-level details.`;
+                const message = `Workflow **${workflowName}** failed.`;
                 stream.markdown(`\n\n❌ ${message}`);
                 return {
                     errorDetails: { message },
@@ -67,7 +67,7 @@ export function registerWorkflowChatParticipant(
                 };
             }
             default: {
-                const message = `Workflow **${workflowName}** did not start. Check workflow validation and the Workflow Executor output channel.`;
+                const message = `Workflow **${workflowName}** did not start. Check workflow validation.`;
                 stream.markdown(`\n\n⚠️ ${message}`);
                 return {
                     errorDetails: { message },

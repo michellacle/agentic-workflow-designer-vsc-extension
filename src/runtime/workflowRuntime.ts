@@ -159,7 +159,6 @@ export class WorkflowRuntime implements vscode.Disposable {
         }
 
         this._outputChannel.clear();
-        this._outputChannel.show(true);
         this.log(`▶ Starting workflow with genuine Copilot subagents: ${this._currentWorkflow.name}`);
         this.log(`   Nodes: ${this._currentWorkflow.nodes.length}, Edges: ${this._currentWorkflow.edges.length}`);
         this.log('');
