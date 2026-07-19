@@ -52,15 +52,32 @@ export function registerWorkflowChatParticipant(
         });
 
         switch (status) {
-            case ExecutionStatus.Completed:
-                stream.markdown(`\n\n✅ Workflow **${workflowName}** completed successfully.`);
+            case ExecutionStatus.Completed: {
+                const summary = runtime.getExecutionSummary();
+                let response = `\n\n✅ Workflow **${workflowName}** completed successfully.`;
+                if (summary) {
+                    response += `\n\n${summary}`;
+                }
+                stream.markdown(response);
                 return { metadata: { workflowName, status } };
-            case ExecutionStatus.Stopped:
-                stream.markdown(`\n\n⏹ Workflow **${workflowName}** was stopped.`);
+            }
+            case ExecutionStatus.Stopped: {
+                const summary = runtime.getExecutionSummary();
+                let response = `\n\n⏹ Workflow **${workflowName}** was stopped.`;
+                if (summary) {
+                    response += `\n\n${summary}`;
+                }
+                stream.markdown(response);
                 return { metadata: { workflowName, status } };
+            }
             case ExecutionStatus.Failed: {
+                const summary = runtime.getExecutionSummary();
                 const message = `Workflow **${workflowName}** failed.`;
-                stream.markdown(`\n\n❌ ${message}`);
+                let response = `\n\n❌ ${message}`;
+                if (summary) {
+                    response += `\n\n${summary}`;
+                }
+                stream.markdown(response);
                 return {
                     errorDetails: { message },
                     metadata: { workflowName, status }
