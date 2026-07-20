@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { Workflow } from '../models/workflow';
 import { workflowToYaml, yamlToWorkflow } from '../utils/yamlSerializer';
+import { WorkflowRuntime } from '../runtime/workflowRuntime';
+import { ExecutionStateChangeEvent } from '../runtime/workflowExecutor';
 
 /**
  * Custom editor provider for workflow designer
@@ -10,14 +12,14 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
     public static readonly viewType = 'workflowDesigner.editor';
     private readonly webviews: Map<string, vscode.Webview> = new Map();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<WorkflowDocument>>();
-    private runtime: any; // WorkflowRuntime reference set via setRuntime()
+    private runtime: WorkflowRuntime | undefined;
 
     constructor(private readonly context: vscode.ExtensionContext) { }
 
-    setRuntime(runtime: any): void {
+    setRuntime(runtime: WorkflowRuntime): void {
         this.runtime = runtime;
         // Subscribe to execution state changes and forward to all webviews
-        runtime.onDidChangeExecutionState((status: any) => {
+        runtime.onDidChangeExecutionState((status: ExecutionStateChangeEvent) => {
             for (const webview of this.webviews.values()) {
                 webview.postMessage({
                     type: 'executionUpdate',

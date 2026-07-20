@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -10,8 +9,8 @@ import {
 } from '../models/workflow';
 import { StateManager } from './stateManager';
 import { ConditionEvaluator } from './conditionEvaluator';
-import { AgentInvoker, CopilotSubagentExecutionContext } from './agentInvoker';
-import { ExecutionObserver } from './executionObserver';
+import { CopilotSubagentExecutionContext, IAgentInvoker } from './executionContext';
+import { ExecutionObserver } from './executionObserver.interface';
 import { validateWorkflow } from '../utils/workflowValidator';
 
 /**
@@ -23,12 +22,33 @@ export interface NodeExecutionResult {
 }
 
 /**
+ * A plain reference to a document or file from a chat request.
+ */
+export interface ChatReference {
+    documentUri?: string;
+}
+
+/**
  * Context from the Copilot Chat request.
  */
 export interface ChatRequestContext {
     prompt?: string;
-    references?: readonly vscode.ChatPromptReference[];
+    references?: readonly ChatReference[];
 }
+
+/**
+ * Execution state change event fired by the executor.
+ */
+export interface ExecutionStateChangeEvent {
+    overall: ExecutionStatus;
+    currentNodeId: string | undefined;
+    nodeStatuses: Record<string, { status: NodeStatus; startTime?: number; endTime?: number; duration?: number }>;
+}
+
+/**
+ * Callback for execution state changes.
+ */
+export type ExecutionStateChangeListener = (event: ExecutionStateChangeEvent) => void;
 
 /**
  * Options for invoking the executor.
@@ -37,6 +57,8 @@ export interface ExecuteOptions {
     workflow: Workflow;
     chatContext?: ChatRequestContext;
     executionContext: CopilotSubagentExecutionContext;
+    /** Root path of the workspace, used for resolving agent file paths. */
+    workspaceRoot: string;
 }
 
 /**
@@ -48,16 +70,27 @@ export interface ExecuteOptions {
  */
 export class WorkflowExecutor {
     private _stateManager: StateManager;
-    private _agentInvoker: AgentInvoker;
+    private _agentInvoker: IAgentInvoker;
     private _abortController: AbortController | null = null;
     private _activeCopilotContext: CopilotSubagentExecutionContext | null = null;
+    private _workspaceRoot: string = '';
 
-    private readonly _onDidChangeExecutionState = new vscode.EventEmitter<any>();
-    public readonly onDidChangeExecutionState = this._onDidChangeExecutionState.event;
+    private _executionStateListeners: ExecutionStateChangeListener[] = [];
 
-    constructor(private readonly observer: ExecutionObserver) {
+    constructor(private readonly observer: ExecutionObserver, agentInvoker?: IAgentInvoker) {
         this._stateManager = new StateManager();
-        this._agentInvoker = new AgentInvoker();
+        this._agentInvoker = agentInvoker ?? null as any; // production code must inject AgentInvoker
+    }
+
+    /**
+     * Subscribe to execution state changes.
+     */
+    onDidChangeExecutionState(listener: ExecutionStateChangeListener): () => void {
+        this._executionStateListeners.push(listener);
+        return () => {
+            const idx = this._executionStateListeners.indexOf(listener);
+            if (idx >= 0) this._executionStateListeners.splice(idx, 1);
+        };
     }
 
     /**
@@ -88,7 +121,7 @@ export class WorkflowExecutor {
         });
 
         try {
-            await this.execute(workflow, chatContext);
+            await this.execute(workflow, chatContext, options.workspaceRoot);
             return this._stateManager.getStatus();
         } finally {
             chatCancellation.dispose();
@@ -140,9 +173,10 @@ export class WorkflowExecutor {
 
     // ---- Private execution logic ----
 
-    private async execute(workflow: Workflow, chatContext?: ChatRequestContext): Promise<void> {
+    private async execute(workflow: Workflow, chatContext?: ChatRequestContext, workspaceRoot?: string): Promise<void> {
         this._stateManager.initialize();
         this._abortController = new AbortController();
+        if (workspaceRoot) this._workspaceRoot = workspaceRoot;
         this.observer.onStatusChange(ExecutionStatus.Running);
 
         if (chatContext) {
@@ -152,7 +186,7 @@ export class WorkflowExecutor {
             if (chatContext.references && chatContext.references.length > 0) {
                 const refUris = chatContext.references.map(r => {
                     if ('documentUri' in r) {
-                        return (r.documentUri as vscode.Uri)?.toString() || (r.documentUri as string);
+                        return r.documentUri || null;
                     }
                     return null;
                 }).filter(Boolean);
@@ -268,7 +302,16 @@ export class WorkflowExecutor {
                     return { success: true };
 
                 case NodeType.Agent:
-                    return { success: await this.executeAgentNode(node, workflow) };
+                    return { success: await this.executeAgentNode(node, workflow, this._workspaceRoot) };
+
+                case NodeType.Condition:
+                    return this.executeConditionNode(node, workflow);
+
+                case NodeType.HumanApproval:
+                    return this.executeHumanApprovalNode(node);
+
+                case NodeType.Delay:
+                    return this.executeDelayNode(node);
 
                 case NodeType.Condition:
                     return this.executeConditionNode(node, workflow);
@@ -290,19 +333,11 @@ export class WorkflowExecutor {
         }
     }
 
-    private async executeAgentNode(node: Node, _workflow: Workflow): Promise<boolean> {
+    private async executeAgentNode(node: Node, _workflow: Workflow, workspaceRoot: string): Promise<boolean> {
         const data = node.data as AgentNodeData;
         const record = this._stateManager.getNodeRecord(node.id);
 
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        if (!workspaceFolder) {
-            this.observer.onLog(`     ✗ No workspace folder found`);
-            this._stateManager.addError(node.id, 'No workspace folder found');
-            this._stateManager.endNode(node.id, NodeStatus.Failed);
-            return false;
-        }
-
-        const agentPath = this.resolveAgentPath(data.agent, workspaceFolder);
+        const agentPath = this.resolveAgentPath(data.agent, workspaceRoot);
         this.observer.onLog(`     → Agent: ${data.agent} (${agentPath})`);
         if (data.model) {
             this.observer.onLog(`     → Model: ${data.model}`);
@@ -545,13 +580,13 @@ export class WorkflowExecutor {
         return d.label || d.agent || d.message || node.id;
     }
 
-    private resolveAgentPath(agentName: string, workspaceFolder: vscode.WorkspaceFolder): string {
-        const agentsDir = path.join(workspaceFolder.uri.fsPath, '.github', 'agents');
+    private resolveAgentPath(agentName: string, workspaceRoot: string): string {
+        const agentsDir = path.join(workspaceRoot, '.github', 'agents');
         const agentFile = path.join(agentsDir, `${agentName}.agent.md`);
 
         if (fs.existsSync(agentFile)) return agentFile;
         if (fs.existsSync(agentName)) return agentName;
-        const relativePath = path.join(workspaceFolder.uri.fsPath, agentName);
+        const relativePath = path.join(workspaceRoot, agentName);
         if (fs.existsSync(relativePath)) return relativePath;
         return agentFile;
     }
@@ -579,9 +614,7 @@ export class WorkflowExecutor {
     }
 
     private notifyExecutionUpdate(): void {
-        vscode.commands.executeCommand('setContext', 'workflow.running',
-            this._stateManager.getStatus() === ExecutionStatus.Running);
-        const nodeStatuses: Record<string, any> = {};
+        const nodeStatuses: Record<string, { status: NodeStatus; startTime?: number; endTime?: number; duration?: number }> = {};
         for (const [id, record] of this._stateManager.context.nodeRecords) {
             nodeStatuses[id] = {
                 status: record.status,
@@ -590,10 +623,13 @@ export class WorkflowExecutor {
                 duration: record.duration
             };
         }
-        this._onDidChangeExecutionState.fire({
+        const event: ExecutionStateChangeEvent = {
             overall: this._stateManager.getStatus(),
             currentNodeId: this._stateManager.context.currentNodeId,
             nodeStatuses
-        });
+        };
+        for (const listener of this._executionStateListeners) {
+            listener(event);
+        }
     }
 }

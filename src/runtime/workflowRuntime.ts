@@ -4,7 +4,8 @@ import {
     ExecutionStatus,
 } from '../models/workflow';
 import { WorkflowExecutor, ChatRequestContext } from './workflowExecutor';
-import { CopilotSubagentExecutionContext } from './agentInvoker';
+import { CopilotSubagentExecutionContext } from './executionContext';
+import { AgentInvoker } from './agentInvoker';
 import { RunHistoryManager, RunRecord } from './runHistory';
 import { VSCodeExecutionObserver } from './executionObserver';
 import { validateWorkflow } from '../utils/workflowValidator';
@@ -38,14 +39,19 @@ export class WorkflowRuntime implements vscode.Disposable {
         this._observer = new VSCodeExecutionObserver(
             vscode.window.createOutputChannel('Workflow Executor')
         );
-        this._executor = new WorkflowExecutor(this._observer);
+        const agentInvoker = new AgentInvoker();
+        this._executor = new WorkflowExecutor(this._observer, agentInvoker);
         this._runHistory = new RunHistoryManager(context);
         this._disposables.push(this._observer);
 
         // Forward executor events to our own event emitter
-        this._executor.onDidChangeExecutionState((state) => {
+        const unsubscribe = this._executor.onDidChangeExecutionState((state) => {
+            // Set VS Code command context for toolbar button states
+            vscode.commands.executeCommand('setContext', 'workflow.running',
+                state.overall === ExecutionStatus.Running);
             this._onDidChangeExecutionState.fire(state);
         });
+        this._disposables.push({ dispose: unsubscribe });
     }
 
     /**
@@ -148,10 +154,12 @@ export class WorkflowRuntime implements vscode.Disposable {
             return undefined;
         }
 
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
         const status = await this._executor.run({
             workflow: this._currentWorkflow,
             chatContext,
             executionContext,
+            workspaceRoot,
         });
 
         // Save to run history after execution completes

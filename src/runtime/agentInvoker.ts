@@ -2,13 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { NodeExecutionRecord } from '../models/workflow';
-
-export interface CopilotSubagentExecutionContext {
-    toolInvocationToken: vscode.ChatParticipantToolToken;
-    cancellationToken: vscode.CancellationToken;
-    workflowAbortSignal?: AbortSignal;
-    reportProgress?: (message: string) => void;
-}
+import { CopilotSubagentExecutionContext } from './executionContext';
 
 interface AgentInvocationResult {
     success: boolean;
@@ -168,7 +162,7 @@ export class AgentInvoker {
             const toolResult = await vscode.lm.invokeTool(
                 subagentTool.name,
                 {
-                    toolInvocationToken: executionContext.toolInvocationToken,
+                    toolInvocationToken: executionContext.toolInvocationToken as vscode.ChatParticipantToolToken | undefined,
                     input: toolInput
                 },
                 tokenSource.token
