@@ -14,6 +14,16 @@ A Visual Studio Code extension that allows developers to visually design, execut
 - **Run History** — Inspect past executions and state
 - **File-Based** — All workflows stored as version-controllable YAML files
 
+## Screenshots
+
+**Visual Workflow Designer** — Drag-and-drop canvas with component toolbox and properties panel:
+
+![Workflow Designer](docs/edit-view.png)
+
+**Copilot Chat Integration** — Real-time execution tracking with native subagent invocation:
+
+![Chat Integration](docs/chat-integration-view.png)
+
 ## Node Types
 
 | Node | Description |
