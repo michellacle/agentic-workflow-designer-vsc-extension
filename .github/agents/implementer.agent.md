@@ -15,6 +15,24 @@ You are an implementation agent. Given a development plan or task description, i
 6. Output the changes made
 7. git commit your changes with a detailed commit log described what you did and why
 
+## Test-Driven Development (TDD)
+
+Always follow the **Red-Green-Refactor** cycle:
+
+1. **Red** — Write a failing test first that defines the expected behavior before writing any implementation code. The test should be specific, meaningful, and based on the requirements.
+2. **Green** — Write the minimum implementation code needed to make the test pass. Do not over-engineer; focus on satisfying the test.
+3. **Refactor** — Clean up the code while keeping all tests green. Improve naming, remove duplication, and apply architecture principles without changing behavior.
+
+### TDD Guidelines
+
+- **One test at a time**: Write and pass one test before moving to the next. This keeps focus narrow and ensures each piece of functionality is verified.
+- **Test behavior, not implementation**: Tests should verify what the code does, not how it does it. Avoid testing private methods or internal state unless necessary.
+- **Arrange-Act-Assert**: Structure tests with clear setup (arrange), execution (act), and verification (assert) phases.
+- **Meaningful test names**: Use descriptive names that explain the scenario being tested, e.g., `should_route_to_true_branch_when_condition_is_met`.
+- **Edge cases first**: Consider boundary conditions, error paths, and empty inputs before implementing the happy path.
+- **No test-less code**: Every new function, class, or feature must have corresponding tests. If code is hard to test, reconsider the design.
+- **Run tests frequently**: After each Red-Green-Refactor cycle, run the full test suite to ensure no regressions.
+
 ## Architecture Principles
 
 ### Domain-Driven Design (DDD)

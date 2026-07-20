@@ -101,17 +101,20 @@ describe('Task 3: onDidLogMessage event emitter removed from runtime', () => {
         expect(content).toContain('_onDidChangeExecutionState');
     });
 
-    it('should still contain the log() method that writes to output channel', () => {
-        expect(content).toContain('private log(message: string)');
-        expect(content).toContain('_outputChannel.appendLine(message)');
+    it('should delegate logging to ExecutionObserver (no private log() method)', () => {
+        // After collapsing the god module, logging is handled by ExecutionObserver.
+        // WorkflowRuntime no longer has a private log() method or _outputChannel.
+        expect(content).not.toContain('private log(message: string)');
+        expect(content).not.toContain('_outputChannel');
+        // Instead it uses the observer pattern
+        expect(content).toContain('VSCodeExecutionObserver');
+        expect(content).toContain('WorkflowExecutor');
     });
 
-    it('log() method should not fire any event', () => {
-        // Extract the log method body
-        const logMatch = content.match(/private log\(message: string\): void \{([^}]+)\}/);
-        expect(logMatch).not.toBeNull();
-        const logBody = logMatch![1];
-        expect(logBody).not.toContain('.fire(');
+    it('should not contain any .fire() calls for logging', () => {
+        // The old log() method was verified to not fire events.
+        // Now logging is entirely in the observer, so there's no log method to check.
+        expect(content).not.toContain('_onDidLogMessage');
     });
 });
 
@@ -341,11 +344,12 @@ describe('Preserved functionality: Execution status badge remains', () => {
 });
 
 describe('Preserved functionality: Runtime log() writes to output channel only', () => {
-    it('workflowRuntime.ts log() should use _outputChannel.appendLine', () => {
-        const content = readFile('src/runtime/workflowRuntime.ts');
-        const logMatch = content.match(/private log\(message: string\): void \{([^}]+)\}/);
+    it('executionObserver.ts log() should use _outputChannel.appendLine', () => {
+        // After refactoring, logging moved from WorkflowRuntime to VSCodeExecutionObserver.
+        const content = readFile('src/runtime/executionObserver.ts');
+        const logMatch = content.match(/onLog\(message: string\): void \{([^}]+)\}/s);
         expect(logMatch).not.toBeNull();
-        expect(logMatch![1]).toContain('_outputChannel.appendLine(message)');
+        expect(logMatch![1]).toContain('outputChannel.appendLine(message)');
     });
 
     it('workflowRuntime.ts should still have onDidChangeExecutionState event', () => {
