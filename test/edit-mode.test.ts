@@ -40,8 +40,12 @@ describe('Task 1: Edit Mode button in toolbar HTML template', () => {
         expect(content).toMatch(/id="btn-edit-mode"[^>]*title="[^"]*Edit Mode[^"]*"/i);
     });
 
-    it('should have visible button text containing "Edit"', () => {
-        expect(content).toMatch(/id="btn-edit-mode"[^>]*>.*Edit/s);
+    it('should use icon-only button content (no text label)', () => {
+        const match = content.match(/id="btn-edit-mode"[^>]*>([^<]*)/);
+        expect(match).not.toBeNull();
+        const buttonContent = match![1].trim();
+        expect(buttonContent).not.toContain('Edit');
+        expect(buttonContent).toMatch(/[✎✏]/);
     });
 
     it('should be placed before the execution-status badge', () => {
@@ -136,8 +140,8 @@ describe('Task 2: toggleEditMode function in webview designer.ts', () => {
         expect(fnBody).toMatch(/classList\.remove\(['"]active['"]\)/);
     });
 
-    it('should update button text when toggled', () => {
-        expect(fnBody).toMatch(/textContent\s*=/);
+    it('should NOT update button text (icon-only buttons rely on title tooltip)', () => {
+        expect(fnBody).not.toMatch(/textContent\s*=/);
     });
 
     it('should trigger resizeCanvas after a delay for CSS transition', () => {

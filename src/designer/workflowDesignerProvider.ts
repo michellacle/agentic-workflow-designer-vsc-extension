@@ -218,13 +218,13 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
 <body>
     <div id="app">
         <div id="toolbar">
-            <button id="btn-run" title="Run Workflow">▶ Run</button>
-            <button id="btn-pause" title="Pause Workflow">⏸ Pause</button>
-            <button id="btn-stop" title="Stop Workflow">⏹ Stop</button>
-            <button id="btn-resume" title="Resume Workflow">🔄 Resume</button>
-            <button id="btn-save" title="Save Workflow">💾 Save</button>
-            <button id="btn-validate" title="Validate Workflow">✓ Validate</button>
-            <button id="btn-edit-mode" title="Toggle Edit Mode (enable/disable editing)">✎ Edit</button>
+            <button id="btn-run" title="Run Workflow">▶</button>
+            <button id="btn-pause" title="Pause Workflow">⏸</button>
+            <button id="btn-stop" title="Stop Workflow">⏹</button>
+            <button id="btn-resume" title="Resume Workflow">🔄</button>
+            <button id="btn-save" title="Save Workflow">💾</button>
+            <button id="btn-validate" title="Validate Workflow">✓</button>
+            <button id="btn-edit-mode" title="Toggle Edit Mode">✎</button>
             <span id="execution-status" class="status-badge"></span>
         </div>
         <div id="main-container">

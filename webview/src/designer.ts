@@ -1139,13 +1139,11 @@
             toolbox.classList.remove('hidden');
             propertiesPanel.classList.remove('hidden');
             btn.classList.add('active');
-            btn.textContent = '✎ Edit';
         } else {
             // Edit mode OFF — hide panels, read-only canvas
             toolbox.classList.add('hidden');
             propertiesPanel.classList.add('hidden');
             btn.classList.remove('active');
-            btn.textContent = '✎ Edit';
         }
 
         // Resize canvas after panels slide in/out

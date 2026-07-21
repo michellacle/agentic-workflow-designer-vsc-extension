@@ -243,4 +243,20 @@ describe('UI regression suite', () => {
         expect(drawArrowheadsBody).not.toBeNull();
         expect(drawArrowheadsBody).toMatch(/workflow\.edges/);
     });
+
+    it('regression: toolbar buttons should be icon-only (no text labels, tooltips via title attribute)', () => {
+        const htmlSource = readFile('src/designer/workflowDesignerProvider.ts');
+
+        // Each toolbar button should have a title attribute for hover tooltips
+        const buttonIds = ['btn-run', 'btn-pause', 'btn-stop', 'btn-resume', 'btn-save', 'btn-validate', 'btn-edit-mode'];
+        for (const id of buttonIds) {
+            const btnMatch = htmlSource.match(new RegExp(`id="${id}"[^>]*title="([^"]+)"[^>]*>([^<]*)`, 's'));
+            expect(btnMatch).not.toBeNull();
+            expect(btnMatch![1].trim()).not.toBe('');
+
+            // Button content should be icon-only (no text labels like "Run", "Pause", etc.)
+            const content = btnMatch![2].trim();
+            expect(content.length < 5).toBe(true);
+        }
+    });
 });
