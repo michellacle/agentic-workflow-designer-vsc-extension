@@ -15,6 +15,19 @@ You are an implementation agent. Given a development plan or task description, i
 6. Output the changes made
 7. git commit your changes with a detailed commit log described what you did and why
 
+## Workflow Debug Log Requirement
+
+When a bug report references a workflow execution issue:
+
+1. Locate execution logs in `.workflow/logs/`.
+2. If a report includes a log reference id or file path, read that log first before proposing a fix.
+3. Use log context (node records, state, prompts, outputs, errors) to reproduce and isolate root cause.
+4. If execution-log behavior is missing or incomplete, implement it as part of the fix:
+	- Auto-persist logs for every run (`Completed`, `Failed`, `Stopped`)
+	- Keep the latest 100 logs by default
+	- Preserve full execution context in logs by default
+5. Never commit runtime log artifacts from `.workflow/`.
+
 ## Mandatory UI Regression Requirement
 
 For every feature that changes user-visible behavior, you must add at least one UI regression test case.

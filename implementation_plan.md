@@ -224,6 +224,20 @@ This plan breaks the PRD into phases with actionable tasks and verification chec
 
 > **Deliverable:** User can design a sequential workflow, press Run, and watch agents execute in order. Canvas shows live status. Agent results are captured.
 
+### 2.6 Persistent Execution Logs For Debugging
+
+- [ ] 2.6.1 Persist an execution log file automatically for every workflow run completion (`Completed`, `Failed`, `Stopped`)
+- [ ] 2.6.2 Use a standard workspace-local log location: `.workflow/logs/`
+- [ ] 2.6.3 Use filename schema: `{timestamp}_{workflowName}_{status}_{runId}.log` (UTC compact timestamp)
+- [ ] 2.6.4 Include full execution context in log output by default (state, node execution records, prompts, outputs, errors)
+- [ ] 2.6.5 Retain only the latest 100 logs by default; delete oldest on write overflow
+- [ ] 2.6.6 Emit log reference metadata (id + absolute path) at end of run for user bug reports
+- [ ] 2.6.7 Add `.workflow/` to `.gitignore` so runtime logs are never committed
+
+### ✅ Checkpoint 2.6
+
+> Every workflow run auto-writes a debug log to `.workflow/logs/`, retention is enforced at 100 files, and run completion surfaces log id/path that can be attached to implementer reports.
+
 ---
 
 ## Phase 3 — Conditional Execution

@@ -83,7 +83,4 @@ edges:
     target: agent_18
   - source: agent_18
     target: agent_16
-  - source: agent_18
-    target: agent_11
-    label: loop back
 description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)
