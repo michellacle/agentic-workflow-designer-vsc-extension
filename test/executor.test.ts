@@ -12,7 +12,7 @@ import {
 } from '../src/models/workflow';
 import { WorkflowExecutor, ExecutionStateChangeEvent } from '../src/runtime/workflowExecutor';
 import { InMemoryExecutionObserver } from '../src/runtime/executionObserver.interface';
-import { CopilotSubagentExecutionContext } from '../src/runtime/executionContext';
+import { CopilotSubagentExecutionContext, IAgentInvoker } from '../src/runtime/executionContext';
 
 // ---- Helpers ----
 
@@ -280,6 +280,45 @@ describe('WorkflowExecutor integration', () => {
     });
 
     describe('error handling', () => {
+        it('should set agent step success state to false when agent invocation fails', async () => {
+            const workflow: Workflow = {
+                name: 'qa-failure',
+                nodes: [
+                    { id: 'start', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
+                    {
+                        id: 'qa',
+                        type: NodeType.Agent,
+                        position: { x: 120, y: 0 },
+                        data: { agent: 'qa', prompt: 'Run UI regressions' },
+                    },
+                    { id: 'end', type: NodeType.End, position: { x: 240, y: 0 }, data: { summary: false } as EndNodeData },
+                ],
+                edges: [
+                    { id: 'e1', source: 'start', target: 'qa' },
+                    { id: 'e2', source: 'qa', target: 'end' },
+                ],
+            };
+
+            const failingInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return {
+                        success: false,
+                        output: 'UI regression tests failed',
+                    };
+                },
+            };
+
+            const failingExecutor = new WorkflowExecutor(observer, failingInvoker);
+            const status = await failingExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Failed);
+            expect(failingExecutor.getExecutionContext().state['qa_success']).toBe(false);
+        });
+
         it('should return undefined when workflow has no start node', async () => {
             const workflow: Workflow = {
                 name: 'no-start',

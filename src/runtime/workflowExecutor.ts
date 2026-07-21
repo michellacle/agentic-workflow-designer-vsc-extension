@@ -460,6 +460,7 @@ export class WorkflowExecutor {
             this.observer.onLog(`     ✗ Agent failed (attempt ${attempt + 1}): ${lastError}`);
         }
 
+        this._stateManager.set(`${node.id}_success`, false);
         this._stateManager.addError(node.id, `All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
         this.observer.onLog(`     ✗ All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
         throw new Error(`All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
