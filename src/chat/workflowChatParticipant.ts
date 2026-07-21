@@ -27,7 +27,7 @@ export function registerWorkflowChatParticipant(
         // Build chat context from the request
         const chatContext = {
             prompt: request.prompt,
-            references: request.references
+            references: request.references as any
         };
 
         // Auto-discover workflow file if not already loaded by the designer
@@ -48,7 +48,7 @@ export function registerWorkflowChatParticipant(
             reportProgress: message => stream.progress(message)
         }, {
             prompt: request.prompt,
-            references: request.references
+            references: request.references as any
         });
 
         switch (status) {

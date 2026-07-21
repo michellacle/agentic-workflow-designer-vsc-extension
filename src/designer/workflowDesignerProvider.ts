@@ -3,6 +3,7 @@ import { Workflow } from '../models/workflow';
 import { workflowToYaml, yamlToWorkflow } from '../utils/yamlSerializer';
 import { WorkflowRuntime } from '../runtime/workflowRuntime';
 import { ExecutionStateChangeEvent } from '../runtime/workflowExecutor';
+import { validateWorkflow } from '../utils/workflowValidator';
 
 /**
  * Custom editor provider for workflow designer
@@ -13,6 +14,7 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
     private readonly webviews: Map<string, vscode.Webview> = new Map();
     private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<WorkflowDocument>>();
     private runtime: WorkflowRuntime | undefined;
+    private diagnosticsCollection: vscode.DiagnosticCollection | undefined;
 
     constructor(private readonly context: vscode.ExtensionContext) { }
 
@@ -27,6 +29,10 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                 });
             }
         });
+    }
+
+    setDiagnosticsCollection(collection: vscode.DiagnosticCollection): void {
+        this.diagnosticsCollection = collection;
     }
 
     get onDidChangeCustomDocument() {
@@ -125,17 +131,47 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                             errors
                         });
                     }
+                    // Publish diagnostics to Problems panel
+                    publishValidationDiagnostics(this.diagnosticsCollection, document.uri, document.workflow);
+                    break;
+                case 'editEdgeLabel':
+                    // Show input box for edge label editing
+                    const currentLabel = msg.currentLabel || '';
+                    const newLabel = await vscode.window.showInputBox({
+                        prompt: 'Enter edge label',
+                        value: currentLabel,
+                        placeHolder: 'e.g., True, False, Pass, Fail'
+                    });
+                    if (newLabel !== undefined) {
+                        // Find and update the edge in the workflow
+                        const edge = document.workflow.edges.find(e => e.id === msg.edgeId);
+                        if (edge) {
+                            edge.label = newLabel;
+                            // Notify webview of the update
+                            webviewPanel.webview.postMessage({
+                                type: 'edgeLabelUpdate',
+                                edgeId: msg.edgeId,
+                                newLabel
+                            });
+                        }
+                    }
                     break;
             }
         });
 
         webviewPanel.onDidDispose(() => {
             this.webviews.delete(document.uri.toString());
+            // Clear diagnostics when editor is closed
+            if (this.diagnosticsCollection) {
+                this.diagnosticsCollection.delete(document.uri);
+            }
         });
     }
 
     async saveCustomDocument(document: WorkflowDocument, cancellation: vscode.CancellationToken): Promise<void> {
         await document.save();
+        // Publish validation diagnostics on save
+        publishValidationDiagnostics(this.diagnosticsCollection, document.uri, document.workflow);
     }
 
     async saveCustomDocumentAs(document: WorkflowDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
@@ -240,6 +276,83 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
             return [];
         }
     }
+}
+
+/**
+ * Publish validation errors as VS Code Diagnostics to the Problems panel.
+ */
+function publishValidationDiagnostics(
+    collection: vscode.DiagnosticCollection | undefined,
+    uri: vscode.Uri,
+    workflow: Workflow
+): void {
+    if (!collection) return;
+
+    const errors = validateWorkflow(workflow);
+    const diagnostics: vscode.Diagnostic[] = [];
+
+    // Try to get the text document for line-level resolution
+    const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
+
+    for (const error of errors) {
+        const severity = error.severity === 'error'
+            ? vscode.DiagnosticSeverity.Error
+            : vscode.DiagnosticSeverity.Warning;
+
+        let range: vscode.Range | undefined;
+
+        // Try to locate the error in the YAML file
+        if (error.node && document) {
+            const line = findNodeInDocument(document, error.node);
+            if (line !== null) {
+                range = new vscode.Range(line, 0, line, 0);
+            }
+        } else if (error.edge && document) {
+            const line = findEdgeInDocument(document, error.edge);
+            if (line !== null) {
+                range = new vscode.Range(line, 0, line, 0);
+            }
+        }
+
+        if (range) {
+            diagnostics.push(new vscode.Diagnostic(range, error.message, severity));
+        } else {
+            // Global errors go to the top of the file
+            diagnostics.push(new vscode.Diagnostic(
+                new vscode.Range(0, 0, 0, 0),
+                error.message,
+                severity
+            ));
+        }
+    }
+
+    collection.set(uri, diagnostics);
+}
+
+/**
+ * Find the line number where a node with the given id is defined in the YAML.
+ */
+function findNodeInDocument(document: vscode.TextDocument, nodeId: string): number | null {
+    const lines = document.getText().split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().startsWith(`id: ${nodeId}`) || lines[i].trim() === `- id: ${nodeId}`) {
+            return i;
+        }
+    }
+    return null;
+}
+
+/**
+ * Find the line number where an edge with the given id is defined in the YAML.
+ */
+function findEdgeInDocument(document: vscode.TextDocument, edgeId: string): number | null {
+    const lines = document.getText().split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().startsWith(`id: ${edgeId}`)) {
+            return i;
+        }
+    }
+    return null;
 }
 
 /**

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import {
     Workflow,
     ExecutionStatus,
+    NodeExecutionRecord,
 } from '../models/workflow';
 import { WorkflowExecutor, ChatRequestContext } from './workflowExecutor';
 import { CopilotSubagentExecutionContext } from './executionContext';
@@ -9,6 +10,7 @@ import { AgentInvoker } from './agentInvoker';
 import { RunHistoryManager, RunRecord } from './runHistory';
 import { VSCodeExecutionObserver } from './executionObserver';
 import { validateWorkflow } from '../utils/workflowValidator';
+import { exportExecutionLogs } from './executionLogExporter';
 
 // Re-export from WorkflowExecutor for backward compatibility
 export { NodeExecutionResult } from './workflowExecutor';
@@ -254,6 +256,20 @@ export class WorkflowRuntime implements vscode.Disposable {
      */
     validate(workflow: Workflow): any[] {
         return validateWorkflow(workflow);
+    }
+
+    /**
+     * Export the current execution's logs as a formatted text string.
+     */
+    exportCurrentExecutionLogs(): string {
+        const exec = this._executor.getExecutionContext();
+        return exportExecutionLogs(
+            exec.nodeRecords,
+            this._currentWorkflow?.name || 'unknown',
+            exec.status,
+            exec.startTime,
+            exec.endTime
+        );
     }
 
     dispose(): void {

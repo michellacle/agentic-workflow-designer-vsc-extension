@@ -100,8 +100,8 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Pause at a Human Approval node and show modal Approve and Reject actions.
 - [x] Store a Human Approval result in workflow state.
 - [ ] Route approval to the True path and rejection to the False path. A rejection currently fails the node and ends that path.
-- [ ] Pause execution at the next node boundary when the Pause control is used. The current control changes status but traversal continues.
-- [ ] Resume a workflow that was actually halted by Pause.
+- [x] Pause execution at the next node boundary when the Pause control is used. The current control changes status but traversal continues.
+- [x] Resume a workflow that was actually halted by Pause.
 - [x] Stop scheduling new nodes after a Stop request and interrupt an active Delay node.
 - [x] Immediately cancel an Agent invocation already in progress when Stop is requested.
 - [ ] Persist a paused execution across VS Code restarts.

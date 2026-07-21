@@ -77,6 +77,11 @@ export class WorkflowExecutor {
 
     private _executionStateListeners: ExecutionStateChangeListener[] = [];
 
+    // Pause/resume state
+    private _pauseRequested: boolean = false;
+    private _pauseResolver: ((value: void) => void) | null = null;
+    private _pausePromise: Promise<void> | null = null;
+
     constructor(private readonly observer: ExecutionObserver, agentInvoker?: IAgentInvoker) {
         this._stateManager = new StateManager();
         this._agentInvoker = agentInvoker ?? null as any; // production code must inject AgentInvoker
@@ -130,13 +135,33 @@ export class WorkflowExecutor {
     }
 
     /**
-     * Pause execution
+     * Pause execution at the next node boundary.
+     * Sets a cooperative flag that the main loop checks before each node.
      */
     pause(): void {
         if (this._stateManager.getStatus() === ExecutionStatus.Running) {
-            this._stateManager.setStatus(ExecutionStatus.Paused);
-            this.observer.onStatusChange(ExecutionStatus.Paused);
-            this.observer.onNotification('info', 'Workflow paused.');
+            this._pauseRequested = true;
+        }
+    }
+
+    /**
+     * Resume a workflow that was halted by pause().
+     * Resolves the pause promise so the main loop can continue.
+     */
+    resume(): void {
+        if (this._stateManager.getStatus() !== ExecutionStatus.Paused) {
+            return;
+        }
+        this._stateManager.setStatus(ExecutionStatus.Running);
+        this.observer.onStatusChange(ExecutionStatus.Running);
+        this.observer.onNotification('info', 'Workflow resumed.');
+        this.notifyExecutionUpdate();
+
+        if (this._pauseResolver) {
+            const resolver = this._pauseResolver;
+            this._pauseResolver = null;
+            this._pausePromise = null;
+            resolver();
         }
     }
 
@@ -148,6 +173,14 @@ export class WorkflowExecutor {
         this._stateManager.complete(ExecutionStatus.Stopped);
         this.observer.onStatusChange(ExecutionStatus.Stopped);
         this.observer.onNotification('info', 'Workflow stopped.');
+
+        // If paused, resolve the pause promise so execution can exit
+        if (this._pauseResolver) {
+            const resolver = this._pauseResolver;
+            this._pauseResolver = null;
+            this._pausePromise = null;
+            resolver();
+        }
     }
 
     /**
@@ -214,11 +247,30 @@ export class WorkflowExecutor {
             let hadFailure = false;
 
             while (currentNodeIds.length > 0 && !this.isAborted()) {
+                // Check for cooperative pause request before processing next node batch
+                if (this._pauseRequested) {
+                    this._pauseRequested = false;
+                    this._stateManager.setStatus(ExecutionStatus.Paused);
+                    this.observer.onStatusChange(ExecutionStatus.Paused);
+                    this.observer.onNotification('info', 'Workflow paused.');
+                    this.notifyExecutionUpdate();
+
+                    // Wait until resume() is called
+                    this._pausePromise = new Promise((resolve) => {
+                        this._pauseResolver = resolve;
+                    });
+                    await this._pausePromise;
+                    // resume() already set status back to Running and sent notifications
+                    continue;
+                }
+
                 const nextNodeIds: string[] = [];
                 const skippedNodeIds = new Set<string>();
 
                 for (const nodeId of currentNodeIds) {
                     if (this.isAborted()) break;
+                    // Also check pause flag before each individual node
+                    if (this._pauseRequested) break;
 
                     const node = workflow.nodes.find(n => n.id === nodeId);
                     if (!node) continue;
@@ -430,6 +482,7 @@ export class WorkflowExecutor {
         const start = Date.now();
         while (Date.now() - start < data.duration * 1000) {
             if (this.isAborted()) throw new Error('Aborted during delay');
+            if (this._pauseRequested) return { success: true };
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 

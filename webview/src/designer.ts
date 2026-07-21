@@ -28,6 +28,13 @@
         historyIndex: -1,
         agentFiles: [] as string[],
         editMode: false,
+        // Edge animation state
+        animationFrameId: null as number | null,
+        animationTime: 0,
+        // Edge label editing state
+        editingEdgeId: null as string | null,
+        // Edge selection state
+        selectedEdgeId: null as string | null,
     };
 
     // ===== VS Code API =====
@@ -154,6 +161,7 @@
         canvas.addEventListener('mousedown', onMouseDown);
         canvas.addEventListener('mousemove', onMouseMove);
         canvas.addEventListener('mouseup', onMouseUp);
+        canvas.addEventListener('dblclick', onDoubleClick);
         canvas.addEventListener('wheel', onWheel, { passive: false });
         canvas.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -409,22 +417,49 @@
         const tx = targetNode.position.x;
         const ty = targetNode.position.y + (NODE_CONFIGS[targetNode.type]?.height || 70) / 2;
 
-        // Bezier curve
+        // Bezier curve control points
         const cp1x = sx + (tx - sx) * 0.5;
         const cp1y = sy;
         const cp2x = tx - (tx - sx) * 0.5;
         const cp2y = ty;
 
-        ctx.strokeStyle = getThemeColor('descriptionForeground');
-        ctx.lineWidth = 2;
+        // Check if target node is running (for animation)
+        const isTargetRunning = state.executionStatus
+            && state.executionStatus.nodeStatuses
+            && state.executionStatus.nodeStatuses[edge.target]
+            && state.executionStatus.nodeStatuses[edge.target].status === 'running';
+
+        // Determine if this edge is selected
+        const isSelected = state.selectedEdgeId === edge.id;
+
+        // Set styles based on selection and animation state
+        if (isSelected) {
+            ctx.strokeStyle = getThemeColor('focusBorder');
+            ctx.lineWidth = 4;
+        } else {
+            ctx.strokeStyle = getThemeColor('descriptionForeground');
+            ctx.lineWidth = 2;
+        }
+
+        // Animate with dashed line if target is running
+        if (isTargetRunning) {
+            ctx.setLineDash([8, 4]);
+            ctx.lineDashOffset = -state.animationTime;
+        } else {
+            ctx.setLineDash([]);
+        }
+
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tx, ty);
         ctx.stroke();
 
+        // Reset dash
+        ctx.setLineDash([]);
+
         // Arrow head
         const angle = Math.atan2(ty - cp2y, tx - cp2x);
-        ctx.fillStyle = getThemeColor('descriptionForeground');
+        ctx.fillStyle = isSelected ? getThemeColor('focusBorder') : getThemeColor('descriptionForeground');
         ctx.beginPath();
         ctx.moveTo(tx, ty);
         ctx.lineTo(tx - 10 * Math.cos(angle - Math.PI / 6), ty - 10 * Math.sin(angle - Math.PI / 6));
@@ -433,13 +468,41 @@
         ctx.fill();
 
         // Edge label
+        const midX = (sx + tx) / 2;
+        const midY = (sy + ty) / 2 - 8;
         if (edge.label) {
-            const midX = (sx + tx) / 2;
-            const midY = (sy + ty) / 2 - 8;
-            ctx.fillStyle = getThemeColor('descriptionForeground');
+            // Draw label background for readability
             ctx.font = '10px system-ui';
+            const metrics = ctx.measureText(edge.label);
+            const padding = 4;
+            const bgX = midX - metrics.width / 2 - padding;
+            const bgY = midY - 10;
+            const bgW = metrics.width + padding * 2;
+            const bgH = 14;
+
+            ctx.fillStyle = isDarkTheme() ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+            ctx.fillRect(bgX, bgY, bgW, bgH);
+
+            ctx.fillStyle = isSelected ? getThemeColor('focusBorder') : getThemeColor('descriptionForeground');
             ctx.textAlign = 'center';
             ctx.fillText(edge.label, midX, midY);
+        } else {
+            // Draw empty label background hint when selected (for editing hint)
+            if (isSelected) {
+                ctx.fillStyle = isDarkTheme() ? 'rgba(30, 30, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)';
+                const hint = 'double-click to edit';
+                ctx.font = '10px system-ui';
+                const metrics = ctx.measureText(hint);
+                const padding = 4;
+                const bgX = midX - metrics.width / 2 - padding;
+                const bgY = midY - 10;
+                const bgW = metrics.width + padding * 2;
+                const bgH = 14;
+                ctx.fillRect(bgX, bgY, bgW, bgH);
+                ctx.fillStyle = getThemeColor('focusBorder');
+                ctx.textAlign = 'center';
+                ctx.fillText(hint, midX, midY);
+            }
         }
     }
 
@@ -480,6 +543,28 @@
             }
         }
 
+        // Check if clicking on an edge (for selection) — edit mode only
+        if (state.editMode) {
+            const edgeHit = hitTestEdges(pos);
+            if (edgeHit) {
+                if (e.shiftKey) {
+                    // Toggle edge selection (deselect if already selected)
+                    if (state.selectedEdgeId === edgeHit.id) {
+                        state.selectedEdgeId = null;
+                    } else {
+                        state.selectedEdgeId = edgeHit.id;
+                        state.selectedNodeIds.clear();
+                    }
+                } else {
+                    // Select edge, deselect nodes
+                    state.selectedEdgeId = edgeHit.id;
+                    state.selectedNodeIds.clear();
+                }
+                render();
+                return;
+            }
+        }
+
         // Check if clicking on a node
         const node = hitTestNodes(pos);
         if (node) {
@@ -515,11 +600,12 @@
         }
 
         // Click on empty canvas - start panning or clear selection
-        if (e.button === 1 || (e.button === 0 && state.selectedNodeIds.size === 0)) {
+        if (e.button === 1 || (e.button === 0 && state.selectedNodeIds.size === 0 && !state.selectedEdgeId)) {
             state.panning = true;
             state.panStart = { x: e.clientX - state.viewport.x, y: e.clientY - state.viewport.y };
         } else {
             state.selectedNodeIds.clear();
+            state.selectedEdgeId = null;
             render();
             updatePropertiesPanel(null);
         }
@@ -620,6 +706,10 @@
                 deleteSelectedNodes();
                 saveHistory();
                 notifyWorkflowUpdate();
+            } else if (state.selectedEdgeId) {
+                deleteSelectedEdge();
+                saveHistory();
+                notifyWorkflowUpdate();
             }
         }
 
@@ -647,6 +737,7 @@
         if (e.key === 'Escape') {
             state.creatingEdge = null;
             state.selectedNodeIds.clear();
+            state.selectedEdgeId = null;
             render();
         }
     }
@@ -665,6 +756,69 @@
             }
         }
         return null;
+    }
+
+    /**
+     * Hit test for edges using distance from point to cubic Bezier curve.
+     * Returns the edge if the click is within a threshold distance of the curve.
+     */
+    function hitTestEdges(pos) {
+        const threshold = 10; // pixels
+
+        for (const edge of state.workflow.edges) {
+            const sourceNode = state.workflow.nodes.find(n => n.id === edge.source);
+            const targetNode = state.workflow.nodes.find(n => n.id === edge.target);
+            if (!sourceNode || !targetNode) continue;
+
+            const config = NODE_CONFIGS[sourceNode.type];
+            const sx = sourceNode.position.x + (config ? config.width : 140);
+            const sy = sourceNode.position.y + (config ? config.height / 2 : 35);
+            const tx = targetNode.position.x;
+            const ty = targetNode.position.y + (NODE_CONFIGS[targetNode.type]?.height || 70) / 2;
+
+            // Bezier control points
+            const cp1x = sx + (tx - sx) * 0.5;
+            const cp1y = sy;
+            const cp2x = tx - (tx - sx) * 0.5;
+            const cp2y = ty;
+
+            const minDist = distanceToCubicBezier(pos.x, pos.y, sx, sy, cp1x, cp1y, cp2x, cp2y, tx, ty);
+            if (minDist < threshold) {
+                return edge;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Calculate minimum distance from a point to a cubic Bezier curve.
+     * Uses sampling approach for accuracy.
+     */
+    function distanceToCubicBezier(px, py, sx, sy, cp1x, cp1y, cp2x, cp2y, ex, ey) {
+        let minDist = Infinity;
+        const samples = 50;
+
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples;
+            const x = bezierPoint(sx, cp1x, cp2x, ex, t);
+            const y = bezierPoint(sy, cp1y, cp2y, ey, t);
+            const dx = px - x;
+            const dy = py - y;
+            const dist = dx * dx + dy * dy;
+            if (dist < minDist) {
+                minDist = dist;
+            }
+        }
+
+        return Math.sqrt(minDist);
+    }
+
+    /**
+     * Calculate a point on a cubic Bezier curve at parameter t.
+     */
+    function bezierPoint(p0, p1, p2, p3, t) {
+        const mt = 1 - t;
+        return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
     }
 
     function hitTestPorts(pos) {
@@ -909,17 +1063,22 @@
                 html += propertySelectField('Agent File', node.data.agent || '', state.agentFiles);
                 html += propertyField('Model', 'text', node.data.model || '', 'e.g., Claude Sonnet 4.6 (copilot)');
                 html += propertyField('Prompt', 'textarea', node.data.prompt || '');
+                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of what this agent does');
                 html += propertyField('Timeout (sec)', 'number', node.data.timeout || 120);
                 html += propertyField('Retries', 'number', node.data.retries || 0);
+                html += renderStateMappings(node);
                 break;
             case 'condition':
                 html += propertyField('Expression', 'textarea', node.data.expression || '', 'e.g., state.tests_passed === true');
+                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this condition');
                 break;
             case 'human_approval':
                 html += propertyField('Message', 'textarea', node.data.message || 'Approve this step?');
+                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this approval step');
                 break;
             case 'delay':
                 html += propertyField('Duration (sec)', 'number', node.data.duration || 5);
+                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this delay');
                 break;
         }
 
@@ -970,12 +1129,115 @@
         </div>`;
     }
 
+    // ===== State Mappings UI =====
+    function renderStateMappings(node) {
+        const mappings = (node.data as any).stateWrites || [];
+        let html = `<div class="property-section">
+            <label>State Mappings</label>
+            <div class="mappings-list">`;
+
+        if (mappings.length === 0) {
+            html += '<div class="mappings-empty">No mappings configured</div>';
+        } else {
+            mappings.forEach((mapping, idx) => {
+                html += `<div class="mapping-entry">
+                    <div class="mapping-display">
+                        <span class="mapping-source">${escapeHtml(mapping.source)}</span>
+                        <span class="mapping-arrow">→</span>
+                        <span class="mapping-target">${escapeHtml(mapping.target)}</span>
+                    </div>
+                    <div class="mapping-edit">
+                        <input type="text" class="mapping-input" placeholder="source (e.g. json.plan)" value="${escapeHtml(mapping.source)}"
+                            onchange="updateMappingSource(${idx}, this.value)">
+                        <input type="text" class="mapping-input" placeholder="target state key" value="${escapeHtml(mapping.target)}"
+                            onchange="updateMappingTarget(${idx}, this.value)">
+                    </div>
+                    <button class="mapping-remove-btn" onclick="removeMapping(${idx})">✕</button>
+                </div>`;
+            });
+        }
+
+        html += `</div>
+            <button class="add-mapping-btn" onclick="addMapping()">+ Add Mapping</button>
+        </div>`;
+        return html;
+    }
+
+    function addMapping() {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'agent') return;
+
+        if (!node.data.stateWrites) {
+            node.data.stateWrites = [];
+        }
+        node.data.stateWrites.push({ source: '', target: '' });
+
+        saveHistory();
+        render();
+        updatePropertiesPanel(node);
+        notifyWorkflowUpdate();
+    }
+
+    function removeMapping(index) {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'agent') return;
+        if (!node.data.stateWrites) return;
+
+        node.data.stateWrites = node.data.stateWrites.filter((_, i) => i !== index);
+
+        saveHistory();
+        render();
+        updatePropertiesPanel(node);
+        notifyWorkflowUpdate();
+    }
+
+    function updateMappingSource(index, value) {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'agent') return;
+        if (!node.data.stateWrites) return;
+        if (!node.data.stateWrites[index]) return;
+
+        node.data.stateWrites[index].source = value;
+
+        saveHistory();
+        render();
+        notifyWorkflowUpdate();
+    }
+
+    function updateMappingTarget(index, value) {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'agent') return;
+        if (!node.data.stateWrites) return;
+        if (!node.data.stateWrites[index]) return;
+
+        node.data.stateWrites[index].target = value;
+
+        saveHistory();
+        render();
+        notifyWorkflowUpdate();
+    }
+
+    // Expose mapping functions globally for onclick handlers
+    window.addMapping = addMapping;
+    window.removeMapping = removeMapping;
+    window.updateMappingSource = updateMappingSource;
+    window.updateMappingTarget = updateMappingTarget;
+
     function updateNodeProperty(node, label, value) {
         const keyMap = {
             'Label': 'label',
             'Agent File': 'agent',
             'Model': 'model',
             'Prompt': 'prompt',
+            'Description': 'description',
             'Timeout (sec)': 'timeout',
             'Retries': 'retries',
             'Expression': 'expression',
@@ -1009,6 +1271,14 @@
 
     // Make it globally accessible for onclick
     window.deleteSelectedNodes = deleteSelectedNodes;
+
+    // ===== Edge Operations =====
+    function deleteSelectedEdge() {
+        if (!state.selectedEdgeId) return;
+        state.workflow.edges = state.workflow.edges.filter(e => e.id !== state.selectedEdgeId);
+        state.selectedEdgeId = null;
+        render();
+    }
 
     // ===== History (Undo/Redo) =====
     function saveHistory() {
@@ -1091,6 +1361,17 @@
             case 'showInfo':
                 // No-op: info already shown by extension host
                 break;
+            case 'edgeLabelUpdate':
+                // Extension host returned the new label
+                const edge = state.workflow.edges.find(e => e.id === msg.edgeId);
+                if (edge) {
+                    edge.label = msg.newLabel;
+                    state.editingEdgeId = null;
+                    saveHistory();
+                    render();
+                    notifyWorkflowUpdate();
+                }
+                break;
         }
     }
 
@@ -1169,6 +1450,39 @@
         ctx.closePath();
     }
 
+    // ===== Animation Loop =====
+    function startAnimationLoop() {
+        if (state.animationFrameId) return; // Already running
+        animate();
+    }
+
+    function animate() {
+        state.animationFrameId = requestAnimationFrame(() => {
+            state.animationTime += 0.5; // Speed of dash animation
+            render();
+            animate();
+        });
+    }
+
+    // ===== Double Click Handler =====
+    function onDoubleClick(e) {
+        if (!state.editMode) return;
+
+        const pos = getCanvasPosition(e);
+        const edgeHit = hitTestEdges(pos);
+        if (edgeHit) {
+            // Request label edit from extension host
+            vscode.postMessage({
+                type: 'editEdgeLabel',
+                edgeId: edgeHit.id,
+                currentLabel: edgeHit.label || ''
+            });
+            state.editingEdgeId = edgeHit.id;
+        }
+    }
+
     // ===== Start =====
     init();
+    // Start animation loop for edge flow animation
+    startAnimationLoop();
 })();

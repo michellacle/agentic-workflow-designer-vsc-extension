@@ -268,6 +268,110 @@ textarea.property-input {
     background: #d32f2f;
 }
 
+/* State Mappings */
+.mappings-list {
+    margin-bottom: 8px;
+}
+
+.mappings-empty {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground, #888);
+    font-style: italic;
+    padding: 4px 0;
+}
+
+.mapping-entry {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    background: var(--vscode-editor-background, #fff);
+    border: 1px solid var(--vscode-input-border, #ddd);
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+.mapping-display {
+    display: none;
+}
+
+.mapping-edit {
+    display: flex;
+    flex: 1;
+    gap: 3px;
+    align-items: center;
+}
+
+.mapping-input {
+    flex: 1;
+    padding: 3px 5px;
+    border: 1px solid var(--vscode-input-border, #ddd);
+    border-radius: 2px;
+    font-size: 11px;
+    font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+    background: var(--vscode-input-background, #fff);
+    color: var(--vscode-input-foreground, #333);
+    outline: none;
+    min-width: 0;
+}
+
+.mapping-input:focus {
+    border-color: var(--vscode-focusBorder, #0078d4);
+}
+
+.mapping-arrow {
+    color: var(--vscode-descriptionForeground, #888);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.mapping-source {
+    font-weight: 600;
+    color: var(--vscode-foreground, #ccc);
+}
+
+.mapping-target {
+    font-weight: 600;
+    color: var(--vscode-foreground, #ccc);
+}
+
+.mapping-remove-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground, #888);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.mapping-remove-btn:hover {
+    background: var(--vscode-input-border, #ddd);
+    color: #d32f2f;
+}
+
+.add-mapping-btn {
+    width: 100%;
+    padding: 5px 8px;
+    background: var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-button-secondaryForeground, #ccc);
+    border: 1px dashed var(--vscode-input-border, #666);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.add-mapping-btn:hover {
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #fff);
+    border-color: var(--vscode-button-background, #0e639c);
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
     width: 8px;
