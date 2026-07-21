@@ -206,6 +206,8 @@ export interface ExecutionContext {
     currentNodeId?: string;
     nodeRecords: Map<string, NodeExecutionRecord>;
     iterationCounts: Map<string, number>;
+    /** Per-node execution count — incremented each time a node is entered during execution. */
+    nodeExecutionCounts: Map<string, number>;
     startTime?: number;
     endTime?: number;
 }

@@ -64,6 +64,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Maintain a global in-memory state bag and pass its current values to Agent nodes.
 - [x] Store every successful Agent result under `<node-id>_output` and `<node-id>_success` state keys.
 - [x] Apply code-defined Agent `stateWrites` mappings from JSON or raw output to workflow state.
+- [x] Auto-append output format instructions to agent prompts when `stateWrites` are configured, guiding agents to return structured JSON with the expected fields.
 - [ ] Define initial workflow state in the YAML schema.
 - [ ] Persist an in-progress execution state to disk and restore it after VS Code restarts.
 - [x] Evaluate Condition expressions against state with boolean, numeric, string, comparison, and logical operators.
@@ -87,7 +88,8 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 ## Loops and Exit Criteria
 
 - [x] Detect whether a workflow graph contains a cycle through the validator utility API.
-- [ ] Execute cyclic graphs safely with per-loop iteration tracking. The runtime's iteration counter and maximum-loop fields are not connected to graph traversal.
+- [x] Track per-node execution counts during runtime — incremented each time a node is entered, enabling loop-back patterns (e.g., reviewer → implementer).
+- [x] Display execution count badges in node headers when a node has been entered more than once.
 - [ ] Enforce a configurable maximum iteration count.
 - [ ] Exit a loop on a boolean condition.
 - [ ] Exit a loop on a quality score threshold.
@@ -112,6 +114,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Provide Run, Pause, Stop, Resume, Save, and Validate toolbar controls.
 - [x] Show overall execution status in the VS Code status bar.
 - [x] Color nodes for Waiting, Running, Completed, Failed, and Paused states.
+- [x] Show execution count badges in node headers when a node has been re-entered (count > 1).
 - [x] Stream execution messages to a VS Code Output channel and the designer's execution log.
 - [x] Animate edges to show execution flow.
 - [ ] Open execution details by clicking an executed node. A details panel class exists but is not wired to node selection.

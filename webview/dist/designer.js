@@ -47,6 +47,8 @@
         selectedEdgeId: null,
         // Selection box state
         selectionBox: null,
+        // Per-node execution counts (how many times each node has been entered)
+        nodeExecutionCounts: {},
     };
     // ===== VS Code API =====
     let vscode;
@@ -327,6 +329,28 @@
         ctx.lineTo(x, y + 8);
         ctx.quadraticCurveTo(x, y, x + 8, y);
         ctx.fill();
+        // Execution count badge (top-right of header, shown when count > 1)
+        const executionCount = state.nodeExecutionCounts[node.id];
+        if (executionCount && executionCount > 1) {
+            const badgeText = String(executionCount);
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            const badgeMetrics = ctx.measureText(badgeText);
+            const badgeW = badgeMetrics.width + 10;
+            const badgeH = 16;
+            const badgeX = x + w - badgeW - 6;
+            const badgeY = y + 3;
+            // Badge background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+            ctx.fill();
+            // Badge text
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
+            ctx.textAlign = 'center';
+        }
         // Icon and label
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 12px system-ui, sans-serif';
@@ -1331,6 +1355,9 @@
                 break;
             case 'executionUpdate':
                 state.executionStatus = msg.status;
+                if (msg.status.nodeExecutionCounts) {
+                    state.nodeExecutionCounts = msg.status.nodeExecutionCounts;
+                }
                 updateExecutionAnimations(msg.status);
                 render();
                 updateExecutionStatusUI(msg.status);
@@ -1637,6 +1664,9 @@
             },
             simulateExecutionUpdate: (status, nowOverride) => {
                 state.executionStatus = status;
+                if (status.nodeExecutionCounts) {
+                    state.nodeExecutionCounts = status.nodeExecutionCounts;
+                }
                 updateExecutionAnimations(status, nowOverride);
                 render();
             },

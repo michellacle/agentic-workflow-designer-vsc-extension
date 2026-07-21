@@ -18,7 +18,8 @@ export class StateManager {
             status: ExecutionStatus.Idle,
             state: {},
             nodeRecords: new Map(),
-            iterationCounts: new Map()
+            iterationCounts: new Map(),
+            nodeExecutionCounts: new Map()
         };
     }
 
@@ -166,6 +167,35 @@ export class StateManager {
     }
 
     /**
+     * Increment and return the execution count for a node.
+     * Tracks how many times a node has been entered during this execution.
+     */
+    incrementNodeExecutionCount(nodeId: string): number {
+        const count = this._context.nodeExecutionCounts.get(nodeId) || 0;
+        const next = count + 1;
+        this._context.nodeExecutionCounts.set(nodeId, next);
+        return next;
+    }
+
+    /**
+     * Get current execution count for a node without incrementing
+     */
+    getNodeExecutionCount(nodeId: string): number {
+        return this._context.nodeExecutionCounts.get(nodeId) || 0;
+    }
+
+    /**
+     * Get all node execution counts as a plain object
+     */
+    getNodeExecutionCounts(): Record<string, number> {
+        const counts: Record<string, number> = {};
+        for (const [id, count] of this._context.nodeExecutionCounts) {
+            counts[id] = count;
+        }
+        return counts;
+    }
+
+    /**
      * Create a snapshot of current state
      */
     snapshot(): WorkflowState {
@@ -194,6 +224,7 @@ export class StateManager {
             state,
             nodeRecords: new Map(),
             iterationCounts: new Map(),
+            nodeExecutionCounts: new Map(),
             startTime: Date.now()
         };
     }

@@ -8,6 +8,7 @@ import { CopilotSubagentExecutionContext } from './executionContext';
 import { AgentInvoker } from './agentInvoker';
 import { RunHistoryManager, RunRecord } from './runHistory';
 import { VSCodeExecutionObserver } from './executionObserver';
+import { ExecutionLogWriter, LogReference } from './executionLogWriter';
 import { ValidationError } from '../utils/workflowValidator';
 
 // Re-export from WorkflowExecutor for backward compatibility
@@ -27,6 +28,7 @@ export { NodeExecutionResult } from './workflowExecutor';
 export class WorkflowRuntime implements vscode.Disposable {
     private _executor: WorkflowExecutor;
     private _runHistory: RunHistoryManager;
+    private _logWriter: ExecutionLogWriter | null = null;
     private _observer: VSCodeExecutionObserver;
     private _disposables: vscode.Disposable[] = [];
     private _currentWorkflow: Workflow | null = null;
@@ -43,6 +45,9 @@ export class WorkflowRuntime implements vscode.Disposable {
         this._executor = new WorkflowExecutor(this._observer, agentInvoker);
         this._runHistory = new RunHistoryManager(context);
         this._disposables.push(this._observer);
+
+        // Initialize log writer if a workspace is open
+        this.initializeLogWriter();
 
         // Forward executor events to our own event emitter
         const unsubscribe = this._executor.onDidChangeExecutionState((state) => {
@@ -162,8 +167,9 @@ export class WorkflowRuntime implements vscode.Disposable {
             workspaceRoot,
         });
 
-        // Save to run history after execution completes
+        // Save to run history and persist execution log after execution completes
         this.saveRunHistory();
+        await this.persistExecutionLog();
 
         return status;
     }
@@ -174,6 +180,17 @@ export class WorkflowRuntime implements vscode.Disposable {
 
     getCurrentWorkflowName(): string | undefined {
         return this._currentWorkflow?.name;
+    }
+
+    /**
+     * Initialize the log writer with the current workspace root.
+     * Re-initializes when a workspace becomes available.
+     */
+    private initializeLogWriter(): void {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (workspaceRoot) {
+            this._logWriter = new ExecutionLogWriter(workspaceRoot);
+        }
     }
 
     /**
@@ -193,6 +210,44 @@ export class WorkflowRuntime implements vscode.Disposable {
             nodeRecords: Array.from(execContext.nodeRecords.entries())
         };
         this._runHistory.addRun(record);
+    }
+
+    /**
+     * Persist a debug log file to .workflow/logs/ for terminal execution statuses.
+     * Emits log reference metadata (id + path) through the observer for user bug reports.
+     */
+    private async persistExecutionLog(): Promise<void> {
+        if (!this._logWriter || !this._currentWorkflow) {
+            return;
+        }
+
+        const execContext = this._executor.getExecutionContext();
+        const status = execContext.status;
+
+        // Only persist logs for terminal statuses (Completed, Failed, Stopped)
+        if (!ExecutionLogWriter.shouldWriteLog(status)) {
+            return;
+        }
+
+        try {
+            const ref: LogReference = await this._logWriter.writeLog({
+                workflowName: this._currentWorkflow.name,
+                status,
+                state: { ...execContext.state },
+                nodeRecords: execContext.nodeRecords,
+                startTime: execContext.startTime,
+                endTime: execContext.endTime,
+            });
+
+            // Emit log reference metadata for user bug reports
+            this._observer.onLog('');
+            this._observer.onLog(`📋 Execution log persisted:`);
+            this._observer.onLog(`   Log ID: ${ref.id}`);
+            this._observer.onLog(`   Path:   ${ref.path}`);
+        } catch (error) {
+            // Log write failures should not disrupt execution
+            this._observer.onLog(`⚠ Failed to persist execution log: ${error}`);
+        }
     }
 
     /**

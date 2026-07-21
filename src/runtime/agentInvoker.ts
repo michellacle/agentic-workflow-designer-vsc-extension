@@ -69,7 +69,8 @@ export class AgentInvoker {
         executionContext: CopilotSubagentExecutionContext,
         record?: NodeExecutionRecord,
         onLog?: (message: string) => void,
-        onProgress?: (message: string) => void
+        onProgress?: (message: string) => void,
+        stateWrites?: Array<{ source: string; target: string }>
     ): Promise<AgentInvocationResult> {
         const startTime = Date.now();
 
@@ -104,7 +105,7 @@ export class AgentInvoker {
             const result = await this.executeAgentViaTool(
                 subagentTool,
                 agentName,
-                this.buildTaskPrompt(agentName, prompt, context),
+                this.buildTaskPrompt(agentName, prompt, context, stateWrites),
                 modelHint,
                 timeout,
                 executionContext,
@@ -253,7 +254,8 @@ export class AgentInvoker {
     private buildTaskPrompt(
         agentName: string,
         prompt: string,
-        context: Record<string, unknown>
+        context: Record<string, unknown>,
+        stateWrites?: Array<{ source: string; target: string }>
     ): string {
         let taskPrompt = prompt.trim() || `Execute the "${agentName}" workflow step.`;
 
@@ -262,6 +264,17 @@ export class AgentInvoker {
             for (const [key, value] of Object.entries(context)) {
                 taskPrompt += `- ${key}: ${JSON.stringify(value)}\n`;
             }
+        }
+
+        // Auto-append output format instructions when stateWrites are configured
+        if (stateWrites && stateWrites.length > 0) {
+            const fields = stateWrites.map(m => m.source);
+            taskPrompt += '\n\n## Output Format\n';
+            taskPrompt += 'Return your response as a JSON object with the following fields:\n';
+            for (const field of fields) {
+                taskPrompt += `- ${field}\n`;
+            }
+            taskPrompt += '\nExample: {"field1": "value1", "field2": "value2"}';
         }
 
         return taskPrompt;

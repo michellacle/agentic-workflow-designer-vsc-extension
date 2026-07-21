@@ -44,6 +44,8 @@ export interface ExecutionStateChangeEvent {
     overall: ExecutionStatus;
     currentNodeId: string | undefined;
     nodeStatuses: Record<string, { status: NodeStatus; startTime?: number; endTime?: number; duration?: number }>;
+    /** Per-node execution counts — how many times each node has been entered. */
+    nodeExecutionCounts?: Record<string, number>;
 }
 
 /**
@@ -295,6 +297,9 @@ export class WorkflowExecutor {
                     const label = this.getNodeLabel(node);
                     this.observer.onLog(`  ⠋ Running ${nodeId} (${label})...`);
 
+                    // Increment execution count for this node entry
+                    this._stateManager.incrementNodeExecutionCount(nodeId);
+
                     // Single deep call: processNode handles record creation, timing, status, and errors
                     const result = await this._stateManager.processNode(nodeId, label, async () => {
                         this.notifyExecutionUpdate();
@@ -425,7 +430,8 @@ export class WorkflowExecutor {
                 },
                 record,
                 (msg: string) => this.observer.onLog(`     ${msg}`),
-                (msg: string) => this.observer.onProgress(msg)
+                (msg: string) => this.observer.onProgress(msg),
+                data.stateWrites
             );
 
             if (result.success) {
@@ -720,7 +726,8 @@ export class WorkflowExecutor {
         const event: ExecutionStateChangeEvent = {
             overall: this._stateManager.getStatus(),
             currentNodeId: this._stateManager.context.currentNodeId,
-            nodeStatuses
+            nodeStatuses,
+            nodeExecutionCounts: this._stateManager.getNodeExecutionCounts()
         };
         for (const listener of this._executionStateListeners) {
             listener(event);

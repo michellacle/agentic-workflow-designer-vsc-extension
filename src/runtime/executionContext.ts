@@ -35,6 +35,7 @@ export interface IAgentInvoker {
         executionContext: CopilotSubagentExecutionContext,
         record?: any,
         onLog?: (message: string) => void,
-        onProgress?: (message: string) => void
+        onProgress?: (message: string) => void,
+        stateWrites?: Array<{ source: string; target: string }>
     ): Promise<AgentInvocationResult>;
 }

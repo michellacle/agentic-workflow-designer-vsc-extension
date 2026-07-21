@@ -46,6 +46,9 @@ export function exportExecutionLogs(
         if (record.duration !== undefined) {
             lines.push(`  Duration: ${record.duration}ms`);
         }
+        if (record.prompt) {
+            lines.push(`  Prompt: ${record.prompt}`);
+        }
         if (record.logs?.length) {
             for (const log of record.logs) {
                 lines.push(`  [LOG] ${log}`);
@@ -61,6 +64,17 @@ export function exportExecutionLogs(
         }
         if (record.contextOut) {
             lines.push(`  Context Out: ${JSON.stringify(record.contextOut)}`);
+        }
+        if (record.filesModified?.length) {
+            lines.push(`  Files Modified: ${record.filesModified.join(', ')}`);
+        }
+        if (record.toolUsage?.length) {
+            for (const tool of record.toolUsage) {
+                lines.push(`  [TOOL] ${tool.toolName}: ${JSON.stringify(tool.input)} → ${JSON.stringify(tool.output)} (${tool.duration}ms)`);
+            }
+        }
+        if (record.structuredOutput) {
+            lines.push(`  Structured Output: ${JSON.stringify(record.structuredOutput)}`);
         }
     }
 

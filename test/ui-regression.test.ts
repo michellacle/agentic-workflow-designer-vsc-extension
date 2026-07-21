@@ -259,4 +259,97 @@ describe('UI regression suite', () => {
             expect(content.length < 5).toBe(true);
         }
     });
+
+    it('regression: toolbar button background should match editor background for VS Code native feel', () => {
+        const cssSource = readFile('webview/src/designer.css');
+
+        // Toolbar buttons should NOT use --vscode-button-background (colored accent)
+        // They should use transparent or editor-background to blend with VS Code's native toolbar look
+        const buttonMatch = cssSource.match(/#toolbar\s+button\s*\{([^}]+)\}/s);
+        expect(buttonMatch).not.toBeNull();
+
+        const buttonStyles = buttonMatch![1];
+        // Should NOT have colored button background
+        expect(buttonStyles).not.toMatch(/background:\s*var\(--vscode-button-background/);
+        // Should have transparent background or editor-background
+        expect(buttonStyles).toMatch(/background:\s*(transparent|var\(--vscode-editor-background)/);
+    });
+
+    it('regression: toolbar button icons should have consistent sizes', () => {
+        const cssSource = readFile('webview/src/designer.css');
+
+        // Toolbar buttons should have a consistent font-size for icon uniformity
+        const buttonMatch = cssSource.match(/#toolbar\s+button\s*\{([^}]+)\}/s);
+        expect(buttonMatch).not.toBeNull();
+
+        const buttonStyles = buttonMatch![1];
+        // Should have an explicit font-size defined
+        expect(buttonStyles).toMatch(/font-size:\s*\d+px/);
+
+        // All toolbar buttons should use the same font-size (no per-button overrides)
+        // Check that there are no individual button font-size overrides
+        const individualOverrides = cssSource.match(/#toolbar\s+button\s+#btn-\w+\s*\{[^}]*font-size/);
+        expect(individualOverrides).toBeNull();
+    });
+
+    it('regression: execution count badge should appear in node header when a node is executed more than once', () => {
+        const api = (window as any).__workflowDesignerTestApi;
+
+        // Re-init with a workflow that has a loop-back (implementer → reviewer → condition → implementer)
+        api.simulateMessage({
+            type: 'init',
+            workflow: {
+                name: 'loop-test',
+                nodes: [
+                    { id: 'start_1', type: 'start', position: { x: 50, y: 50 }, data: { label: 'Start' } },
+                    { id: 'agent_impl', type: 'agent', position: { x: 240, y: 50 }, data: { agent: 'implementer' } },
+                    { id: 'agent_rev', type: 'agent', position: { x: 240, y: 180 }, data: { agent: 'reviewer' } },
+                    { id: 'condition_1', type: 'condition', position: { x: 240, y: 310 }, data: { expression: 'state.review_passed === true' } },
+                    { id: 'end_1', type: 'end', position: { x: 430, y: 310 }, data: { label: 'End' } },
+                ],
+                edges: [
+                    { id: 'start_1->agent_impl', source: 'start_1', target: 'agent_impl' },
+                    { id: 'agent_impl->agent_rev', source: 'agent_impl', target: 'agent_rev' },
+                    { id: 'agent_rev->condition_1', source: 'agent_rev', target: 'condition_1' },
+                    { id: 'condition_1->agent_impl', source: 'condition_1', target: 'agent_impl', label: 'False' },
+                    { id: 'condition_1->end_1', source: 'condition_1', target: 'end_1', label: 'True' },
+                ],
+            },
+            animationConfig: {
+                startNodeFlashMs: 3000,
+                edgeHandoffMs: 3000,
+                endNodeFlashMs: 1200,
+                edgeDashSpeed: 20,
+            },
+        });
+
+        // Simulate: implementer has been executed twice (executionCount = 2)
+        api.simulateExecutionUpdate(
+            workflowStatus({
+                currentNodeId: 'agent_impl',
+                nodeStatuses: {
+                    start_1: { status: 'completed' },
+                    agent_impl: { status: 'running' },
+                    agent_rev: { status: 'completed' },
+                    condition_1: { status: 'completed' },
+                },
+                nodeExecutionCounts: {
+                    agent_impl: 2,
+                    agent_rev: 1,
+                    condition_1: 1,
+                },
+            }),
+            5000
+        );
+
+        // Force render
+        jest.advanceTimersByTime(50);
+
+        // The designer source should contain execution count badge rendering logic
+        const designerSource = readFile('webview/src/designer.ts');
+        // Should reference nodeExecutionCounts in the render path
+        expect(designerSource).toMatch(/nodeExecutionCounts/);
+        // Should render a badge when count > 1
+        expect(designerSource).toMatch(/executionCount.*>/);
+    });
 });

@@ -110,7 +110,8 @@ describe('CSS: Theme Variables and Fallbacks', () => {
             '--vscode-list-hoverBackground',
             '--vscode-button-background',
             '--vscode-button-foreground',
-            '--vscode-button-hoverBackground',
+            // Note: --vscode-button-hoverBackground removed — toolbar buttons
+            // now use --vscode-list-hoverBackground for native VS Code feel
             '--vscode-descriptionForeground',
             '--vscode-list-activeSelectionBackground',
             '--vscode-editor-foreground',

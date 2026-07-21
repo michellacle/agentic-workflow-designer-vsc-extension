@@ -1,4 +1,4 @@
-name: simple-sequence
+name: implement feature
 nodes:
   - id: start_1
     type: start
@@ -25,15 +25,30 @@ nodes:
       'y': 130
     data:
       agent: reviewer
-      prompt: ''
+      prompt: 'Review the implementer''s work. Return a JSON object with these fields: passed (boolean - true if the review passes, false otherwise), reason (string - detailed feedback on what needs improvement if failed, or summary of what passed), review_attempts (number - set to 1 if review_reason already exists in the workflow state indicating this is a retry, otherwise set to 0).'
       model: qwen3.6-27b
       timeout: 300
       retries: 0
+      stateWrites:
+        - source: passed
+          target: state.review_passed
+        - source: reason
+          target: state.review_reason
+        - source: review_attempts
+          target: state.review_attempts
+  - id: condition_19
+    type: condition
+    position:
+      x: 280
+      'y': 210
+    data:
+      expression: state.review_passed === true || state.review_attempts >= 1
+      description: Pass if review passed or already looped back once
   - id: agent_15
     type: agent
     position:
       x: 260
-      'y': 260
+      'y': 310
     data:
       agent: tester
       prompt: ''
@@ -44,7 +59,7 @@ nodes:
     type: agent
     position:
       x: 360
-      'y': 490
+      'y': 540
     data:
       agent: builder
       prompt: ''
@@ -55,7 +70,7 @@ nodes:
     type: end
     position:
       x: 620
-      'y': 490
+      'y': 540
     data:
       label: End
       summary: true
@@ -63,7 +78,7 @@ nodes:
     type: agent
     position:
       x: 280
-      'y': 380
+      'y': 430
     data:
       agent: qa
       prompt: ''
@@ -74,7 +89,13 @@ edges:
   - source: agent_11
     target: agent_14
   - source: agent_14
+    target: condition_19
+  - source: condition_19
+    target: agent_11
+    label: 'False'
+  - source: condition_19
     target: agent_15
+    label: 'True'
   - source: agent_16
     target: end_17
   - source: start_1
@@ -83,4 +104,4 @@ edges:
     target: agent_18
   - source: agent_18
     target: agent_16
-description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)
+description: Implement workflow with review loop - reviewer can send back to implementer once before continuing

@@ -32,13 +32,14 @@ body {
 }
 
 #toolbar button {
-    background: var(--vscode-button-background, #0078d4);
-    color: var(--vscode-button-foreground, #fff);
+    background: transparent;
+    color: var(--vscode-foreground, #cccccc);
     border: none;
     padding: 5px;
     border-radius: 3px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
+    line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -47,7 +48,7 @@ body {
 }
 
 #toolbar button:hover {
-    background: var(--vscode-button-hoverBackground, #026ec7);
+    background: var(--vscode-list-hoverBackground, #2a2d2e);
 }
 
 #toolbar button:active {
