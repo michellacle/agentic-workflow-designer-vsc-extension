@@ -1,16 +1,31 @@
 name: test
-description: A new workflow
 nodes:
   - id: start
     type: start
     position:
-      x: 100
-      y: 100
+      x: 20
+      'y': 40
   - id: end
     type: end
     position:
-      x: 100
-      y: 300
+      x: 80
+      'y': 280
+    data:
+      label: End
+      summary: true
+  - id: agent_1
+    type: agent
+    position:
+      x: 240
+      'y': 100
+    data:
+      agent: ''
+      prompt: ''
+      timeout: 120
+      retries: 0
 edges:
   - source: start
     target: end
+  - source: start
+    target: agent_1
+description: A new workflow
