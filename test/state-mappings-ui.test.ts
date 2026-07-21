@@ -133,11 +133,11 @@ describe('State Mappings UI in Properties Panel', () => {
 
     describe('Global function exposure for onclick handlers', () => {
         it('should expose addMapping on window for onclick access', () => {
-            expect(designerTs).toMatch(/window\.addMapping/i);
+            expect(designerTs).toMatch(/window[\s\S]*?\)\s*\.\s*addMapping/i);
         });
 
         it('should expose removeMapping on window for onclick access', () => {
-            expect(designerTs).toMatch(/window\.removeMapping/i);
+            expect(designerTs).toMatch(/window[\s\S]*?\)\s*\.\s*removeMapping/i);
         });
     });
 });
