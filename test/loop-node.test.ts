@@ -182,8 +182,8 @@ describe('Loop Node', () => {
             });
 
             expect(result).toBe(ExecutionStatus.Completed);
-            const state = executor.getStateManager();
-            const iterationCount = state.get('loop_iterationCount');
+            const ctx = executor.getExecutionContext();
+            const iterationCount = ctx.state['loop_iterationCount'];
             expect(iterationCount).toBe(3);
         });
 
@@ -200,8 +200,8 @@ describe('Loop Node', () => {
             });
 
             expect(result).toBe(ExecutionStatus.Completed);
-            const state = executor.getStateManager();
-            const iterationCount = state.get('loop_iterationCount');
+            const ctx = executor.getExecutionContext();
+            const iterationCount = ctx.state['loop_iterationCount'];
             expect(iterationCount).toBe(1);
         });
 
@@ -216,8 +216,8 @@ describe('Loop Node', () => {
                 workspaceRoot: '/tmp',
             });
 
-            const state = executor.getStateManager();
-            expect(state.get('loop_iterationCount')).toBe(5);
+            const ctx = executor.getExecutionContext();
+            expect(ctx.state['loop_iterationCount']).toBe(5);
         });
 
         it('should route to exit edge after count is reached', async () => {
@@ -278,8 +278,8 @@ describe('Loop Node', () => {
             });
 
             expect(result).toBe(ExecutionStatus.Completed);
-            const state = executor.getStateManager();
-            const iterationCount = (state.get('loop_iterationCount') as number) || 0;
+            const ctx = executor.getExecutionContext();
+            const iterationCount = (ctx.state['loop_iterationCount'] as number) || 0;
             expect(iterationCount).toBe(0);
         });
 
@@ -296,8 +296,8 @@ describe('Loop Node', () => {
             });
 
             expect(result).toBe(ExecutionStatus.Completed);
-            const state = executor.getStateManager();
-            const iterationCount = (state.get('loop_iterationCount') as number) || 0;
+            const ctx = executor.getExecutionContext();
+            const iterationCount = (ctx.state['loop_iterationCount'] as number) || 0;
             expect(iterationCount).toBe(0);
         });
 
@@ -316,8 +316,8 @@ describe('Loop Node', () => {
             });
 
             expect(result).toBe(ExecutionStatus.Completed);
-            const state = executor.getStateManager();
-            const iterationCount = state.get('loop_iterationCount');
+            const ctx = executor.getExecutionContext();
+            const iterationCount = ctx.state['loop_iterationCount'];
             expect(iterationCount).toBe(2);
         });
     });

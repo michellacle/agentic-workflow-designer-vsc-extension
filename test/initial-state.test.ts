@@ -183,9 +183,9 @@ describe('WorkflowExecutor passes initialState to StateManager', () => {
         });
 
         expect(result).toBeDefined();
-        const sm = executor.getStateManager();
-        expect(sm.get('greeting')).toBe('hello');
-        expect(sm.get('count')).toBe(5);
+        const ctx = executor.getExecutionContext();
+        expect(ctx.state['greeting']).toBe('hello');
+        expect(ctx.state['count']).toBe(5);
     });
 
     it('should not set initial state keys when workflow has no initialState', async () => {
@@ -208,8 +208,8 @@ describe('WorkflowExecutor passes initialState to StateManager', () => {
             workspaceRoot: '/tmp',
         });
 
-        const sm = executor.getStateManager();
-        expect(sm.get('greeting')).toBeUndefined();
-        expect(sm.get('count')).toBeUndefined();
+        const ctx = executor.getExecutionContext();
+        expect(ctx.state['greeting']).toBeUndefined();
+        expect(ctx.state['count']).toBeUndefined();
     });
 });

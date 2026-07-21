@@ -274,8 +274,8 @@ describe('WorkflowExecutor integration', () => {
                 workspaceRoot: '/tmp',
             });
 
-            const state = executor.getStateManager().state;
-            expect(state['approval_approved']).toBe(true);
+            const ctx = executor.getExecutionContext();
+            expect(ctx.state['approval_approved']).toBe(true);
         });
     });
 

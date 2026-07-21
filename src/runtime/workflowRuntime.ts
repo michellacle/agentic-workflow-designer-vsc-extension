@@ -2,21 +2,19 @@ import * as vscode from 'vscode';
 import {
     Workflow,
     ExecutionStatus,
-    NodeExecutionRecord,
 } from '../models/workflow';
-import { WorkflowExecutor, ChatRequestContext } from './workflowExecutor';
+import { WorkflowExecutor, ChatRequestContext, ExecutionStateChangeEvent } from './workflowExecutor';
 import { CopilotSubagentExecutionContext } from './executionContext';
 import { AgentInvoker } from './agentInvoker';
 import { RunHistoryManager, RunRecord } from './runHistory';
 import { VSCodeExecutionObserver } from './executionObserver';
-import { validateWorkflow } from '../utils/workflowValidator';
-import { exportExecutionLogs } from './executionLogExporter';
+import { ValidationError } from '../utils/workflowValidator';
 
 // Re-export from WorkflowExecutor for backward compatibility
 export { NodeExecutionResult } from './workflowExecutor';
 
 /**
- * Thin adapter over WorkflowExecutor.
+ * Thin I/O adapter over WorkflowExecutor.
  *
  * Responsibilities:
  * - Workflow file loading / discovery (I/O concern)
@@ -34,7 +32,7 @@ export class WorkflowRuntime implements vscode.Disposable {
     private _currentWorkflow: Workflow | null = null;
     private _currentFileUri: vscode.Uri | null = null;
 
-    private readonly _onDidChangeExecutionState = new vscode.EventEmitter<any>();
+    private readonly _onDidChangeExecutionState = new vscode.EventEmitter<ExecutionStateChangeEvent>();
     public readonly onDidChangeExecutionState = this._onDidChangeExecutionState.event;
 
     constructor(private readonly context: vscode.ExtensionContext) {
@@ -147,7 +145,7 @@ export class WorkflowRuntime implements vscode.Disposable {
             return this._executor.getExecutionContext().status;
         }
 
-        const errors = validateWorkflow(this._currentWorkflow);
+        const errors = this._executor.validate(this._currentWorkflow);
         const fatalErrors = errors.filter(e => e.severity === 'error');
         if (fatalErrors.length > 0) {
             for (const error of fatalErrors) {
@@ -219,13 +217,11 @@ export class WorkflowRuntime implements vscode.Disposable {
     }
 
     /**
-     * Resume execution
+     * Resume execution. Delegates to executor, then shows VS Code toast.
      */
     resume(): void {
-        const status = this._executor.getExecutionContext().status;
-        if (status === ExecutionStatus.Paused) {
-            this._executor.getStateManager().setStatus(ExecutionStatus.Running);
-            this._observer.onStatusChange(ExecutionStatus.Running);
+        const resumed = this._executor.resume();
+        if (resumed) {
             vscode.window.showInformationMessage('Workflow resumed.');
         }
     }
@@ -245,31 +241,17 @@ export class WorkflowRuntime implements vscode.Disposable {
     }
 
     /**
-     * Get state manager (for testing)
+     * Validate a workflow and return errors.
      */
-    getStateManager() {
-        return this._executor.getStateManager();
-    }
-
-    /**
-     * Validate a workflow and return errors
-     */
-    validate(workflow: Workflow): any[] {
-        return validateWorkflow(workflow);
+    validate(workflow: Workflow): ValidationError[] {
+        return this._executor.validate(workflow);
     }
 
     /**
      * Export the current execution's logs as a formatted text string.
      */
     exportCurrentExecutionLogs(): string {
-        const exec = this._executor.getExecutionContext();
-        return exportExecutionLogs(
-            exec.nodeRecords,
-            this._currentWorkflow?.name || 'unknown',
-            exec.status,
-            exec.startTime,
-            exec.endTime
-        );
+        return this._executor.exportLogs(this._currentWorkflow?.name || 'unknown');
     }
 
     dispose(): void {

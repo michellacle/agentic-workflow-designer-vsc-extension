@@ -136,7 +136,7 @@ describe('WorkflowExecutor pause/resume', () => {
             executor.pause();
 
             // Status should not be Paused (nothing was running)
-            expect(executor.getStateManager().getStatus()).not.toBe(ExecutionStatus.Paused);
+            expect(executor.getExecutionContext().status).not.toBe(ExecutionStatus.Paused);
         });
 
         it('should notify observer when paused', async () => {
@@ -280,7 +280,7 @@ describe('WorkflowExecutor pause/resume', () => {
             executor.resume();
 
             // Should not throw and status should not be Running
-            expect(executor.getStateManager().getStatus()).not.toBe(ExecutionStatus.Running);
+            expect(executor.getExecutionContext().status).not.toBe(ExecutionStatus.Running);
         });
     });
 
@@ -327,14 +327,14 @@ describe('WorkflowExecutor pause/resume', () => {
             setTimeout(() => {
                 executor.pause();
                 // Set a state value while paused
-                executor.getStateManager().set('testKey', 'testValue');
+                executor.getExecutionContext().state['testKey'] = 'testValue';
                 setTimeout(() => executor.resume(), 200);
             }, 200);
 
             await runPromise;
 
             // State should be preserved
-            expect(executor.getStateManager().get('testKey')).toBe('testValue');
+            expect(executor.getExecutionContext().state['testKey']).toBe('testValue');
         });
 
         it('should halt before scheduling the next node (cooperative pause)', async () => {
@@ -358,7 +358,7 @@ describe('WorkflowExecutor pause/resume', () => {
             const startRecord = ctx.nodeRecords.get('start');
             expect(startRecord?.status).toBe(NodeStatus.Completed);
 
-            expect(executor.getStateManager().getStatus()).toBe(ExecutionStatus.Completed);
+            expect(executor.getExecutionContext().status).toBe(ExecutionStatus.Completed);
         });
     });
 
