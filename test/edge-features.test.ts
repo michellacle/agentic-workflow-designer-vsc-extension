@@ -61,6 +61,23 @@ describe('Feature 1: Animate edges to show execution flow', () => {
         expect(designerContent).toContain('function updateExecutionAnimations');
     });
 
+    it('should process completion transitions before running transitions', () => {
+        const updateBody = extractFunctionBody(designerContent, 'updateExecutionAnimations');
+        expect(updateBody).not.toBeNull();
+        expect(updateBody).toContain('Process completions first');
+        const firstCompletedIndex = updateBody!.indexOf('becameCompleted');
+        const runningIndex = updateBody!.indexOf('becameRunning');
+        expect(firstCompletedIndex).toBeGreaterThan(-1);
+        expect(runningIndex).toBeGreaterThan(-1);
+        expect(firstCompletedIndex).toBeLessThan(runningIndex);
+    });
+
+    it('should keep running nodes visually waiting during pending edge handoff', () => {
+        expect(designerContent).toContain('function getVisualNodeStatus');
+        expect(designerContent).toContain('state.pendingNodePulses[nodeId]');
+        expect(designerContent).toContain("return 'waiting'");
+    });
+
     it('should not rely on target node running status for edge animation', () => {
         const drawEdgeBody = extractFunctionBody(designerContent, 'drawEdge');
         expect(drawEdgeBody).not.toBeNull();

@@ -29,6 +29,31 @@
         "applyUntil": "matched",
         "pattern": "$tsc"
       }
+    },
+    {
+      "label": "watch:webview",
+      "type": "npm",
+      "script": "watch:webview",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "source": "ts",
+        "applyUntil": "matched",
+        "pattern": "$tsc"
+      }
+    },
+    {
+      "label": "dev:watch",
+      "type": "npm",
+      "script": "dev:watch",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "source": "ts",
+        "applyUntil": "matched",
+        "pattern": "$tsc"
+      },
+      "detail": "Run extension and webview watchers for fast feedback without repeated rebuild commands"
     }
   ]
 }

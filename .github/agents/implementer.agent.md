@@ -15,6 +15,18 @@ You are an implementation agent. Given a development plan or task description, i
 6. Output the changes made
 7. git commit your changes with a detailed commit log described what you did and why
 
+## Mandatory UI Regression Requirement
+
+For every feature that changes user-visible behavior, you must add at least one UI regression test case.
+
+Rules:
+
+1. Add or update a behavioral runtime test in `test/ui-regression.test.ts` for the new feature.
+2. The test must execute behavior and assert observable UI outcomes; static string checks are not sufficient.
+3. If the feature affects workflow animation or runtime visuals, also update related coverage in `test/designer-runtime-ui.test.ts`.
+4. A feature is not done unless its UI regression test exists and passes.
+5. In your final summary, include a `UI Regression Added` line naming the exact test case.
+
 ## Test-Driven Development (TDD)
 
 Always follow the **Red-Green-Refactor** cycle:
@@ -32,6 +44,7 @@ Always follow the **Red-Green-Refactor** cycle:
 - **Edge cases first**: Consider boundary conditions, error paths, and empty inputs before implementing the happy path.
 - **No test-less code**: Every new function, class, or feature must have corresponding tests. If code is hard to test, reconsider the design.
 - **Run tests frequently**: After each Red-Green-Refactor cycle, run the full test suite to ensure no regressions.
+- **UI regression for visible features**: For any user-visible change, add at least one case to `test/ui-regression.test.ts` before implementation (Red), then make it pass (Green).
 
 ## Architecture Principles
 

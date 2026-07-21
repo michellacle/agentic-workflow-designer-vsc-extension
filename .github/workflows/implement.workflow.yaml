@@ -3,15 +3,15 @@ nodes:
   - id: start_1
     type: start
     position:
-      x: 180
-      'y': -10
+      x: 50
+      'y': 0
     data:
       label: Start
   - id: agent_11
     type: agent
     position:
-      x: 320
-      'y': 140
+      x: 270
+      'y': -10
     data:
       agent: implementer
       prompt: ''
@@ -21,8 +21,8 @@ nodes:
   - id: agent_14
     type: agent
     position:
-      x: 320
-      'y': 270
+      x: 280
+      'y': 130
     data:
       agent: reviewer
       prompt: ''
@@ -32,8 +32,8 @@ nodes:
   - id: agent_15
     type: agent
     position:
-      x: 310
-      'y': 400
+      x: 260
+      'y': 260
     data:
       agent: tester
       prompt: ''
@@ -43,8 +43,8 @@ nodes:
   - id: agent_16
     type: agent
     position:
-      x: 270
-      'y': 540
+      x: 360
+      'y': 490
     data:
       agent: builder
       prompt: ''
@@ -54,19 +54,36 @@ nodes:
   - id: end_17
     type: end
     position:
-      x: 230
-      'y': 680
+      x: 620
+      'y': 490
     data:
       label: End
+      summary: true
+  - id: agent_18
+    type: agent
+    position:
+      x: 280
+      'y': 380
+    data:
+      agent: qa
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 0
 edges:
   - source: agent_11
     target: agent_14
   - source: agent_14
     target: agent_15
-  - source: agent_15
-    target: agent_16
   - source: agent_16
     target: end_17
   - source: start_1
     target: agent_11
+  - source: agent_15
+    target: agent_18
+  - source: agent_18
+    target: agent_16
+  - source: agent_18
+    target: agent_11
+    label: loop back
 description: Simple sequential workflow - Start → Agent → End (for testing Phase 2)

@@ -3,7 +3,7 @@ nodes:
   - id: start_1
     type: start
     position:
-      x: 210
+      x: 90
       'y': 150
     data:
       label: Start
@@ -18,10 +18,10 @@ nodes:
   - id: agent_6
     type: agent
     position:
-      x: 210
-      'y': 230
+      x: 350
+      'y': 200
     data:
-      agent: counter
+      agent: general
       prompt: tell me a 200 story about jesus
       model: qwen3.6-27b
       timeout: 120
@@ -30,14 +30,17 @@ nodes:
     type: delay
     position:
       x: 190
-      'y': 360
+      'y': 340
     data:
       duration: 5
 edges:
   - source: start_1
     target: agent_6
+    label: starting phase
   - source: agent_6
     target: delay_7
+    label: when agent is done
   - source: delay_7
     target: end_5
+    label: yay, we done
 description: Demonstrates the Loop node - runs a counter agent 3 times using count mode

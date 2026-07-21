@@ -269,6 +269,9 @@
             drawNode(node);
         }
 
+        // Draw arrowheads after nodes so they are visible on top of node backgrounds
+        drawArrowheads();
+
         // Draw selection box
         drawSelectionBox();
 
@@ -311,8 +314,8 @@
         // Determine color
         let color = config.color;
         if (state.executionStatus && state.executionStatus.nodeStatuses && state.executionStatus.nodeStatuses[node.id]) {
-            const execRecord = state.executionStatus.nodeStatuses[node.id];
-            color = STATUS_COLORS[execRecord.status] || config.color;
+            const visualStatus = getVisualNodeStatus(node.id, state.executionStatus.nodeStatuses[node.id].status);
+            color = STATUS_COLORS[visualStatus] || config.color;
         }
 
         // Shadow
@@ -502,20 +505,6 @@
         // Reset dash
         ctx.setLineDash([]);
 
-        // Arrow head
-        const angle = Math.atan2(ty - cp2y, tx - cp2x);
-        ctx.fillStyle = isEdgeAnimating
-            ? getThemeColor('buttonBackground')
-            : isSelected
-                ? getThemeColor('focusBorder')
-                : getThemeColor('descriptionForeground');
-        ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(tx - 10 * Math.cos(angle - Math.PI / 6), ty - 10 * Math.sin(angle - Math.PI / 6));
-        ctx.lineTo(tx - 10 * Math.cos(angle + Math.PI / 6), ty - 10 * Math.sin(angle + Math.PI / 6));
-        ctx.closePath();
-        ctx.fill();
-
         // Edge label
         const midX = (sx + tx) / 2;
         const midY = (sy + ty) / 2 - 8;
@@ -572,6 +561,43 @@
         ctx.lineTo(currentX, currentY);
         ctx.stroke();
         ctx.setLineDash([]);
+    }
+
+    function drawArrowheads() {
+        for (const edge of state.workflow.edges) {
+            const sourceNode = state.workflow.nodes.find(n => n.id === edge.source);
+            const targetNode = state.workflow.nodes.find(n => n.id === edge.target);
+            if (!sourceNode || !targetNode) continue;
+
+            const config = NODE_CONFIGS[sourceNode.type];
+            const sx = sourceNode.position.x + (config ? config.width : 140);
+            const sy = sourceNode.position.y + (config ? config.height / 2 : 35);
+            const tx = targetNode.position.x;
+            const ty = targetNode.position.y + (NODE_CONFIGS[targetNode.type]?.height || 70) / 2;
+
+            // Bezier curve control points (same as drawEdge)
+            const cp1x = sx + (tx - sx) * 0.5;
+            const cp1y = sy;
+            const cp2x = tx - (tx - sx) * 0.5;
+            const cp2y = ty;
+
+            const edgeAnimation = state.edgeAnimations[edge.id];
+            const isEdgeAnimating = !!edgeAnimation && state.nowMs >= edgeAnimation.startTime && state.nowMs <= edgeAnimation.endTime;
+            const isSelected = state.selectedEdgeId === edge.id;
+
+            const angle = Math.atan2(ty - cp2y, tx - cp2x);
+            ctx.fillStyle = isEdgeAnimating
+                ? getThemeColor('buttonBackground')
+                : isSelected
+                    ? getThemeColor('focusBorder')
+                    : getThemeColor('descriptionForeground');
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tx - 10 * Math.cos(angle - Math.PI / 6), ty - 10 * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(tx - 10 * Math.cos(angle + Math.PI / 6), ty - 10 * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+        }
     }
 
     // ===== Mouse Events =====
@@ -1510,8 +1536,8 @@
     }
 
     // ===== Execution Animations (event-driven) =====
-    function updateExecutionAnimations(status) {
-        const now = performance.now();
+    function updateExecutionAnimations(status, nowOverride?) {
+        const now = typeof nowOverride === 'number' ? nowOverride : performance.now();
         state.nowMs = now;
 
         if (!status || !status.nodeStatuses) {
@@ -1534,30 +1560,37 @@
             return;
         }
 
+        // Process completions first so source-node flash state exists before scheduling edge handoff.
         for (const nodeId of currentIds) {
             const currentStatus = nodeStatuses[nodeId].status;
             const previousStatus = state.previousNodeStatuses[nodeId];
             const nodeType = getNodeType(nodeId);
-
-            const becameRunning = currentStatus === 'running' && previousStatus !== 'running';
             const becameCompleted = currentStatus === 'completed' && previousStatus !== 'completed';
-
-            if (becameRunning) {
-                scheduleRunningNodeAnimation(nodeId, now, status, nodeType);
-            }
 
             if (becameCompleted) {
                 delete state.pendingNodePulses[nodeId];
                 delete state.nodeAnimations[nodeId];
 
                 if (nodeType === 'start' && status.overall === 'running') {
-                        state.nodeAnimations[nodeId] = { mode: 'flash', endTime: now + state.animationConfig.startNodeFlashMs };
+                    state.nodeAnimations[nodeId] = { mode: 'flash', endTime: now + state.animationConfig.startNodeFlashMs };
                 }
 
                 // End node uses a short completion flash as minimum acceptance animation.
                 if (nodeType === 'end') {
-                        state.nodeAnimations[nodeId] = { mode: 'flash', endTime: now + state.animationConfig.endNodeFlashMs };
+                    state.nodeAnimations[nodeId] = { mode: 'flash', endTime: now + state.animationConfig.endNodeFlashMs };
                 }
+            }
+        }
+
+        // Process running transitions after completion bookkeeping.
+        for (const nodeId of currentIds) {
+            const currentStatus = nodeStatuses[nodeId].status;
+            const previousStatus = state.previousNodeStatuses[nodeId];
+            const nodeType = getNodeType(nodeId);
+            const becameRunning = currentStatus === 'running' && previousStatus !== 'running';
+
+            if (becameRunning) {
+                scheduleRunningNodeAnimation(nodeId, now, status, nodeType);
             }
 
             if (previousStatus === 'running' && currentStatus !== 'running') {
@@ -1634,6 +1667,14 @@
 
     function getNodeType(nodeId) {
         return state.workflow.nodes.find(n => n.id === nodeId)?.type;
+    }
+
+    function getVisualNodeStatus(nodeId, runtimeStatus) {
+        // While waiting for edge handoff to finish, keep node visually in waiting state.
+        if (runtimeStatus === 'running' && state.pendingNodePulses[nodeId]) {
+            return 'waiting';
+        }
+        return runtimeStatus;
     }
 
     function updateExecutionStatusUI(status) {
@@ -1766,6 +1807,37 @@
         return Math.max(minimum, parsed);
     }
 
+    function publishTestApi() {
+        const host = window as any;
+        if (!host.__WORKFLOW_DESIGNER_TEST_MODE) {
+            return;
+        }
+
+        host.__workflowDesignerTestApi = {
+            simulateMessage: (msg) => {
+                onMessage({ data: msg } as MessageEvent);
+            },
+            simulateExecutionUpdate: (status, nowOverride?) => {
+                state.executionStatus = status;
+                updateExecutionAnimations(status, nowOverride);
+                render();
+            },
+            tickTo: (now) => {
+                state.nowMs = now;
+                pruneAnimationState(now);
+                render();
+            },
+            getAnimationSnapshot: () => ({
+                edgeAnimations: { ...state.edgeAnimations },
+                nodeAnimations: { ...state.nodeAnimations },
+                pendingNodePulses: { ...state.pendingNodePulses },
+                nowMs: state.nowMs,
+                animationConfig: { ...state.animationConfig }
+            }),
+            getVisualStatus: (nodeId, runtimeStatus) => getVisualNodeStatus(nodeId, runtimeStatus)
+        };
+    }
+
     // ===== Double Click Handler =====
     function onDoubleClick(e) {
         if (!state.editMode) return;
@@ -1785,6 +1857,7 @@
 
     // ===== Start =====
     init();
+    publishTestApi();
     // Start animation loop for edge flow animation
     startAnimationLoop();
 })();
