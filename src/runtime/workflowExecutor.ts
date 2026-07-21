@@ -174,7 +174,7 @@ export class WorkflowExecutor {
     // ---- Private execution logic ----
 
     private async execute(workflow: Workflow, chatContext?: ChatRequestContext, workspaceRoot?: string): Promise<void> {
-        this._stateManager.initialize();
+        this._stateManager.initialize(workflow.initialState);
         this._abortController = new AbortController();
         if (workspaceRoot) this._workspaceRoot = workspaceRoot;
         this.observer.onStatusChange(ExecutionStatus.Running);

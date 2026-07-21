@@ -109,6 +109,8 @@ export interface Edge {
 export interface Workflow {
     name: string;
     description?: string;
+    /** Initial state values to populate at the start of execution. */
+    initialState?: Record<string, unknown>;
     nodes: Node[];
     edges: Edge[];
 }

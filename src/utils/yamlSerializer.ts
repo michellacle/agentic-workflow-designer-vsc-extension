@@ -88,6 +88,10 @@ export function workflowToYaml(workflow: Workflow): string {
         yamlObj.edges.push(edgeObj);
     }
 
+    if (workflow.initialState && Object.keys(workflow.initialState).length > 0) {
+        yamlObj.state = workflow.initialState;
+    }
+
     return yaml.dump(yamlObj, { lineWidth: -1, noRefs: true });
 }
 
@@ -99,6 +103,7 @@ export function yamlToWorkflow(yamlStr: string): Workflow {
     const workflow: Workflow = {
         name: obj.name || 'untitled-workflow',
         description: obj.description,
+        initialState: obj.state || undefined,
         nodes: [],
         edges: []
     };

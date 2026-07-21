@@ -180,12 +180,18 @@ export class StateManager {
     }
 
     /**
-     * Initialize a new execution context
+     * Initialize a new execution context.
+     * @param initialState Optional initial state values to populate the state bag with.
      */
-    initialize(): void {
+    initialize(initialState?: Record<string, unknown>): void {
+        const state: WorkflowState = {};
+        if (initialState) {
+            // Deep-copy to avoid external mutations
+            Object.assign(state, JSON.parse(JSON.stringify(initialState)));
+        }
         this._context = {
             status: ExecutionStatus.Running,
-            state: {},
+            state,
             nodeRecords: new Map(),
             iterationCounts: new Map(),
             startTime: Date.now()
