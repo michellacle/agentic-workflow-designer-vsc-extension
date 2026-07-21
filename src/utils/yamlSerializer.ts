@@ -3,7 +3,7 @@ import {
     Workflow, Node, Edge, NodeType,
     NodeData, StartNodeData, EndNodeData,
     AgentNodeData, ConditionNodeData,
-    HumanApprovalNodeData, DelayNodeData
+    HumanApprovalNodeData, DelayNodeData, LoopNodeData
 } from '../models/workflow';
 
 /**
@@ -71,6 +71,15 @@ export function workflowToYaml(workflow: Workflow): string {
                 nodeObj.data = {
                     duration: delayData.duration,
                     description: delayData.description
+                };
+                break;
+            case NodeType.Loop:
+                const loopData = node.data as LoopNodeData;
+                nodeObj.data = {
+                    mode: loopData.mode,
+                    maxIterations: loopData.maxIterations,
+                    expression: loopData.expression,
+                    description: loopData.description
                 };
                 break;
         }
@@ -167,6 +176,13 @@ function parseNodeData(type: NodeType, raw: any): NodeData {
                 duration: raw.duration || 5,
                 description: raw.description
             } as DelayNodeData;
+        case NodeType.Loop:
+            return {
+                mode: raw.mode || 'count',
+                maxIterations: raw.maxIterations || 1,
+                expression: raw.expression,
+                description: raw.description
+            } as LoopNodeData;
         default:
             return {} as NodeData;
     }

@@ -1,4 +1,4 @@
-import { Workflow, Node, Edge, NodeType } from '../models/workflow';
+import { Workflow, Node, Edge, NodeType, LoopNodeData } from '../models/workflow';
 
 export interface ValidationError {
     node?: string;
@@ -77,6 +77,22 @@ export function validateWorkflow(workflow: Workflow): ValidationError[] {
             const condData = node.data as any;
             if (!condData.expression) {
                 errors.push({ node: node.id, message: `Condition node '${node.id}' has no expression`, severity: 'error' });
+            }
+        }
+        if (node.type === NodeType.Loop) {
+            const loopData = node.data as LoopNodeData;
+            if (loopData.mode === 'count' && loopData.maxIterations < 1) {
+                errors.push({ node: node.id, message: `Loop node '${node.id}' has maxIterations < 1`, severity: 'error' });
+            }
+            if (loopData.mode === 'condition' && !loopData.expression) {
+                errors.push({ node: node.id, message: `Loop node '${node.id}' in condition mode has no expression`, severity: 'error' });
+            }
+            // Check that loop has both body and exit edges
+            const outgoing = workflow.edges.filter(e => e.source === node.id);
+            const hasBody = outgoing.some(e => e.label === 'body');
+            const hasExit = outgoing.some(e => e.label === 'exit');
+            if (!hasBody || !hasExit) {
+                errors.push({ node: node.id, message: `Loop node '${node.id}' must have both 'body' and 'exit' edges`, severity: 'error' });
             }
         }
     }

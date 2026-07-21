@@ -7,7 +7,8 @@ export enum NodeType {
     Agent = 'agent',
     Condition = 'condition',
     HumanApproval = 'human_approval',
-    Delay = 'delay'
+    Delay = 'delay',
+    Loop = 'loop'
 }
 
 /**
@@ -37,7 +38,8 @@ export type NodeData =
     | AgentNodeData
     | ConditionNodeData
     | HumanApprovalNodeData
-    | DelayNodeData;
+    | DelayNodeData
+    | LoopNodeData;
 
 /**
  * Start node data
@@ -89,6 +91,17 @@ export interface HumanApprovalNodeData {
  */
 export interface DelayNodeData {
     duration: number;     // seconds
+    description?: string;
+}
+
+/**
+ * Loop node data — controls iteration over a body subgraph.
+ * Supports count mode (fixed iterations) and condition mode (boolean expression).
+ */
+export interface LoopNodeData {
+    mode: 'count' | 'condition';
+    maxIterations: number;       // safety net — max iterations before forced exit
+    expression?: string;         // condition mode: boolean expression evaluated each iteration
     description?: string;
 }
 

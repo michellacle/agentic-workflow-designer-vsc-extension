@@ -4,7 +4,7 @@ import {
     Workflow, Node, NodeType,
     ExecutionStatus, NodeStatus,
     AgentNodeData, ConditionNodeData,
-    HumanApprovalNodeData, DelayNodeData, EndNodeData,
+    HumanApprovalNodeData, DelayNodeData, EndNodeData, LoopNodeData,
     ExecutionContext
 } from '../models/workflow';
 import { StateManager } from './stateManager';
@@ -381,6 +381,9 @@ export class WorkflowExecutor {
             case NodeType.Delay:
                 return this.executeDelayNode(node);
 
+            case NodeType.Loop:
+                return this.executeLoopNode(node, workflow);
+
             default:
                 return { success: true };
         }
@@ -506,6 +509,48 @@ export class WorkflowExecutor {
         return { success: true };
     }
 
+    private executeLoopNode(node: Node, workflow: Workflow): NodeExecutionResult {
+        const data = node.data as LoopNodeData;
+        const stateKey = 'loop_iterationCount';
+
+        let count = this._stateManager.get(stateKey) as number | undefined;
+        if (count === undefined) {
+            count = 0;
+        }
+
+        let shouldContinue = false;
+
+        if (data.mode === 'count') {
+            shouldContinue = count < data.maxIterations;
+        } else {
+            // Condition mode: check expression AND safety net
+            if (count >= data.maxIterations) {
+                shouldContinue = false;
+                this._stateManager.addLog(node.id, `Max iterations (${data.maxIterations}) reached, exiting loop`);
+            } else if (data.expression) {
+                try {
+                    const result = ConditionEvaluator.evaluate(data.expression, this._stateManager.state);
+                    shouldContinue = !!result;
+                } catch (e) {
+                    this._stateManager.addError(node.id, `Loop condition evaluation failed: ${e}`);
+                    shouldContinue = false;
+                }
+            } else {
+                shouldContinue = false;
+            }
+        }
+
+        if (shouldContinue) {
+            count++;
+            this._stateManager.set(stateKey, count);
+            this._stateManager.addLog(node.id, `Loop iteration ${count}/${data.maxIterations} — entering body`);
+            return { success: true, branchResult: true }; // body edge
+        } else {
+            this._stateManager.addLog(node.id, `Loop exiting after ${count} iteration(s)`);
+            return { success: true, branchResult: false }; // exit edge
+        }
+    }
+
     private executeEndNode(node: Node): void {
         const data = node.data as EndNodeData;
         if (data.summary === false) return;
@@ -573,7 +618,7 @@ export class WorkflowExecutor {
     private getNextNodes(nodeId: string, node: Node, workflow: Workflow, branchResult?: boolean): string[] {
         const allEdges = workflow.edges.filter(e => e.source === nodeId);
 
-        if (branchResult !== undefined && (node.type === NodeType.Condition || node.type === NodeType.HumanApproval)) {
+        if (branchResult !== undefined && (node.type === NodeType.Condition || node.type === NodeType.HumanApproval || node.type === NodeType.Loop)) {
             return allEdges
                 .filter(e => this.edgeMatchesBranch(e, branchResult))
                 .map(e => e.target);
@@ -590,7 +635,7 @@ export class WorkflowExecutor {
 
     private isTrueEdge(edge: { label?: string }): boolean {
         const label = edge.label?.toLowerCase();
-        return label === 'true' || label === 'pass' || label === 'approve';
+        return label === 'true' || label === 'pass' || label === 'approve' || label === 'body';
     }
 
     private edgeMatchesBranch(edge: { label?: string }, branchResult: boolean): boolean {
@@ -598,7 +643,7 @@ export class WorkflowExecutor {
             return this.isTrueEdge(edge);
         } else {
             const label = edge.label?.toLowerCase();
-            return label === 'false' || label === 'fail' || label === 'reject' || !label;
+            return label === 'false' || label === 'fail' || label === 'reject' || label === 'exit' || !label;
         }
     }
 
