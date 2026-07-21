@@ -703,12 +703,7 @@
         // Finalize selection box
         if (state.selectionBox) {
             const box = state.selectionBox;
-            const nodeIds = nodesInRect({
-                x1: box.startX,
-                y1: box.startY,
-                x2: box.endX,
-                y2: box.endY,
-            });
+            const nodeIds = nodesInRect(box.startX, box.startY, box.endX, box.endY);
 
             if (nodeIds.length > 0 || Math.abs(box.endX - box.startX) > 3 || Math.abs(box.endY - box.startY) > 3) {
                 if (e.shiftKey) {
@@ -729,6 +724,7 @@
             state.selectionBox = null;
             render();
         }
+    }
 
     function onWheel(e) {
         e.preventDefault();
@@ -1280,10 +1276,10 @@
     }
 
     // Expose mapping functions globally for onclick handlers
-    window.addMapping = addMapping;
-    window.removeMapping = removeMapping;
-    window.updateMappingSource = updateMappingSource;
-    window.updateMappingTarget = updateMappingTarget;
+    (window as any).addMapping = addMapping;
+    (window as any).removeMapping = removeMapping;
+    (window as any).updateMappingSource = updateMappingSource;
+    (window as any).updateMappingTarget = updateMappingTarget;
 
     function updateNodeProperty(node, label, value) {
         const keyMap = {

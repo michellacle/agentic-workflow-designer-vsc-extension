@@ -32,6 +32,8 @@
         editingEdgeId: null,
         // Edge selection state
         selectedEdgeId: null,
+        // Selection box state
+        selectionBox: null,
     };
     // ===== VS Code API =====
     let vscode;
@@ -221,6 +223,8 @@
         for (const node of state.workflow.nodes) {
             drawNode(node);
         }
+        // Draw selection box
+        drawSelectionBox();
         ctx.restore();
     }
     function drawGrid(w, h) {
@@ -535,8 +539,23 @@
             }
             return;
         }
-        // Click on empty canvas - start panning or clear selection
-        if (e.button === 1 || (e.button === 0 && state.selectedNodeIds.size === 0 && !state.selectedEdgeId)) {
+        // Click on empty canvas - start panning, selection box, or clear selection
+        if (e.button === 1) {
+            // Middle mouse: always pan
+            state.panning = true;
+            state.panStart = { x: e.clientX - state.viewport.x, y: e.clientY - state.viewport.y };
+        }
+        else if (state.editMode && state.selectedNodeIds.size === 0 && !state.selectedEdgeId) {
+            // Left click on empty canvas in edit mode: start selection box
+            state.selectionBox = {
+                startX: pos.x,
+                startY: pos.y,
+                endX: pos.x,
+                endY: pos.y,
+            };
+        }
+        else if (state.selectedNodeIds.size === 0 && !state.selectedEdgeId) {
+            // Left click on empty canvas in view mode: pan
             state.panning = true;
             state.panStart = { x: e.clientX - state.viewport.x, y: e.clientY - state.viewport.y };
         }
@@ -567,6 +586,12 @@
         if (state.panning) {
             state.viewport.x = e.clientX - state.panStart.x;
             state.viewport.y = e.clientY - state.panStart.y;
+            render();
+            return;
+        }
+        if (state.selectionBox) {
+            state.selectionBox.endX = pos.x;
+            state.selectionBox.endY = pos.y;
             render();
             return;
         }
@@ -601,6 +626,29 @@
         }
         state.draggingNode = null;
         state.panning = false;
+        // Finalize selection box
+        if (state.selectionBox) {
+            const box = state.selectionBox;
+            const nodeIds = nodesInRect(box.startX, box.startY, box.endX, box.endY);
+            if (nodeIds.length > 0 || Math.abs(box.endX - box.startX) > 3 || Math.abs(box.endY - box.startY) > 3) {
+                if (e.shiftKey) {
+                    // Shift+drag: add to existing selection
+                    for (const id of nodeIds) {
+                        state.selectedNodeIds.add(id);
+                    }
+                }
+                else {
+                    // Replace selection
+                    state.selectedNodeIds.clear();
+                    for (const id of nodeIds) {
+                        state.selectedNodeIds.add(id);
+                    }
+                }
+                updatePropertiesPanel(state.selectedNodeIds.size === 1 ? state.workflow.nodes.find(n => n.id === Array.from(state.selectedNodeIds).pop()) : null);
+            }
+            state.selectionBox = null;
+            render();
+        }
     }
     function onWheel(e) {
         e.preventDefault();
@@ -1311,6 +1359,40 @@
         ctx.lineTo(x, y + r);
         ctx.quadraticCurveTo(x, y, x + r, y);
         ctx.closePath();
+    }
+    // ===== Selection Box =====
+    function drawSelectionBox() {
+        if (!state.selectionBox)
+            return;
+        const box = state.selectionBox;
+        const x = Math.min(box.startX, box.endX);
+        const y = Math.min(box.startY, box.endY);
+        const w = Math.abs(box.endX - box.startX);
+        const h = Math.abs(box.endY - box.startY);
+        ctx.fillStyle = isDarkTheme() ? 'rgba(0, 120, 215, 0.15)' : 'rgba(0, 120, 215, 0.12)';
+        ctx.strokeStyle = getThemeColor('focusBorder') || '#0078d5';
+        ctx.lineWidth = 1;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
+    }
+    function nodesInRect(x1, y1, x2, y2) {
+        const minX = Math.min(x1, x2);
+        const minY = Math.min(y1, y2);
+        const maxX = Math.max(x1, x2);
+        const maxY = Math.max(y1, y2);
+        const result = [];
+        for (const node of state.workflow.nodes) {
+            const config = NODE_CONFIGS[node.type];
+            const nw = config ? config.width : 140;
+            const nh = config ? config.height : 70;
+            const nx = node.position.x;
+            const ny = node.position.y;
+            // Check if node rectangle intersects selection rectangle
+            if (nx < maxX && nx + nw > minX && ny < maxY && ny + nh > minY) {
+                result.push(node.id);
+            }
+        }
+        return result;
     }
     // ===== Animation Loop =====
     function startAnimationLoop() {
