@@ -5,7 +5,7 @@ import {
     ExecutionStatus, NodeStatus,
     AgentNodeData, ConditionNodeData,
     HumanApprovalNodeData, DelayNodeData, EndNodeData,
-    WorkflowState, ExecutionContext, NodeExecutionRecord
+    ExecutionContext
 } from '../models/workflow';
 import { StateManager } from './stateManager';
 import { ConditionEvaluator } from './conditionEvaluator';
@@ -207,8 +207,7 @@ export class WorkflowExecutor {
 
         try {
             this.observer.onLog(`✓ Start node: ${startNode.id}`);
-            this._stateManager.createNodeRecord(startNode.id, NodeStatus.Completed, this.getNodeLabel(startNode));
-            this._stateManager.setCurrentNode(startNode.id);
+            this._stateManager.markStartCompleted(startNode.id, this.getNodeLabel(startNode));
             this.notifyExecutionUpdate();
 
             let currentNodeIds = this.getAllNextNodes(startNode.id, workflow);
@@ -224,13 +223,15 @@ export class WorkflowExecutor {
                     const node = workflow.nodes.find(n => n.id === nodeId);
                     if (!node) continue;
 
-                    this._stateManager.setCurrentNode(nodeId);
-                    this._stateManager.createNodeRecord(nodeId, NodeStatus.Waiting, this.getNodeLabel(node));
-                    this.notifyExecutionUpdate();
-
                     const label = this.getNodeLabel(node);
                     this.observer.onLog(`  ⠋ Running ${nodeId} (${label})...`);
-                    const result = await this.executeNode(node, workflow);
+
+                    // Single deep call: processNode handles record creation, timing, status, and errors
+                    const result = await this._stateManager.processNode(nodeId, label, async () => {
+                        this.notifyExecutionUpdate();
+                        return this.executeNodeInternal(node, workflow);
+                    });
+
                     this.notifyExecutionUpdate();
 
                     if (result.success) {
@@ -286,50 +287,33 @@ export class WorkflowExecutor {
         this.notifyExecutionUpdate();
     }
 
-    private async executeNode(node: Node, workflow: Workflow): Promise<NodeExecutionResult> {
-        this._stateManager.updateNodeStatus(node.id, NodeStatus.Running);
-        this._stateManager.startNode(node.id);
+    /**
+     * Node business logic only — lifecycle (timing, status, records) is handled
+     * by StateManager.processNode().
+     */
+    private async executeNodeInternal(node: Node, workflow: Workflow): Promise<NodeExecutionResult> {
+        switch (node.type) {
+            case NodeType.Start:
+                return { success: true };
 
-        try {
-            switch (node.type) {
-                case NodeType.Start:
-                    this._stateManager.endNode(node.id, NodeStatus.Completed);
-                    return { success: true };
+            case NodeType.End:
+                this.executeEndNode(node);
+                return { success: true };
 
-                case NodeType.End:
-                    this.executeEndNode(node);
-                    this._stateManager.endNode(node.id, NodeStatus.Completed);
-                    return { success: true };
+            case NodeType.Agent:
+                return { success: await this.executeAgentNode(node, workflow, this._workspaceRoot) };
 
-                case NodeType.Agent:
-                    return { success: await this.executeAgentNode(node, workflow, this._workspaceRoot) };
+            case NodeType.Condition:
+                return this.executeConditionNode(node, workflow);
 
-                case NodeType.Condition:
-                    return this.executeConditionNode(node, workflow);
+            case NodeType.HumanApproval:
+                return this.executeHumanApprovalNode(node);
 
-                case NodeType.HumanApproval:
-                    return this.executeHumanApprovalNode(node);
+            case NodeType.Delay:
+                return this.executeDelayNode(node);
 
-                case NodeType.Delay:
-                    return this.executeDelayNode(node);
-
-                case NodeType.Condition:
-                    return this.executeConditionNode(node, workflow);
-
-                case NodeType.HumanApproval:
-                    return this.executeHumanApprovalNode(node);
-
-                case NodeType.Delay:
-                    return this.executeDelayNode(node);
-
-                default:
-                    this._stateManager.endNode(node.id, NodeStatus.Completed);
-                    return { success: true };
-            }
-        } catch (error) {
-            this._stateManager.endNode(node.id, NodeStatus.Failed);
-            this._stateManager.addError(node.id, String(error));
-            return { success: false };
+            default:
+                return { success: true };
         }
     }
 
@@ -347,9 +331,8 @@ export class WorkflowExecutor {
         if (!copilotContext) {
             const message = 'Agent nodes require execution from the @workflow Copilot Chat participant.';
             this._stateManager.addError(node.id, message);
-            this._stateManager.endNode(node.id, NodeStatus.Failed);
             this.observer.onLog(`     ✗ ${message}`);
-            return false;
+            throw new Error(message);
         }
 
         const maxRetries = data.retries || 0;
@@ -396,7 +379,6 @@ export class WorkflowExecutor {
                     }
                 }
 
-                this._stateManager.endNode(node.id, NodeStatus.Completed);
                 return true;
             }
 
@@ -406,10 +388,9 @@ export class WorkflowExecutor {
             this.observer.onLog(`     ✗ Agent failed (attempt ${attempt + 1}): ${lastError}`);
         }
 
-        this._stateManager.endNode(node.id, NodeStatus.Failed);
         this._stateManager.addError(node.id, `All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
         this.observer.onLog(`     ✗ All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
-        return false;
+        throw new Error(`All ${maxRetries + 1} attempts failed. Last error: ${lastError}`);
     }
 
     private async executeConditionNode(node: Node, workflow: Workflow): Promise<NodeExecutionResult> {
@@ -427,20 +408,18 @@ export class WorkflowExecutor {
             }
         }
 
-        this._stateManager.endNode(node.id, NodeStatus.Completed);
         return { success: true, branchResult: result };
     }
 
     private async executeHumanApprovalNode(node: Node): Promise<NodeExecutionResult> {
         const data = node.data as HumanApprovalNodeData;
-        this._stateManager.updateNodeStatus(node.id, NodeStatus.Paused);
+        this._stateManager.setStatus(ExecutionStatus.Paused);
         this.notifyExecutionUpdate();
 
         const approved = await this.observer.requestApproval(data.message);
         this._stateManager.set(`${node.id}_approved`, approved);
         this._stateManager.addLog(node.id, `Approval result: ${approved ? 'Approved' : 'Rejected'}`);
 
-        this._stateManager.endNode(node.id, NodeStatus.Completed);
         return { success: true, branchResult: approved };
     }
 
@@ -450,11 +429,10 @@ export class WorkflowExecutor {
 
         const start = Date.now();
         while (Date.now() - start < data.duration * 1000) {
-            if (this.isAborted()) return { success: false };
+            if (this.isAborted()) throw new Error('Aborted during delay');
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        this._stateManager.endNode(node.id, NodeStatus.Completed);
         return { success: true };
     }
 
@@ -563,7 +541,7 @@ export class WorkflowExecutor {
         const node = workflow.nodes.find(n => n.id === nodeId);
         if (!node) return;
 
-        this._stateManager.createNodeRecord(nodeId, NodeStatus.Skipped, this.getNodeLabel(node));
+        this._stateManager.skipNode(nodeId, this.getNodeLabel(node));
         this.observer.onLog(`  ⊘ ${nodeId} skipped (untaken branch)`);
         this.notifyExecutionUpdate();
 

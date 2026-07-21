@@ -4,10 +4,13 @@ import {
 } from '../models/workflow';
 
 /**
- * Manages workflow execution state
+ * Deep execution state module.
+ *
+ * Interface: processNode(), get/set state, initialize(), complete(), getStatus().
+ * All node lifecycle (record creation, status transitions, timing) sits behind
+ * processNode — callers pass behaviour, not orchestration steps.
  */
 export class StateManager {
-    private _state: WorkflowState = {};
     private _context: ExecutionContext;
 
     constructor() {
@@ -56,25 +59,67 @@ export class StateManager {
     }
 
     /**
-     * Set the currently executing node
+     * Process a node's full lifecycle in a single call.
+     * Creates the record, sets current node, starts timing, runs the callback,
+     * then finalizes timing and status.
+     *
+     * This is the deep interface — one crossing per node, all lifecycle
+     * transitions happen internally.
      */
-    setCurrentNode(nodeId: string | undefined): void {
+    async processNode<T>(nodeId: string, label: string, callback: () => Promise<T>): Promise<T> {
         this._context.currentNodeId = nodeId;
-    }
-
-    /**
-     * Create or update a node execution record
-     */
-    createNodeRecord(nodeId: string, status: NodeStatus, nodeName?: string): NodeExecutionRecord {
         const record: NodeExecutionRecord = {
             nodeId,
-            nodeName,
-            status,
+            nodeName: label,
+            status: NodeStatus.Running,
+            startTime: Date.now(),
             logs: [],
             errors: []
         };
         this._context.nodeRecords.set(nodeId, record);
-        return record;
+
+        try {
+            const result = await callback();
+            record.endTime = Date.now();
+            record.duration = record.endTime - record.startTime!;
+            record.status = NodeStatus.Completed;
+            return result;
+        } catch (error) {
+            record.endTime = Date.now();
+            record.duration = record.endTime - record.startTime!;
+            record.status = NodeStatus.Failed;
+            record.errors?.push(String(error));
+            throw error;
+        }
+    }
+
+    /**
+     * Mark a node as skipped (untaken branch).
+     */
+    skipNode(nodeId: string, label: string): void {
+        const record: NodeExecutionRecord = {
+            nodeId,
+            nodeName: label,
+            status: NodeStatus.Skipped,
+            logs: [],
+            errors: []
+        };
+        this._context.nodeRecords.set(nodeId, record);
+    }
+
+    /**
+     * Mark the start node as already-completed (no execution needed).
+     */
+    markStartCompleted(nodeId: string, label: string): void {
+        this._context.currentNodeId = nodeId;
+        const record: NodeExecutionRecord = {
+            nodeId,
+            nodeName: label,
+            status: NodeStatus.Completed,
+            logs: [],
+            errors: []
+        };
+        this._context.nodeRecords.set(nodeId, record);
     }
 
     /**
@@ -82,39 +127,6 @@ export class StateManager {
      */
     getNodeRecord(nodeId: string): NodeExecutionRecord | undefined {
         return this._context.nodeRecords.get(nodeId);
-    }
-
-    /**
-     * Update node record status
-     */
-    updateNodeStatus(nodeId: string, status: NodeStatus): void {
-        const record = this._context.nodeRecords.get(nodeId);
-        if (record) {
-            record.status = status;
-        }
-    }
-
-    /**
-     * Start timing for a node
-     */
-    startNode(nodeId: string): void {
-        const record = this._context.nodeRecords.get(nodeId);
-        if (record) {
-            record.startTime = Date.now();
-            record.status = NodeStatus.Running;
-        }
-    }
-
-    /**
-     * Complete timing for a node
-     */
-    endNode(nodeId: string, status: NodeStatus): void {
-        const record = this._context.nodeRecords.get(nodeId);
-        if (record) {
-            record.endTime = Date.now();
-            record.duration = record.endTime - (record.startTime || record.endTime);
-            record.status = status;
-        }
     }
 
     /**

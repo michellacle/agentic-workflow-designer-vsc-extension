@@ -78,48 +78,53 @@ describe('StateManager', () => {
         expect(sm.getStatus()).toBe(ExecutionStatus.Running);
     });
 
-    it('should create and retrieve node records', () => {
+    it('should create and retrieve node records via processNode', async () => {
         const sm = new StateManager();
-        sm.createNodeRecord('node1', NodeStatus.Waiting, 'Test Node');
+        await sm.processNode('node1', 'Test Node', async () => 'result');
         const record = sm.getNodeRecord('node1');
         expect(record).toBeDefined();
         expect(record!.nodeId).toBe('node1');
-        expect(record!.status).toBe(NodeStatus.Waiting);
+        expect(record!.status).toBe(NodeStatus.Completed);
     });
 
-    it('should update node status', () => {
+    it('should track node timing via processNode', async () => {
         const sm = new StateManager();
-        sm.createNodeRecord('node1', NodeStatus.Waiting);
-        sm.updateNodeStatus('node1', NodeStatus.Running);
-        expect(sm.getNodeRecord('node1')!.status).toBe(NodeStatus.Running);
+        await sm.processNode('node1', 'Test Node', async () => {
+            // Simulate some work
+            await new Promise(r => setTimeout(r, 10));
+        });
+        const record = sm.getNodeRecord('node1')!;
+        expect(record.status).toBe(NodeStatus.Completed);
+        expect(record.startTime).toBeDefined();
+        expect(record.endTime).toBeDefined();
+        expect(record.duration!).toBeGreaterThanOrEqual(10);
     });
 
-    it('should track node timing', () => {
+    it('should mark node as failed when callback throws', async () => {
         const sm = new StateManager();
-        sm.createNodeRecord('node1', NodeStatus.Waiting);
-        sm.startNode('node1');
-        // After start, status should be Running
-        expect(sm.getNodeRecord('node1')!.status).toBe(NodeStatus.Running);
-        expect(sm.getNodeRecord('node1')!.startTime).toBeDefined();
+        await expect(sm.processNode('node1', 'Test Node', async () => {
+            throw new Error('test error');
+        })).rejects.toThrow('test error');
 
-        sm.endNode('node1', NodeStatus.Completed);
-        expect(sm.getNodeRecord('node1')!.status).toBe(NodeStatus.Completed);
-        expect(sm.getNodeRecord('node1')!.endTime).toBeDefined();
-        expect(sm.getNodeRecord('node1')!.duration).toBeGreaterThanOrEqual(0);
+        const record = sm.getNodeRecord('node1')!;
+        expect(record.status).toBe(NodeStatus.Failed);
+        expect(record.errors).toContain('Error: test error');
     });
 
-    it('should add logs to node records', () => {
+    it('should add logs to node records', async () => {
         const sm = new StateManager();
-        sm.createNodeRecord('node1', NodeStatus.Waiting);
-        sm.addLog('node1', 'test log message');
+        await sm.processNode('node1', 'Test Node', async () => {
+            sm.addLog('node1', 'test log message');
+        });
         const record = sm.getNodeRecord('node1')!;
         expect(record.logs).toContain('test log message');
     });
 
-    it('should add errors to node records', () => {
+    it('should add errors to node records', async () => {
         const sm = new StateManager();
-        sm.createNodeRecord('node1', NodeStatus.Waiting);
-        sm.addError('node1', 'test error');
+        await sm.processNode('node1', 'Test Node', async () => {
+            sm.addError('node1', 'test error');
+        });
         const record = sm.getNodeRecord('node1')!;
         expect(record.errors).toContain('test error');
     });

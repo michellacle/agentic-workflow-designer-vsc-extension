@@ -240,15 +240,15 @@ describe('Branch Routing', () => {
 
         it('should mark nodes as Skipped', () => {
             const sm = new StateManager();
-            sm.createNodeRecord('skipped_node', NodeStatus.Skipped, 'Skipped Node');
+            sm.skipNode('skipped_node', 'Skipped Node');
             const record = sm.getNodeRecord('skipped_node');
             expect(record!.status).toBe(NodeStatus.Skipped);
         });
 
-        it('should distinguish between Completed and Skipped nodes', () => {
+        it('should distinguish between Completed and Skipped nodes', async () => {
             const sm = new StateManager();
-            sm.createNodeRecord('taken_node', NodeStatus.Completed, 'Taken Node');
-            sm.createNodeRecord('skipped_node', NodeStatus.Skipped, 'Skipped Node');
+            await sm.processNode('taken_node', 'Taken Node', async () => {});
+            sm.skipNode('skipped_node', 'Skipped Node');
 
             expect(sm.getNodeRecord('taken_node')!.status).toBe(NodeStatus.Completed);
             expect(sm.getNodeRecord('skipped_node')!.status).toBe(NodeStatus.Skipped);

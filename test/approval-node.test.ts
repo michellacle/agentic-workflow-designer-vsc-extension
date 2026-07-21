@@ -428,10 +428,10 @@ describe('StateManager: Approval Branch Skipping', () => {
         const sm = new StateManager();
 
         // Simulate: approval node approved, so reject-path node is skipped
-        sm.createNodeRecord('approval', NodeStatus.Completed, 'Approval');
+        sm.markStartCompleted('approval', 'Approval');
         sm.set('approval_approved', true);
-        sm.createNodeRecord('deploy', NodeStatus.Completed, 'Deploy');
-        sm.createNodeRecord('rollback', NodeStatus.Skipped, 'Rollback');
+        sm.markStartCompleted('deploy', 'Deploy');
+        sm.skipNode('rollback', 'Rollback');
 
         expect(sm.getNodeRecord('approval')!.status).toBe(NodeStatus.Completed);
         expect(sm.getNodeRecord('deploy')!.status).toBe(NodeStatus.Completed);
@@ -442,10 +442,10 @@ describe('StateManager: Approval Branch Skipping', () => {
         const sm = new StateManager();
 
         // Simulate: approval node rejected, so approve-path node is skipped
-        sm.createNodeRecord('approval', NodeStatus.Completed, 'Approval');
+        sm.markStartCompleted('approval', 'Approval');
         sm.set('approval_approved', false);
-        sm.createNodeRecord('deploy', NodeStatus.Skipped, 'Deploy');
-        sm.createNodeRecord('rollback', NodeStatus.Completed, 'Rollback');
+        sm.skipNode('deploy', 'Deploy');
+        sm.markStartCompleted('rollback', 'Rollback');
 
         expect(sm.getNodeRecord('deploy')!.status).toBe(NodeStatus.Skipped);
         expect(sm.getNodeRecord('rollback')!.status).toBe(NodeStatus.Completed);
