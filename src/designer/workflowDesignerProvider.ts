@@ -73,10 +73,18 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
 
         // Send initial workflow data
         const agentFiles = await this.getAgentFiles();
+        const config = vscode.workspace.getConfiguration('workflowDesigner.animation');
+        const animationConfig = {
+            startNodeFlashMs: config.get<number>('startNodeFlashMs', 3000),
+            edgeHandoffMs: config.get<number>('edgeHandoffMs', 3000),
+            endNodeFlashMs: config.get<number>('endNodeFlashMs', 1200),
+            edgeDashSpeed: config.get<number>('edgeDashSpeed', 20)
+        };
         this.postMessage(webviewPanel.webview, {
             type: 'init',
             workflow: document.workflow,
-            agentFiles: agentFiles
+            agentFiles: agentFiles,
+            animationConfig
         });
 
         // Set current workflow on runtime

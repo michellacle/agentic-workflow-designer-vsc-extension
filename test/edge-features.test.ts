@@ -2,7 +2,7 @@
  * Tests for edge-related webview features in the workflow designer.
  *
  * Features tested:
- * 1. Animate edges to show execution flow (dashed line animation for running nodes)
+ * 1. Animate edges to show execution flow using event-driven transitions
  * 2. Select and delete individual connections (edges)
  * 3. Edit connection labels via double-click
  */
@@ -47,24 +47,38 @@ describe('Feature 1: Animate edges to show execution flow', () => {
         expect(designerContent).toMatch(/animationFrameId:/);
     });
 
-    it('should check if target node is running in drawEdge', () => {
-        const drawEdgeBody = extractFunctionBody(designerContent, 'drawEdge');
-        expect(drawEdgeBody).not.toBeNull();
-        expect(drawEdgeBody).toContain('running');
-        expect(drawEdgeBody).toContain('isTargetRunning');
+    it('should track explicit edge animation state in the webview state object', () => {
+        expect(designerContent).toContain('edgeAnimations:');
     });
 
-    it('should setLineDash for animated dashes when target is running', () => {
+    it('should track explicit node animation state in the webview state object', () => {
+        expect(designerContent).toContain('nodeAnimations:');
+        expect(designerContent).toContain('pendingNodePulses:');
+    });
+
+    it('should derive execution animations from executionUpdate events', () => {
+        expect(designerContent).toContain('updateExecutionAnimations(msg.status)');
+        expect(designerContent).toContain('function updateExecutionAnimations');
+    });
+
+    it('should not rely on target node running status for edge animation', () => {
+        const drawEdgeBody = extractFunctionBody(designerContent, 'drawEdge');
+        expect(drawEdgeBody).not.toBeNull();
+        expect(drawEdgeBody).not.toContain('isTargetRunning');
+    });
+
+    it('should setLineDash for animated dashes when an edge animation is active', () => {
         const drawEdgeBody = extractFunctionBody(designerContent, 'drawEdge');
         expect(drawEdgeBody).not.toBeNull();
         expect(drawEdgeBody).toContain('setLineDash');
+        expect(drawEdgeBody).toContain('isEdgeAnimating');
     });
 
     it('should use lineDashOffset for animation movement', () => {
         const drawEdgeBody = extractFunctionBody(designerContent, 'drawEdge');
         expect(drawEdgeBody).not.toBeNull();
         expect(drawEdgeBody).toContain('lineDashOffset');
-        expect(drawEdgeBody).toContain('animationTime');
+        expect(drawEdgeBody).toContain('elapsed');
     });
 
     it('should have an animate function for requestAnimationFrame loop', () => {
@@ -83,6 +97,12 @@ describe('Feature 1: Animate edges to show execution flow', () => {
         const animateBody = extractFunctionBody(designerContent, 'animate');
         expect(animateBody).not.toBeNull();
         expect(animateBody).toMatch(/animationTime\s*\+/);
+    });
+
+    it('should prune completed animations in the animation loop', () => {
+        const animateBody = extractFunctionBody(designerContent, 'animate');
+        expect(animateBody).not.toBeNull();
+        expect(animateBody).toContain('pruneAnimationState');
     });
 
     it('should use requestAnimationFrame in the animate function', () => {

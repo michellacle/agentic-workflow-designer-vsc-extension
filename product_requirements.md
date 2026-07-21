@@ -113,7 +113,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Show overall execution status in the VS Code status bar.
 - [x] Color nodes for Waiting, Running, Completed, Failed, and Paused states.
 - [x] Stream execution messages to a VS Code Output channel and the designer's execution log.
-- [ ] Animate edges to show execution flow.
+- [x] Animate edges to show execution flow.
 - [ ] Open execution details by clicking an executed node. A details panel class exists but is not wired to node selection.
 - [ ] Populate and display all documented details: agent, timing, prompt, context in/out, files modified, tool usage, structured output, logs, and errors.
 - [ ] Expose the execution timeline in the UI and make timeline items open node details. Timeline rendering exists but is not wired to a command or view.
@@ -121,6 +121,24 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [ ] Provide a UI for viewing previous runs.
 - [ ] Inspect workflow state at any point in an execution rather than only the final saved state.
 - [ ] Export execution logs through a user-facing command. Export formatting exists only as an internal API.
+
+### Runtime Animation Contract (Minimum Acceptance)
+
+To avoid animating the wrong component and to make execution progress legible, the designer animation must be driven by runtime execution events (node status transitions), not by UI-local heuristics.
+
+Required minimum sequence per transition:
+
+1. Start node: when execution begins, the Start node shows a short in-progress flash for approximately 3 seconds.
+2. Edge handoff: when execution transitions from one node to the next, the outgoing edge to the selected next node animates for approximately 3 seconds (flow/translation effect).
+3. Active node work: after the handoff animation completes, the destination working node (for example, an Agent node) pulses while its runtime status is Running.
+4. Subsequent handoffs: when that node completes and the runtime selects the next node, repeat the edge handoff animation then activate the next node animation.
+5. End node: when the End node is reached, show a short completion animation as the minimum accepted end-state motion.
+
+Behavioral constraints:
+
+- At most one node should display a Running pulse at a time in a sequential path.
+- Edge animation should indicate transition intent and must not be inferred only from "target is running".
+- Node and edge animations must reset cleanly when execution is Stopped, Failed, or returned to Idle.
 
 ## File-Based Composition
 

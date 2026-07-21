@@ -31,6 +31,19 @@
         // Edge animation state
         animationFrameId: null as number | null,
         animationTime: 0,
+        animationConfig: {
+            startNodeFlashMs: 3000,
+            edgeHandoffMs: 3000,
+            endNodeFlashMs: 1200,
+            edgeDashSpeed: 20,
+        },
+        nowMs: performance.now(),
+        edgeAnimations: {} as Record<string, { startTime: number; endTime: number }>,
+        nodeAnimations: {} as Record<string, { mode: 'pulse' | 'flash'; endTime?: number }>,
+        pendingNodePulses: {} as Record<string, number>,
+        previousNodeStatuses: {} as Record<string, string>,
+        previousCurrentNodeId: null as string | null,
+        previousOverallStatus: null as string | null,
         // Edge label editing state
         editingEdgeId: null as string | null,
         // Edge selection state
@@ -293,6 +306,7 @@
         const y = node.position.y;
         const w = config.width;
         const h = config.height;
+        const now = state.nowMs;
 
         // Determine color
         let color = config.color;
@@ -317,6 +331,32 @@
 
         // Reset shadow
         ctx.shadowColor = 'transparent';
+
+        // Runtime animation overlay for active nodes.
+        const nodeAnimation = state.nodeAnimations[node.id];
+        if (nodeAnimation) {
+            const pulse = (Math.sin(state.animationTime * 0.08) + 1) / 2;
+            if (nodeAnimation.mode === 'pulse') {
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.2 + pulse * 0.35;
+                ctx.lineWidth = 2 + pulse * 2;
+                roundRect(ctx, x - 4, y - 4, w + 8, h + 8, 10);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+            if (nodeAnimation.mode === 'flash') {
+                const remaining = Math.max(0, (nodeAnimation.endTime || now) - now);
+                const flashFactor = remaining > 0 ? 1 : 0;
+                if (flashFactor > 0) {
+                    const blink = Math.sin(state.animationTime * 0.28) > 0 ? 1 : 0.35;
+                    ctx.fillStyle = color;
+                    ctx.globalAlpha = 0.1 + blink * 0.2;
+                    roundRect(ctx, x - 2, y - 2, w + 4, h + 4, 9);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+            }
+        }
 
         // Header bar
         ctx.fillStyle = color;
@@ -428,11 +468,8 @@
         const cp2x = tx - (tx - sx) * 0.5;
         const cp2y = ty;
 
-        // Check if target node is running (for animation)
-        const isTargetRunning = state.executionStatus
-            && state.executionStatus.nodeStatuses
-            && state.executionStatus.nodeStatuses[edge.target]
-            && state.executionStatus.nodeStatuses[edge.target].status === 'running';
+        const edgeAnimation = state.edgeAnimations[edge.id];
+        const isEdgeAnimating = !!edgeAnimation && state.nowMs >= edgeAnimation.startTime && state.nowMs <= edgeAnimation.endTime;
 
         // Determine if this edge is selected
         const isSelected = state.selectedEdgeId === edge.id;
@@ -446,10 +483,13 @@
             ctx.lineWidth = 2;
         }
 
-        // Animate with dashed line if target is running
-        if (isTargetRunning) {
+        // Animate execution handoff only for edges explicitly scheduled by runtime events.
+        if (isEdgeAnimating) {
+            const elapsed = Math.max(0, state.nowMs - edgeAnimation.startTime);
+            ctx.strokeStyle = getThemeColor('buttonBackground');
+            ctx.lineWidth = isSelected ? 4 : 3;
             ctx.setLineDash([8, 4]);
-            ctx.lineDashOffset = -state.animationTime;
+            ctx.lineDashOffset = -(elapsed / state.animationConfig.edgeDashSpeed);
         } else {
             ctx.setLineDash([]);
         }
@@ -464,7 +504,11 @@
 
         // Arrow head
         const angle = Math.atan2(ty - cp2y, tx - cp2x);
-        ctx.fillStyle = isSelected ? getThemeColor('focusBorder') : getThemeColor('descriptionForeground');
+        ctx.fillStyle = isEdgeAnimating
+            ? getThemeColor('buttonBackground')
+            : isSelected
+                ? getThemeColor('focusBorder')
+                : getThemeColor('descriptionForeground');
         ctx.beginPath();
         ctx.moveTo(tx, ty);
         ctx.lineTo(tx - 10 * Math.cos(angle - Math.PI / 6), ty - 10 * Math.sin(angle - Math.PI / 6));
@@ -1374,6 +1418,12 @@
             case 'init':
                 state.workflow = msg.workflow;
                 state.agentFiles = msg.agentFiles || [];
+                if (msg.animationConfig) {
+                    state.animationConfig.startNodeFlashMs = sanitizeAnimationNumber(msg.animationConfig.startNodeFlashMs, 3000, 0);
+                    state.animationConfig.edgeHandoffMs = sanitizeAnimationNumber(msg.animationConfig.edgeHandoffMs, 3000, 0);
+                    state.animationConfig.endNodeFlashMs = sanitizeAnimationNumber(msg.animationConfig.endNodeFlashMs, 1200, 0);
+                    state.animationConfig.edgeDashSpeed = sanitizeAnimationNumber(msg.animationConfig.edgeDashSpeed, 20, 1);
+                }
                 // Initialize node counter
                 for (const node of state.workflow.nodes) {
                     const match = node.id.match(/_(\d+)$/);
@@ -1392,6 +1442,7 @@
                 break;
             case 'executionUpdate':
                 state.executionStatus = msg.status;
+                updateExecutionAnimations(msg.status);
                 render();
                 updateExecutionStatusUI(msg.status);
                 break;
@@ -1456,6 +1507,133 @@
 
     function notifyValidate() {
         vscode.postMessage({ type: 'validate', workflow: state.workflow });
+    }
+
+    // ===== Execution Animations (event-driven) =====
+    function updateExecutionAnimations(status) {
+        const now = performance.now();
+        state.nowMs = now;
+
+        if (!status || !status.nodeStatuses) {
+            return;
+        }
+
+        const nodeStatuses = status.nodeStatuses;
+        const currentIds = Object.keys(nodeStatuses);
+
+        if (status.overall === 'idle' || status.overall === 'stopped' || status.overall === 'failed') {
+            state.edgeAnimations = {};
+            state.nodeAnimations = {};
+            state.pendingNodePulses = {};
+            state.previousNodeStatuses = currentIds.reduce((acc, id) => {
+                acc[id] = nodeStatuses[id].status;
+                return acc;
+            }, {} as Record<string, string>);
+            state.previousCurrentNodeId = status.currentNodeId || null;
+            state.previousOverallStatus = status.overall;
+            return;
+        }
+
+        for (const nodeId of currentIds) {
+            const currentStatus = nodeStatuses[nodeId].status;
+            const previousStatus = state.previousNodeStatuses[nodeId];
+            const nodeType = getNodeType(nodeId);
+
+            const becameRunning = currentStatus === 'running' && previousStatus !== 'running';
+            const becameCompleted = currentStatus === 'completed' && previousStatus !== 'completed';
+
+            if (becameRunning) {
+                scheduleRunningNodeAnimation(nodeId, now, status, nodeType);
+            }
+
+            if (becameCompleted) {
+                delete state.pendingNodePulses[nodeId];
+                delete state.nodeAnimations[nodeId];
+
+                if (nodeType === 'start' && status.overall === 'running') {
+                        state.nodeAnimations[nodeId] = { mode: 'flash', endTime: now + state.animationConfig.startNodeFlashMs };
+                }
+
+                // End node uses a short completion flash as minimum acceptance animation.
+                if (nodeType === 'end') {
+                        state.nodeAnimations[nodeId] = { mode: 'flash', endTime: now + state.animationConfig.endNodeFlashMs };
+                }
+            }
+
+            if (previousStatus === 'running' && currentStatus !== 'running') {
+                delete state.pendingNodePulses[nodeId];
+                if (state.nodeAnimations[nodeId]?.mode === 'pulse') {
+                    delete state.nodeAnimations[nodeId];
+                }
+            }
+        }
+
+        state.previousNodeStatuses = currentIds.reduce((acc, id) => {
+            acc[id] = nodeStatuses[id].status;
+            return acc;
+        }, {} as Record<string, string>);
+        state.previousCurrentNodeId = status.currentNodeId || null;
+        state.previousOverallStatus = status.overall;
+    }
+
+    function scheduleRunningNodeAnimation(nodeId, now, status, nodeType) {
+        const transition = findTransitionEdge(nodeId, status);
+
+        if (!transition) {
+            if (nodeType !== 'end') {
+                state.nodeAnimations[nodeId] = { mode: 'pulse' };
+            }
+            return;
+        }
+
+        const sourceFlashEnd = state.nodeAnimations[transition.sourceId]?.mode === 'flash'
+            ? state.nodeAnimations[transition.sourceId].endTime || now
+            : now;
+        const edgeStart = Math.max(now, sourceFlashEnd);
+        const edgeEnd = edgeStart + state.animationConfig.edgeHandoffMs;
+
+        state.edgeAnimations[transition.edge.id] = {
+            startTime: edgeStart,
+            endTime: edgeEnd
+        };
+
+        if (nodeType !== 'end') {
+            state.pendingNodePulses[nodeId] = edgeEnd;
+        }
+    }
+
+    function findTransitionEdge(targetNodeId, status) {
+        const incomingEdges = state.workflow.edges.filter(e => e.target === targetNodeId);
+        if (incomingEdges.length === 0) {
+            return null;
+        }
+
+        const completedSources = incomingEdges
+            .map(edge => {
+                const srcStatus = status.nodeStatuses[edge.source]?.status;
+                return { edge, sourceId: edge.source, status: srcStatus };
+            })
+            .filter(item => item.status === 'completed');
+
+        if (completedSources.length === 0) {
+            return null;
+        }
+
+        const currentSource = completedSources.find(item => item.sourceId === state.previousCurrentNodeId);
+        if (currentSource) {
+            return currentSource;
+        }
+
+        const startSource = completedSources.find(item => getNodeType(item.sourceId) === 'start');
+        if (startSource) {
+            return startSource;
+        }
+
+        return completedSources[0];
+    }
+
+    function getNodeType(nodeId) {
+        return state.workflow.nodes.find(n => n.id === nodeId)?.type;
     }
 
     function updateExecutionStatusUI(status) {
@@ -1547,9 +1725,45 @@
     function animate() {
         state.animationFrameId = requestAnimationFrame(() => {
             state.animationTime += 0.5; // Speed of dash animation
+            state.nowMs = performance.now();
+            pruneAnimationState(state.nowMs);
             render();
             animate();
         });
+    }
+
+    function pruneAnimationState(now) {
+        for (const [edgeId, edgeAnim] of Object.entries(state.edgeAnimations)) {
+            if (now > edgeAnim.endTime) {
+                delete state.edgeAnimations[edgeId];
+            }
+        }
+
+        for (const [nodeId, nodeAnim] of Object.entries(state.nodeAnimations)) {
+            if (nodeAnim.mode === 'flash' && nodeAnim.endTime && now > nodeAnim.endTime) {
+                delete state.nodeAnimations[nodeId];
+            }
+        }
+
+        for (const [nodeId, startAt] of Object.entries(state.pendingNodePulses)) {
+            const runtimeStatus = state.executionStatus?.nodeStatuses?.[nodeId]?.status;
+            if (runtimeStatus !== 'running') {
+                delete state.pendingNodePulses[nodeId];
+                continue;
+            }
+            if (now >= startAt) {
+                state.nodeAnimations[nodeId] = { mode: 'pulse' };
+                delete state.pendingNodePulses[nodeId];
+            }
+        }
+    }
+
+    function sanitizeAnimationNumber(value, fallback, minimum) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+            return fallback;
+        }
+        return Math.max(minimum, parsed);
     }
 
     // ===== Double Click Handler =====

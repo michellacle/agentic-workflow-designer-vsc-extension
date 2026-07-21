@@ -18,6 +18,35 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Workflow Designer",
+      "properties": {
+        "workflowDesigner.animation.startNodeFlashMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 0,
+          "description": "Duration in milliseconds for Start node in-progress flash animation."
+        },
+        "workflowDesigner.animation.edgeHandoffMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 0,
+          "description": "Duration in milliseconds for edge handoff transition animation between nodes."
+        },
+        "workflowDesigner.animation.endNodeFlashMs": {
+          "type": "number",
+          "default": 1200,
+          "minimum": 0,
+          "description": "Duration in milliseconds for End node completion flash animation."
+        },
+        "workflowDesigner.animation.edgeDashSpeed": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "Dash movement speed divisor for edge transition animation; lower values move faster."
+        }
+      }
+    },
     "chatParticipants": [
       {
         "id": "workflowDesigner.workflow",
