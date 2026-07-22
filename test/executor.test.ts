@@ -207,7 +207,7 @@ describe('WorkflowExecutor integration', () => {
             expect(falseRecord?.status).toBe(NodeStatus.Completed);
         });
 
-        it('should mark untaken branch nodes as skipped', async () => {
+        it('should mark untaken branch nodes as Skipped (but UI never shows gray)', async () => {
             const workflow = createBranchWorkflow();
             await executor.run({
                 workflow,
@@ -217,10 +217,12 @@ describe('WorkflowExecutor integration', () => {
 
             const ctx = executor.getExecutionContext();
             const trueRecord = ctx.nodeRecords.get('trueNode');
+            // Internally marked as Skipped for record-keeping, but UI renders them
+            // with their default type color (never gray)
             expect(trueRecord?.status).toBe(NodeStatus.Skipped);
         });
 
-        it('should log skipped nodes', async () => {
+        it('should log branch decisions in node records', async () => {
             const workflow = createBranchWorkflow();
             await executor.run({
                 workflow,
@@ -228,8 +230,11 @@ describe('WorkflowExecutor integration', () => {
                 workspaceRoot: '/tmp',
             });
 
-            const logText = observer.logs.join('\n');
-            expect(logText).toContain('skipped');
+            const ctx = executor.getExecutionContext();
+            const conditionRecord = ctx.nodeRecords.get('condition');
+            expect(conditionRecord?.logs).toBeDefined();
+            const logText = conditionRecord!.logs!.join('\n');
+            expect(logText).toContain('Taking branch');
         });
     });
 
@@ -420,6 +425,30 @@ describe('WorkflowExecutor integration', () => {
 
             const summary = executor.getExecutionSummary();
             expect(summary).toBeUndefined();
+        });
+        it('should increment start node execution count from 0 to 1 after workflow starts', async () => {
+            await executor.run({
+                workflow: createLinearWorkflow(),
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            const ctx = executor.getExecutionContext();
+            const startCount = ctx.nodeExecutionCounts.get('start');
+            expect(startCount).toBe(1);
+        });
+
+        it('should increment execution counts for all executed nodes', async () => {
+            await executor.run({
+                workflow: createLinearWorkflow(),
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            const ctx = executor.getExecutionContext();
+            expect(ctx.nodeExecutionCounts.get('start')).toBe(1);
+            expect(ctx.nodeExecutionCounts.get('delay1')).toBe(1);
+            expect(ctx.nodeExecutionCounts.get('end')).toBe(1);
         });
     });
 });

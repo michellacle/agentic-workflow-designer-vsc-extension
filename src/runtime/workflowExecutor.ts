@@ -227,6 +227,8 @@ export class WorkflowExecutor {
 
     private async execute(workflow: Workflow, chatContext?: ChatRequestContext, workspaceRoot?: string): Promise<void> {
         this._stateManager.initialize(workflow.initialState);
+        // Initialize all node execution counts to 0 so every node shows a counter
+        this._stateManager.initializeNodeExecutionCounts(workflow.nodes.map(n => n.id));
         this._abortController = new AbortController();
         if (workspaceRoot) this._workspaceRoot = workspaceRoot;
         this.observer.onStatusChange(ExecutionStatus.Running);
@@ -478,6 +480,24 @@ export class WorkflowExecutor {
 
         this._stateManager.addLog(node.id, `Condition evaluated to: ${result}`);
         this._stateManager.set(`${node.id}_result`, result);
+
+        // Safety counter: track how many times this condition has looped back (evaluated to false).
+        // If it exceeds the max (default 1), force true to prevent infinite loops.
+        if (!result) {
+            const loopKey = `${node.id}_loopCount`;
+            const loopCount = (this._stateManager.get(loopKey) as number) || 0;
+            const newCount = loopCount + 1;
+            this._stateManager.set(loopKey, newCount);
+            this._stateManager.addLog(node.id, `Loop back count: ${newCount}`);
+
+            // Force exit after exceeding max loop backs (default: 1)
+            const maxLoopBacks = (data as any).maxLoopBacks ?? 1;
+            if (newCount > maxLoopBacks) {
+                this._stateManager.addLog(node.id, `Exceeded max loop backs (${maxLoopBacks}), forcing exit.`);
+                this.observer.onLog(`     ⚠ Condition ${node.id} exceeded max loop backs, forcing exit.`);
+                return { success: true, branchResult: true };
+            }
+        }
 
         const outgoingEdges = workflow.edges.filter(e => e.source === node.id);
         for (const edge of outgoingEdges) {

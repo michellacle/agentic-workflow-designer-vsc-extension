@@ -317,7 +317,11 @@
         let color = config.color;
         if (state.executionStatus && state.executionStatus.nodeStatuses && state.executionStatus.nodeStatuses[node.id]) {
             const visualStatus = getVisualNodeStatus(node.id, state.executionStatus.nodeStatuses[node.id].status);
-            color = STATUS_COLORS[visualStatus] || config.color;
+            // Only apply status colors for running, completed, failed, or paused states.
+            // Nodes that are waiting or skipped should keep their default type color.
+            if (visualStatus === 'running' || visualStatus === 'completed' || visualStatus === 'failed' || visualStatus === 'paused') {
+                color = STATUS_COLORS[visualStatus] || config.color;
+            }
         }
 
         // Shadow
@@ -375,30 +379,28 @@
         ctx.quadraticCurveTo(x, y, x + 8, y);
         ctx.fill();
 
-        // Execution count badge (top-right of header, shown when count > 1)
-        const executionCount = state.nodeExecutionCounts[node.id];
-        if (executionCount && executionCount > 1) {
-            const badgeText = String(executionCount);
-            ctx.font = 'bold 10px system-ui, sans-serif';
-            const badgeMetrics = ctx.measureText(badgeText);
-            const badgeW = badgeMetrics.width + 10;
-            const badgeH = 16;
-            const badgeX = x + w - badgeW - 6;
-            const badgeY = y + 3;
+        // Execution count badge (top-right of header, always shown)
+        const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
+        const badgeText = String(executionCount);
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        const badgeMetrics = ctx.measureText(badgeText);
+        const badgeW = badgeMetrics.width + 10;
+        const badgeH = 16;
+        const badgeX = x + w - badgeW - 6;
+        const badgeY = y + 3;
 
-            // Badge background
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
-            ctx.fill();
+        // Badge background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+        ctx.fill();
 
-            // Badge text
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 10px system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
-            ctx.textAlign = 'center';
-        }
+        // Badge text
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
+        ctx.textAlign = 'center';
 
         // Icon and label
         ctx.fillStyle = '#fff';

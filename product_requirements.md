@@ -70,7 +70,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Evaluate Condition expressions against state with boolean, numeric, string, comparison, and logical operators.
 - [ ] Follow only the True or False edge selected by a Condition result. The runtime currently evaluates and logs the result but schedules every outgoing edge.
 - [ ] Support merge points without executing the merged node once per incoming branch.
-- [ ] Mark the branch not taken as Skipped.
+- [x] Mark the branch not taken as Skipped internally for record-keeping, but never render skipped nodes as gray in the UI.
 
 ## Agent Integration
 
@@ -88,8 +88,9 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 ## Loops and Exit Criteria
 
 - [x] Detect whether a workflow graph contains a cycle through the validator utility API.
-- [x] Track per-node execution counts during runtime — incremented each time a node is entered, enabling loop-back patterns (e.g., reviewer → implementer).
-- [x] Display execution count badges in node headers when a node has been entered more than once.
+- [x] Track per-node execution counts during runtime — initialized to 0 for all nodes, incremented each time a node is entered.
+- [x] Display execution count badges in node headers for all nodes (always visible, starting at 0).
+- [x] Condition nodes include a safety loop counter to prevent infinite loops — defaults to allowing one loop-back before forcing exit.
 - [ ] Enforce a configurable maximum iteration count.
 - [ ] Exit a loop on a boolean condition.
 - [ ] Exit a loop on a quality score threshold.
@@ -113,8 +114,9 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 
 - [x] Provide Run, Pause, Stop, Resume, Save, and Validate toolbar controls.
 - [x] Show overall execution status in the VS Code status bar.
-- [x] Color nodes for Waiting, Running, Completed, Failed, and Paused states.
-- [x] Show execution count badges in node headers when a node has been re-entered (count > 1).
+- [x] Color nodes for Running (pulse), Completed (green), Failed (red), and Paused (yellow) states.
+- [x] Nodes never turn gray — untaken branch nodes retain their default type color. Only pulsate (in-progress) and green (done) are used as execution states.
+- [x] Show execution count badges in node headers for all nodes, initialized to 0 and incremented on each entry.
 - [x] Stream execution messages to a VS Code Output channel and the designer's execution log.
 - [x] Animate edges to show execution flow.
 - [ ] Open execution details by clicking an executed node. A details panel class exists but is not wired to node selection.

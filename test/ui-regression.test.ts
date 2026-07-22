@@ -349,7 +349,7 @@ describe('UI regression suite', () => {
         const designerSource = readFile('webview/src/designer.ts');
         // Should reference nodeExecutionCounts in the render path
         expect(designerSource).toMatch(/nodeExecutionCounts/);
-        // Should render a badge when count > 1
-        expect(designerSource).toMatch(/executionCount.*>/);
+        // Should render a badge (always shown, initialized to 0)
+        expect(designerSource).toMatch(/executionCount.*\?\?.*0/);
     });
 });

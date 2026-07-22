@@ -113,6 +113,7 @@ export class StateManager {
      */
     markStartCompleted(nodeId: string, label: string): void {
         this._context.currentNodeId = nodeId;
+        this.incrementNodeExecutionCount(nodeId);
         const record: NodeExecutionRecord = {
             nodeId,
             nodeName: label,
@@ -227,6 +228,16 @@ export class StateManager {
             nodeExecutionCounts: new Map(),
             startTime: Date.now()
         };
+    }
+
+    /**
+     * Initialize execution counts for all nodes to 0.
+     * Called at the start of execution so every node has a visible counter.
+     */
+    initializeNodeExecutionCounts(nodeIds: string[]): void {
+        for (const nodeId of nodeIds) {
+            this._context.nodeExecutionCounts.set(nodeId, 0);
+        }
     }
 
     /**
