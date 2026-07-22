@@ -590,6 +590,16 @@
         ctx.lineTo(currentX, currentY);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        // Draw arrowhead at the current mouse position
+        const angle = Math.atan2(currentY - sy, currentX - sx);
+        ctx.fillStyle = '#4CAF50';
+        ctx.beginPath();
+        ctx.moveTo(currentX, currentY);
+        ctx.lineTo(currentX - 10 * Math.cos(angle - Math.PI / 6), currentY - 10 * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(currentX - 10 * Math.cos(angle + Math.PI / 6), currentY - 10 * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
     }
 
     function drawArrowheads() {
