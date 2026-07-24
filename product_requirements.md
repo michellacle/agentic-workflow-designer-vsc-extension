@@ -27,6 +27,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Pan the canvas, zoom with the mouse wheel, display a grid, and snap nodes to the grid.
 - [x] Create connections by dragging between ports with a rubber-band preview.
 - [x] Reject self-connections, duplicate connections, connections into Start, and connections out of End.
+- [x] Render edges on top of nodes so connection lines remain visible when crossing over node bodies. Arrowheads draw last, above both edges and nodes.
 - [ ] Select and delete an individual connection.
 - [ ] Edit a connection label after creating it.
 - [ ] Configure or apply connection priority.

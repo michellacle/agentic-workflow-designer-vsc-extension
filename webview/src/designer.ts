@@ -260,7 +260,12 @@
         // Draw grid
         drawGrid(w, h);
 
-        // Draw edges
+        // Draw nodes first so edges render on top of them
+        for (const node of state.workflow.nodes) {
+            drawNode(node);
+        }
+
+        // Draw edges after nodes so they remain visible when crossing over node bodies
         for (const edge of state.workflow.edges) {
             drawEdge(edge);
         }
@@ -270,12 +275,7 @@
             drawCreatingEdge();
         }
 
-        // Draw nodes
-        for (const node of state.workflow.nodes) {
-            drawNode(node);
-        }
-
-        // Draw arrowheads after nodes so they are visible on top of node backgrounds
+        // Draw arrowheads last so they are visible on top of both edges and node backgrounds
         drawArrowheads();
 
         // Draw selection box
