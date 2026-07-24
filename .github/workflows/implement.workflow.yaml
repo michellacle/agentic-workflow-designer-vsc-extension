@@ -39,8 +39,8 @@ nodes:
   - id: condition_19
     type: condition
     position:
-      x: 280
-      'y': 210
+      x: 530
+      'y': 70
     data:
       expression: state.review_passed === true || state.review_attempts >= 1
       description: Pass if review passed or already looped back once
@@ -85,6 +85,63 @@ nodes:
       model: qwen3.6-27b
       timeout: 120
       retries: 0
+  - id: note_20
+    type: note
+    position:
+      x: -290
+      'y': -10
+    data:
+      text: |
+        This is Agentic Designer. This is a simple note, it doesn't do anyhting
+      description: Test
+  - id: process_21
+    type: process
+    position:
+      x: -300
+      'y': 200
+    data:
+      title: Project Deliveries
+      description: A businesss process
+  - id: note_22
+    type: note
+    position:
+      x: -160
+      'y': -160
+    data:
+      text: Design new feature ideas
+      description: ''
+  - id: decision_23
+    type: decision
+    position:
+      x: -290
+      'y': 390
+    data:
+      question: Decision question?
+      options: []
+  - id: note_24
+    type: note
+    position:
+      x: -280
+      'y': 550
+    data:
+      text: Note text here
+      description: ''
+  - id: note_25
+    type: note
+    position:
+      x: 590
+      'y': 710
+    data:
+      text: Ship software to customer
+      description: ''
+  - id: process_26
+    type: process
+    position:
+      x: 830
+      'y': 730
+    data:
+      title: Work with customer
+      description: ''
 edges:
   - source: agent_11
     target: agent_14
@@ -104,4 +161,12 @@ edges:
     target: agent_18
   - source: agent_18
     target: agent_16
+  - source: process_21
+    target: note_20
+  - source: note_20
+    target: agent_14
+  - source: note_24
+    target: note_25
+  - source: note_25
+    target: process_26
 description: Implement workflow with review loop - reviewer can send back to implementer once before continuing

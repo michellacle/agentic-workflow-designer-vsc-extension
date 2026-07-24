@@ -153,6 +153,29 @@ Behavioral constraints:
 - [ ] Compose or nest reusable workflows.
 - [ ] Provide reusable workflow templates or workflow version management.
 
+## Outer Loop Annotations
+
+Outer loop nodes are non-executable visual annotations that provide context about how the inner loop (software factory) fits into broader business processes. They sit on the same canvas as executable nodes but are invisible to the runtime — no execution records, no state changes, no traversal.
+
+### Node Types
+
+- [ ] **Note** — A simple annotation or reminder. Editable property: `text`.
+- [ ] **Process** — Describes a business process step (something the business does/completes). Editable properties: `title` and `description`.
+- [ ] **Decision** — A visual marker of a human decision point. Editable properties: `question` and optional `options` (array of strings).
+
+### Visual Distinction
+
+- [ ] Render outer loop nodes with a muted color palette and dashed borders, contrasting with the vibrant colors and solid borders of executable nodes.
+- [ ] Group outer loop nodes in a separate "Annotations" section within the toolbox.
+- [ ] Allow outer loop nodes to connect to inner loop nodes via visual-only edges (rendered on canvas but carrying no execution meaning).
+- [ ] Serialize outer loop nodes and their edges to `*.workflow.yaml` alongside executable nodes, distinguished by their `type` field.
+
+### Runtime Behavior
+
+- [ ] Outer loop nodes are completely ignored by the workflow executor.
+- [ ] Validation does not require outer loop nodes to be reachable from Start.
+- [ ] Outer loop nodes do not produce Node Execution Records.
+
 ## Implemented Requirements Discovered During Reconciliation
 
 The following capabilities exist in the current code but do not necessarily satisfy the Version 0.3 architecture requirements:

@@ -393,3 +393,21 @@ textarea.property-input {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--vscode-scrollbarSlider-hoverBackground, #aaa);
 }
+
+/* Annotation node styling in toolbox */
+.toolbox-section-divider {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--vscode-panel-border, #404040);
+}
+
+.toolbox-item-annotation {
+    background: var(--vscode-editor-background, #fff);
+    border-style: dashed;
+    opacity: 0.85;
+}
+
+.toolbox-item-annotation:hover {
+    opacity: 1;
+    border-style: solid;
+}

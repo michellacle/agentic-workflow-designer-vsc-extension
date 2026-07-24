@@ -67,3 +67,23 @@ _Avoid_: Palette, component library, node types panel
 **Workflow Explorer**:
 An activity-bar view that lists `*.workflow.yaml` files from `.github/workflows/` and provides a **New Workflow** command.
 _Avoid_: File tree, workflow list
+
+**Outer Loop**:
+The human-driven process of articulating business needs, making decisions, and defining requirements that feed into the inner loop (software factory). Outer loop nodes are visual annotations on the Workflow canvas that provide context but are never executed by the Runtime.
+_Avoid_: Business workflow, requirement flow, planning phase
+
+**Annotation Node**:
+A non-executable Node (Note, Process, or Decision) that provides visual context on the Canvas. Annotation Nodes are serialized to YAML but ignored by the Runtime. They may have Edges pointing to executable Nodes to show relationships.
+_Avoid_: Sticky note, comment, label, metadata node
+
+**Note Node**:
+An Annotation Node containing free-form text. Used for simple reminders or contextual information. Properties: `text` and optional `description`.
+_Avoid_: Comment, sticky, label
+
+**Process Node**:
+An Annotation Node describing a business process step — something the business does or completes. Properties: `title` and `description`.
+_Avoid_: Business step, task, activity
+
+**Decision Node**:
+An Annotation Node marking a human decision point. Rendered as a diamond shape. Properties: `question` and optional `options` (array of strings).
+_Avoid_: Choice, fork, branch point

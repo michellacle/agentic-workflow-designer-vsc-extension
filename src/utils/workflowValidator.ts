@@ -1,4 +1,4 @@
-import { Workflow, Node, Edge, NodeType, LoopNodeData } from '../models/workflow';
+import { Workflow, Node, Edge, NodeType, LoopNodeData, isAnnotationNode } from '../models/workflow';
 
 export interface ValidationError {
     node?: string;
@@ -20,16 +20,16 @@ export function validateWorkflow(workflow: Workflow): ValidationError[] {
         errors.push({ message: 'Duplicate node IDs found', severity: 'error' });
     }
 
-    // Check for exactly one Start node
-    const startNodes = workflow.nodes.filter(n => n.type === NodeType.Start);
+    // Check for exactly one Start node (annotation nodes don't count)
+    const startNodes = workflow.nodes.filter(n => !isAnnotationNode(n.type) && n.type === NodeType.Start);
     if (startNodes.length === 0) {
         errors.push({ message: 'Workflow must have exactly one Start node', severity: 'error' });
     } else if (startNodes.length > 1) {
         errors.push({ message: `Workflow has ${startNodes.length} Start nodes; expected exactly one`, severity: 'error' });
     }
 
-    // Check for at least one End node
-    const endNodes = workflow.nodes.filter(n => n.type === NodeType.End);
+    // Check for at least one End node (annotation nodes don't count)
+    const endNodes = workflow.nodes.filter(n => !isAnnotationNode(n.type) && n.type === NodeType.End);
     if (endNodes.length === 0) {
         errors.push({ message: 'Workflow must have at least one End node', severity: 'warning' });
     }
@@ -54,12 +54,14 @@ export function validateWorkflow(workflow: Workflow): ValidationError[] {
     }
 
     // Check for orphan nodes (not connected to anything)
+    // Annotation nodes are excluded — they provide visual context and don't need to be reachable
     const connectedNodes = new Set<string>();
     for (const edge of workflow.edges) {
         connectedNodes.add(edge.source);
         connectedNodes.add(edge.target);
     }
     for (const node of workflow.nodes) {
+        if (isAnnotationNode(node.type)) continue;
         if (!connectedNodes.has(node.id) && node.type !== NodeType.Start && node.type !== NodeType.End) {
             errors.push({ node: node.id, message: `Node '${node.id}' is not connected to any other node`, severity: 'warning' });
         }

@@ -5,7 +5,7 @@ import {
     ExecutionStatus, NodeStatus,
     AgentNodeData, ConditionNodeData,
     HumanApprovalNodeData, DelayNodeData, EndNodeData, LoopNodeData,
-    ExecutionContext
+    ExecutionContext, isAnnotationNode
 } from '../models/workflow';
 import { StateManager } from './stateManager';
 import { ConditionEvaluator } from './conditionEvaluator';
@@ -264,7 +264,7 @@ export class WorkflowExecutor {
             this._stateManager.markStartCompleted(startNode.id, this.getNodeLabel(startNode));
             this.notifyExecutionUpdate();
 
-            let currentNodeIds = this.getAllNextNodes(startNode.id, workflow);
+            let currentNodeIds = this.getAllNextExecutableNodes(startNode.id, workflow);
             let hadFailure = false;
 
             while (currentNodeIds.length > 0 && !this.isAborted()) {
@@ -312,11 +312,11 @@ export class WorkflowExecutor {
 
                     if (result.success) {
                         this.observer.onLog(`  ✓ ${nodeId} completed`);
-                        const children = this.getNextNodes(nodeId, node, workflow, result.branchResult);
+                        const children = this.getNextExecutableNodes(nodeId, node, workflow, result.branchResult);
                         nextNodeIds.push(...children);
 
                         if (result.branchResult !== undefined) {
-                            const allChildren = this.getAllNextNodes(nodeId, workflow);
+                            const allChildren = this.getAllNextExecutableNodes(nodeId, workflow);
                             const takenTargets = new Set(children);
                             for (const childId of allChildren) {
                                 if (!takenTargets.has(childId)) {
@@ -660,6 +660,43 @@ export class WorkflowExecutor {
             .map(e => e.target);
     }
 
+    /**
+     * Get next executable nodes, skipping annotation nodes.
+     * Annotation nodes are transparent to execution — if an edge targets
+     * an annotation node, traversal continues through it to the next executable node.
+     */
+    private getNextExecutableNodes(nodeId: string, node: Node, workflow: Workflow, branchResult?: boolean): string[] {
+        let targets = this.getNextNodes(nodeId, node, workflow, branchResult);
+        // For each target that is an annotation node, transparently traverse through it
+        const resolved: string[] = [];
+        for (const t of targets) {
+            const targetNode = workflow.nodes.find(n => n.id === t);
+            if (targetNode && isAnnotationNode(targetNode.type)) {
+                // Recursively resolve through annotation nodes
+                const through = this.getNextExecutableNodes(t, targetNode, workflow);
+                resolved.push(...through);
+            } else {
+                resolved.push(t);
+            }
+        }
+        return resolved;
+    }
+
+    private getAllNextExecutableNodes(nodeId: string, workflow: Workflow): string[] {
+        const targets = this.getAllNextNodes(nodeId, workflow);
+        const resolved: string[] = [];
+        for (const t of targets) {
+            const targetNode = workflow.nodes.find(n => n.id === t);
+            if (targetNode && isAnnotationNode(targetNode.type)) {
+                const through = this.getAllNextExecutableNodes(t, workflow);
+                resolved.push(...through);
+            } else {
+                resolved.push(t);
+            }
+        }
+        return resolved;
+    }
+
     private isTrueEdge(edge: { label?: string }): boolean {
         const label = edge.label?.toLowerCase();
         return label === 'true' || label === 'pass' || label === 'approve' || label === 'body';
@@ -687,7 +724,7 @@ export class WorkflowExecutor {
         this.observer.onLog(`  ⊘ ${nodeId} skipped (untaken branch)`);
         this.notifyExecutionUpdate();
 
-        const children = this.getAllNextNodes(nodeId, workflow);
+        const children = this.getAllNextExecutableNodes(nodeId, workflow);
         for (const childId of children) {
             this.markSkipped(childId, workflow);
         }

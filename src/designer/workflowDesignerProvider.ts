@@ -248,6 +248,16 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                 <div class="toolbox-item" draggable="true" data-type="delay">
                     <span class="icon">⏱</span> Delay
                 </div>
+                <div class="toolbox-header toolbox-section-divider">Annotations</div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="note">
+                    <span class="icon">📝</span> Note
+                </div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="process">
+                    <span class="icon">⚙</span> Process
+                </div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="decision">
+                    <span class="icon">⬡</span> Decision
+                </div>
             </div>
             <div id="canvas-container">
                 <canvas id="canvas"></canvas>

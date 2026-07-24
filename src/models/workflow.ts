@@ -8,7 +8,20 @@ export enum NodeType {
     Condition = 'condition',
     HumanApproval = 'human_approval',
     Delay = 'delay',
-    Loop = 'loop'
+    Loop = 'loop',
+    /** Outer loop annotation - simple text note */
+    Note = 'note',
+    /** Outer loop annotation - process description */
+    Process = 'process',
+    /** Outer loop annotation - decision point */
+    Decision = 'decision'
+}
+
+/**
+ * Check if a node type is an outer loop annotation (non-executable).
+ */
+export function isAnnotationNode(type: NodeType): boolean {
+    return type === NodeType.Note || type === NodeType.Process || type === NodeType.Decision;
 }
 
 /**
@@ -39,7 +52,10 @@ export type NodeData =
     | ConditionNodeData
     | HumanApprovalNodeData
     | DelayNodeData
-    | LoopNodeData;
+    | LoopNodeData
+    | NoteNodeData
+    | ProcessNodeData
+    | DecisionNodeData;
 
 /**
  * Start node data
@@ -103,6 +119,30 @@ export interface LoopNodeData {
     maxIterations: number;       // safety net — max iterations before forced exit
     expression?: string;         // condition mode: boolean expression evaluated each iteration
     description?: string;
+}
+
+/**
+ * Note node data — simple text annotation (outer loop)
+ */
+export interface NoteNodeData {
+    text: string;
+    description?: string;
+}
+
+/**
+ * Process node data — process description annotation (outer loop)
+ */
+export interface ProcessNodeData {
+    title: string;
+    description?: string;
+}
+
+/**
+ * Decision node data — decision point annotation (outer loop)
+ */
+export interface DecisionNodeData {
+    question: string;
+    options?: string[];
 }
 
 /**

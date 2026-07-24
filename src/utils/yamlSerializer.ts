@@ -3,7 +3,8 @@ import {
     Workflow, Node, Edge, NodeType,
     NodeData, StartNodeData, EndNodeData,
     AgentNodeData, ConditionNodeData,
-    HumanApprovalNodeData, DelayNodeData, LoopNodeData
+    HumanApprovalNodeData, DelayNodeData, LoopNodeData,
+    NoteNodeData, ProcessNodeData, DecisionNodeData
 } from '../models/workflow';
 
 /**
@@ -80,6 +81,27 @@ export function workflowToYaml(workflow: Workflow): string {
                     maxIterations: loopData.maxIterations,
                     expression: loopData.expression,
                     description: loopData.description
+                };
+                break;
+            case NodeType.Note:
+                const noteData = node.data as NoteNodeData;
+                nodeObj.data = {
+                    text: noteData.text,
+                    description: noteData.description
+                };
+                break;
+            case NodeType.Process:
+                const processData = node.data as ProcessNodeData;
+                nodeObj.data = {
+                    title: processData.title,
+                    description: processData.description
+                };
+                break;
+            case NodeType.Decision:
+                const decisionData = node.data as DecisionNodeData;
+                nodeObj.data = {
+                    question: decisionData.question,
+                    options: decisionData.options
                 };
                 break;
         }
@@ -183,6 +205,21 @@ function parseNodeData(type: NodeType, raw: any): NodeData {
                 expression: raw.expression,
                 description: raw.description
             } as LoopNodeData;
+        case NodeType.Note:
+            return {
+                text: raw.text || '',
+                description: raw.description
+            } as NoteNodeData;
+        case NodeType.Process:
+            return {
+                title: raw.title || '',
+                description: raw.description
+            } as ProcessNodeData;
+        case NodeType.Decision:
+            return {
+                question: raw.question || '',
+                options: raw.options
+            } as DecisionNodeData;
         default:
             return {} as NodeData;
     }

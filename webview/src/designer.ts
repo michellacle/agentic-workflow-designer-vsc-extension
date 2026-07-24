@@ -95,7 +95,11 @@
         agent: { label: 'Agent', color: '#2196F3', width: 140, height: 90, icon: '🤖' },
         condition: { label: 'Condition', color: '#FF9800', width: 140, height: 70, icon: '◇' },
         human_approval: { label: 'Approval', color: '#9C27B0', width: 140, height: 70, icon: '👤' },
-        delay: { label: 'Delay', color: '#607D8B', width: 140, height: 70, icon: '⏱' }
+        delay: { label: 'Delay', color: '#607D8B', width: 140, height: 70, icon: '⏱' },
+        // Outer loop annotation nodes - muted colors
+        note: { label: 'Note', color: '#8D6E63', width: 140, height: 70, icon: '📝' },
+        process: { label: 'Process', color: '#78909C', width: 140, height: 70, icon: '⚙' },
+        decision: { label: 'Decision', color: '#A1887F', width: 140, height: 70, icon: '⬡' }
     };
 
     // Execution status colors
@@ -331,12 +335,22 @@
         ctx.shadowOffsetY = 2;
 
         // Node body
+        const isAnnotation = ['note', 'process', 'decision'].includes(node.type);
         ctx.fillStyle = getThemeColor('inputBackground');
         ctx.strokeStyle = color;
         ctx.lineWidth = state.selectedNodeIds.has(node.id) ? 3 : 2;
-        roundRect(ctx, x, y, w, h, 8);
+        if (isAnnotation) {
+            ctx.setLineDash([6, 4]);
+        }
+        if (node.type === 'decision') {
+            // Diamond shape for Decision nodes
+            drawDiamond(ctx, x, y, w, h);
+        } else {
+            roundRect(ctx, x, y, w, h, 8);
+        }
         ctx.fill();
         ctx.stroke();
+        ctx.setLineDash([]);
 
         // Reset shadow
         ctx.shadowColor = 'transparent';
@@ -406,7 +420,31 @@
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 12px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(config.icon + ' ' + (node.data.label || config.label), x + w / 2, y + h * 0.3 + 14);
+        const displayLabel = getDisplayLabel(node);
+        ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
+
+        // Sub-labels for annotation nodes
+        if (node.type === 'note') {
+            ctx.fillStyle = getThemeColor('descriptionForeground');
+            ctx.font = '10px system-ui, sans-serif';
+            const text = (node.data as any).text || '';
+            const truncated = text.length > 25 ? text.substring(0, 22) + '...' : text;
+            ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 30);
+        }
+        if (node.type === 'process') {
+            ctx.fillStyle = getThemeColor('descriptionForeground');
+            ctx.font = '10px system-ui, sans-serif';
+            const desc = (node.data as any).description || '';
+            const truncated = desc.length > 25 ? desc.substring(0, 22) + '...' : desc;
+            ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 30);
+        }
+        if (node.type === 'decision') {
+            ctx.fillStyle = getThemeColor('descriptionForeground');
+            ctx.font = '10px system-ui, sans-serif';
+            const options = (node.data as any).options || [];
+            const optionText = options.length > 0 ? options.join(', ').substring(0, 25) : 'no options';
+            ctx.fillText(optionText, x + w / 2, y + h * 0.3 + 30);
+        }
 
         // Sub-labels for agent nodes: agent name + model
         if (node.type === 'agent') {
@@ -1151,6 +1189,9 @@
             case 'condition': return { expression: 'state.result === true' };
             case 'human_approval': return { message: 'Approve this step?' };
             case 'delay': return { duration: 5 };
+            case 'note': return { text: 'Note text here', description: '' };
+            case 'process': return { title: 'Process name', description: '' };
+            case 'decision': return { question: 'Decision question?', options: [] };
             default: return {};
         }
     }
@@ -1236,6 +1277,18 @@
             case 'delay':
                 html += propertyField('Duration (sec)', 'number', node.data.duration || 5);
                 html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this delay');
+                break;
+            case 'note':
+                html += propertyField('Text', 'textarea', node.data.text || '', 'Note text content');
+                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description');
+                break;
+            case 'process':
+                html += propertyField('Title', 'text', node.data.title || '', 'Process title');
+                html += propertyField('Description', 'textarea', node.data.description || '', 'Process description');
+                break;
+            case 'decision':
+                html += propertyField('Question', 'text', node.data.question || '', 'Decision question');
+                html += renderDecisionOptions(node);
                 break;
         }
 
@@ -1388,6 +1441,90 @@
     (window as any).updateMappingSource = updateMappingSource;
     (window as any).updateMappingTarget = updateMappingTarget;
 
+    /** Get display label for a node (handles annotation nodes). */
+    function getDisplayLabel(node) {
+        if (node.type === 'note') return (node.data as any).text?.substring(0, 20) || 'Note';
+        if (node.type === 'process') return (node.data as any).title || 'Process';
+        if (node.type === 'decision') return (node.data as any).question?.substring(0, 18) || 'Decision';
+        return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
+    }
+
+    /** Render decision options editor in properties panel. */
+    function renderDecisionOptions(node) {
+        const options = (node.data as any).options || [];
+        let html = `<div class="property-section">
+            <label>Options</label>
+            <div class="mappings-list">`;
+
+        if (options.length === 0) {
+            html += '<div class="mappings-empty">No options configured</div>';
+        } else {
+            options.forEach((opt, idx) => {
+                html += `<div class="mapping-entry">
+                    <input type="text" class="mapping-input" placeholder="Option ${idx + 1}" value="${escapeHtml(opt)}"
+                        onchange="updateDecisionOption(${idx}, this.value)">
+                    <button class="mapping-remove-btn" onclick="removeDecisionOption(${idx})">✕</button>
+                </div>`;
+            });
+        }
+
+        html += `</div>
+            <button class="add-mapping-btn" onclick="addDecisionOption()">+ Add Option</button>
+        </div>`;
+        return html;
+    }
+
+    function addDecisionOption() {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'decision') return;
+
+        if (!(node.data as any).options) {
+            (node.data as any).options = [];
+        }
+        (node.data as any).options.push('');
+
+        saveHistory();
+        render();
+        updatePropertiesPanel(node);
+        notifyWorkflowUpdate();
+    }
+
+    function removeDecisionOption(index) {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'decision') return;
+        if (!(node.data as any).options) return;
+
+        (node.data as any).options = (node.data as any).options.filter((_, i) => i !== index);
+
+        saveHistory();
+        render();
+        updatePropertiesPanel(node);
+        notifyWorkflowUpdate();
+    }
+
+    function updateDecisionOption(index, value) {
+        const nodeId = Array.from(state.selectedNodeIds).pop();
+        if (!nodeId) return;
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        if (!node || node.type !== 'decision') return;
+        if (!(node.data as any).options) return;
+
+        (node.data as any).options[index] = value;
+
+        saveHistory();
+        render();
+        notifyWorkflowUpdate();
+    }
+
+    // Expose decision option functions globally for onclick handlers
+    (window as any).addDecisionOption = addDecisionOption;
+    (window as any).removeDecisionOption = removeDecisionOption;
+    (window as any).updateDecisionOption = updateDecisionOption;
+
     function updateNodeProperty(node, label, value) {
         const keyMap = {
             'Label': 'label',
@@ -1399,7 +1536,10 @@
             'Retries': 'retries',
             'Expression': 'expression',
             'Message': 'message',
-            'Duration (sec)': 'duration'
+            'Duration (sec)': 'duration',
+            'Text': 'text',
+            'Title': 'title',
+            'Question': 'question'
         };
 
         const key = keyMap[label];
@@ -1756,6 +1896,18 @@
         ctx.quadraticCurveTo(x, y + h, x, y + h - r);
         ctx.lineTo(x, y + r);
         ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    /** Draw a diamond/rhombus shape centered at (x+w/2, y+h/2) with the given width and height. */
+    function drawDiamond(ctx, x, y, w, h) {
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, y);          // top
+        ctx.lineTo(x + w, cy);      // right
+        ctx.lineTo(cx, y + h);      // bottom
+        ctx.lineTo(x, cy);          // left
         ctx.closePath();
     }
 
