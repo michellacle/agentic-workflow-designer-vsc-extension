@@ -54,6 +54,16 @@
         nodeExecutionCounts: {} as Record<string, number>,
     };
 
+    // Port dragging state
+    let draggingPort = null as {
+        edgeId: string;
+        side: 'source' | 'target';
+        nodeId: string;
+    } | null;
+
+    // Track last mouse position for hover effects
+    let lastMouseCanvasPos = null as { x: number; y: number } | null;
+
     // ===== VS Code API =====
     let vscode: any;
     try {
@@ -64,6 +74,48 @@
     }
 
     // ===== Canvas Setup =====
+    // ===== Canvas Setup =====
+    function getPortPosition(node, side) {
+        const config = NODE_CONFIGS[node.type];
+        const w = config ? config.width : 140;
+        const h = config ? config.height : 70;
+        const x = node.position.x;
+        const y = node.position.y;
+        switch (side) {
+            case 'top': return { x: x + w / 2, y: y };
+            case 'right': return { x: x + w, y: y + h / 2 };
+            case 'bottom': return { x: x + w / 2, y: y + h };
+            case 'left': return { x: x, y: y + h / 2 };
+            default: return { x: x + w, y: y + h / 2 };
+        }
+    }
+
+    function getCanvasPositionFromLastEvent() {
+        return lastMouseCanvasPos;
+    }
+
+    function snapSideToBorder(node, canvasPos) {
+        const config = NODE_CONFIGS[node.type];
+        const w = config ? config.width : 140;
+        const h = config ? config.height : 70;
+        const x = node.position.x;
+        const y = node.position.y;
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const dx = canvasPos.x - cx;
+        const dy = canvasPos.y - cy;
+        // Determine which side the mouse is closest to
+        const distTop = Math.abs(canvasPos.x - cx) * 0.5 + Math.max(0, cy - canvasPos.y);
+        const distBottom = Math.abs(canvasPos.x - cx) * 0.5 + Math.max(0, canvasPos.y - cy - h);
+        const distLeft = Math.abs(canvasPos.y - cy) * 0.5 + Math.max(0, cx - canvasPos.x);
+        const distRight = Math.abs(canvasPos.y - cy) * 0.5 + Math.max(0, canvasPos.x - cx - w);
+        const min = Math.min(distTop, distBottom, distLeft, distRight);
+        if (min === distTop) return 'top';
+        if (min === distBottom) return 'bottom';
+        if (min === distLeft) return 'left';
+        return 'right';
+    }
+
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     if (!canvas) {
         showError('Canvas element not found. DOM may not be ready.');
@@ -278,6 +330,28 @@
         // Draw arrowheads last so they are visible on top of both edges and node backgrounds
         drawArrowheads();
 
+        // Draw hovered port highlight (both edit and view mode)
+        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.selectionBox) {
+            const mousePos = getCanvasPositionFromLastEvent();
+            if (mousePos) {
+                const portHover = hitTestDraggablePorts(mousePos);
+                if (portHover) {
+                    const node = state.workflow.nodes.find(n => n.id === portHover.nodeId);
+                    if (node) {
+                        const edge = state.workflow.edges.find(ed => ed.id === portHover.edgeId);
+                        if (edge) {
+                            const side = portHover.side === 'source' ? (edge.sourceSide || 'right') : (edge.targetSide || 'left');
+                            const pos = getPortPosition(node, side);
+                            ctx.fillStyle = portHover.side === 'source' ? 'rgba(76, 175, 80, 0.3)' : 'rgba(33, 150, 243, 0.3)';
+                            ctx.beginPath();
+                            ctx.arc(pos.x, pos.y, 12, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+        }
+
         // Draw selection box
         drawSelectionBox();
 
@@ -467,26 +541,42 @@
     function drawPorts(node, x, y, w, h) {
         const portRadius = 5;
 
-        // Output port (right side)
-        if (node.type !== 'end') {
-            ctx.fillStyle = '#4CAF50';
-            ctx.beginPath();
-            ctx.arc(x + w, y + h / 2, portRadius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+        // Collect all sides used by edges connected to this node
+        const sourceSides = new Set<string>();
+        const targetSides = new Set<string>();
+        for (const edge of state.workflow.edges) {
+            if (edge.source === node.id) sourceSides.add(edge.sourceSide || 'right');
+            if (edge.target === node.id) targetSides.add(edge.targetSide || 'left');
         }
 
-        // Input port (left side)
+        // Draw output ports (green) at each source side
+        if (node.type !== 'end') {
+            const outputSides = sourceSides.size > 0 ? sourceSides : new Set(['right']);
+            for (const side of outputSides) {
+                const pos = getPortPosition(node, side);
+                ctx.fillStyle = '#4CAF50';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, portRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        // Draw input ports (blue) at each target side
         if (node.type !== 'start') {
-            ctx.fillStyle = '#2196F3';
-            ctx.beginPath();
-            ctx.arc(x, y + h / 2, portRadius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            const inputSides = targetSides.size > 0 ? targetSides : new Set(['left']);
+            for (const side of inputSides) {
+                const pos = getPortPosition(node, side);
+                ctx.fillStyle = '#2196F3';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, portRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
         }
 
         // Condition node has two output ports (True/False)
@@ -526,17 +616,35 @@
         const targetNode = state.workflow.nodes.find(n => n.id === edge.target);
         if (!sourceNode || !targetNode) return;
 
-        const config = NODE_CONFIGS[sourceNode.type];
-        const sx = sourceNode.position.x + (config ? config.width : 140);
-        const sy = sourceNode.position.y + (config ? config.height / 2 : 35);
-        const tx = targetNode.position.x;
-        const ty = targetNode.position.y + (NODE_CONFIGS[targetNode.type]?.height || 70) / 2;
+        // Use configurable port sides (default: right → left)
+        const sourcePos = getPortPosition(sourceNode, edge.sourceSide || 'right');
+        const targetPos = getPortPosition(targetNode, edge.targetSide || 'left');
+        const sx = sourcePos.x;
+        const sy = sourcePos.y;
+        const tx = targetPos.x;
+        const ty = targetPos.y;
 
-        // Bezier curve control points
-        const cp1x = sx + (tx - sx) * 0.5;
-        const cp1y = sy;
-        const cp2x = tx - (tx - sx) * 0.5;
-        const cp2y = ty;
+        // Bezier curve control points based on port sides
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const curvature = 0.4;
+        let cp1x, cp1y, cp2x, cp2y;
+        const sourceSide = edge.sourceSide || 'right';
+        const targetSide = edge.targetSide || 'left';
+        if (sourceSide === 'top' || sourceSide === 'bottom') {
+            cp1x = sx;
+            cp1y = sy + (sourceSide === 'bottom' ? 1 : -1) * Math.max(Math.abs(dy) * curvature, 40);
+        } else {
+            cp1x = sx + (sourceSide === 'right' ? 1 : -1) * Math.max(Math.abs(dx) * curvature, 40);
+            cp1y = sy;
+        }
+        if (targetSide === 'top' || targetSide === 'bottom') {
+            cp2x = tx;
+            cp2y = ty + (targetSide === 'bottom' ? 1 : -1) * Math.max(Math.abs(dy) * curvature, 40);
+        } else {
+            cp2x = tx + (targetSide === 'right' ? 1 : -1) * Math.max(Math.abs(dx) * curvature, 40);
+            cp2y = ty;
+        }
 
         const edgeAnimation = state.edgeAnimations[edge.id];
         const isEdgeAnimating = !!edgeAnimation && state.nowMs >= edgeAnimation.startTime && state.nowMs <= edgeAnimation.endTime;
@@ -646,17 +754,34 @@
             const targetNode = state.workflow.nodes.find(n => n.id === edge.target);
             if (!sourceNode || !targetNode) continue;
 
-            const config = NODE_CONFIGS[sourceNode.type];
-            const sx = sourceNode.position.x + (config ? config.width : 140);
-            const sy = sourceNode.position.y + (config ? config.height / 2 : 35);
-            const tx = targetNode.position.x;
-            const ty = targetNode.position.y + (NODE_CONFIGS[targetNode.type]?.height || 70) / 2;
+            const sourcePos = getPortPosition(sourceNode, edge.sourceSide || 'right');
+            const targetPos = getPortPosition(targetNode, edge.targetSide || 'left');
+            const sx = sourcePos.x;
+            const sy = sourcePos.y;
+            const tx = targetPos.x;
+            const ty = targetPos.y;
 
             // Bezier curve control points (same as drawEdge)
-            const cp1x = sx + (tx - sx) * 0.5;
-            const cp1y = sy;
-            const cp2x = tx - (tx - sx) * 0.5;
-            const cp2y = ty;
+            const dx = tx - sx;
+            const dy = ty - sy;
+            const curvature = 0.4;
+            let cp1x, cp1y, cp2x, cp2y;
+            const sourceSide = edge.sourceSide || 'right';
+            const targetSide = edge.targetSide || 'left';
+            if (sourceSide === 'top' || sourceSide === 'bottom') {
+                cp1x = sx;
+                cp1y = sy + (sourceSide === 'bottom' ? 1 : -1) * Math.max(Math.abs(dy) * curvature, 40);
+            } else {
+                cp1x = sx + (sourceSide === 'right' ? 1 : -1) * Math.max(Math.abs(dx) * curvature, 40);
+                cp1y = sy;
+            }
+            if (targetSide === 'top' || targetSide === 'bottom') {
+                cp2x = tx;
+                cp2y = ty + (targetSide === 'bottom' ? 1 : -1) * Math.max(Math.abs(dy) * curvature, 40);
+            } else {
+                cp2x = tx + (targetSide === 'right' ? 1 : -1) * Math.max(Math.abs(dx) * curvature, 40);
+                cp2y = ty;
+            }
 
             const edgeAnimation = state.edgeAnimations[edge.id];
             const isEdgeAnimating = !!edgeAnimation && state.nowMs >= edgeAnimation.startTime && state.nowMs <= edgeAnimation.endTime;
@@ -680,6 +805,18 @@
     // ===== Mouse Events =====
     function onMouseDown(e) {
         const pos = getCanvasPosition(e);
+
+        // Check if clicking on a port to drag it (both edit and view mode)
+        const portDragHit = hitTestDraggablePorts(pos);
+        if (portDragHit) {
+            draggingPort = {
+                edgeId: portDragHit.edgeId,
+                side: portDragHit.side as 'source' | 'target',
+                nodeId: portDragHit.nodeId
+            };
+            canvas.style.cursor = 'grabbing';
+            return;
+        }
 
         // Check if clicking on an output port (start edge creation) — edit mode only
         if (state.editMode) {
@@ -778,6 +915,31 @@
 
     function onMouseMove(e) {
         const pos = getCanvasPosition(e);
+        lastMouseCanvasPos = pos;
+
+        // Port dragging (both edit and view mode)
+        if (draggingPort) {
+            const node = state.workflow.nodes.find(n => n.id === draggingPort.nodeId);
+            if (node) {
+                const edge = state.workflow.edges.find(ed => ed.id === draggingPort.edgeId);
+                if (edge) {
+                    const newSide = snapSideToBorder(node, pos);
+                    if (draggingPort.side === 'source') {
+                        edge.sourceSide = newSide;
+                    } else {
+                        edge.targetSide = newSide;
+                    }
+                    render();
+                }
+            }
+            return;
+        }
+
+        // Cursor feedback for draggable ports (both edit and view mode)
+        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.selectionBox) {
+            const portHover = hitTestDraggablePorts(pos);
+            canvas.style.cursor = portHover ? 'grab' : 'default';
+        }
 
         if (state.creatingEdge) {
             state.creatingEdge.currentX = pos.x;
@@ -813,6 +975,16 @@
 
     function onMouseUp(e) {
         const pos = getCanvasPosition(e);
+
+        // Stop port dragging
+        if (draggingPort) {
+            draggingPort = null;
+            canvas.style.cursor = 'default';
+            saveHistory();
+            notifyWorkflowUpdate();
+            render();
+            return;
+        }
 
         if (state.creatingEdge && state.editMode) {
             // Check if we released on a valid input port
@@ -1016,6 +1188,33 @@
     function bezierPoint(p0, p1, p2, p3, t) {
         const mt = 1 - t;
         return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
+    }
+
+    function hitTestDraggablePorts(pos) {
+        const hitRadius = 10; // 10px radius for port hit testing
+        for (const edge of state.workflow.edges) {
+            // Check source port
+            const sourceNode = state.workflow.nodes.find(n => n.id === edge.source);
+            if (sourceNode) {
+                const sourcePos = getPortPosition(sourceNode, edge.sourceSide || 'right');
+                const dx = pos.x - sourcePos.x;
+                const dy = pos.y - sourcePos.y;
+                if (dx * dx + dy * dy < hitRadius * hitRadius) {
+                    return { edgeId: edge.id, side: 'source', nodeId: sourceNode.id };
+                }
+            }
+            // Check target port
+            const targetNode = state.workflow.nodes.find(n => n.id === edge.target);
+            if (targetNode) {
+                const targetPos = getPortPosition(targetNode, edge.targetSide || 'left');
+                const dx = pos.x - targetPos.x;
+                const dy = pos.y - targetPos.y;
+                if (dx * dx + dy * dy < hitRadius * hitRadius) {
+                    return { edgeId: edge.id, side: 'target', nodeId: targetNode.id };
+                }
+            }
+        }
+        return null;
     }
 
     function hitTestPorts(pos) {

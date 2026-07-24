@@ -28,6 +28,7 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Create connections by dragging between ports with a rubber-band preview.
 - [x] Reject self-connections, duplicate connections, connections into Start, and connections out of End.
 - [x] Render edges on top of nodes so connection lines remain visible when crossing over node bodies. Arrowheads draw last, above both edges and nodes.
+- [ ] Move edge attachment points (ports) around a node's border by clicking and dragging. Ports snap to four sides (top, right, bottom, left). Available in both Edit Mode and View Mode.
 - [ ] Select and delete an individual connection.
 - [ ] Edit a connection label after creating it.
 - [ ] Configure or apply connection priority.

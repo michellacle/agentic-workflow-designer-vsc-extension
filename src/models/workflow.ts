@@ -146,6 +146,17 @@ export interface DecisionNodeData {
 }
 
 /**
+ * Port side on a node border
+ */
+export type PortSide = 'top' | 'right' | 'bottom' | 'left';
+
+/**
+ * Default port sides for edge connections
+ */
+export const DEFAULT_SOURCE_SIDE: PortSide = 'right';
+export const DEFAULT_TARGET_SIDE: PortSide = 'left';
+
+/**
  * Edge (connection) between nodes
  */
 export interface Edge {
@@ -154,6 +165,10 @@ export interface Edge {
     target: string;       // target node id
     label?: string;       // e.g., "True", "False", "Pass", "Fail"
     priority?: number;
+    /** Which side of the source node the edge exits from. Defaults to 'right'. */
+    sourceSide?: PortSide;
+    /** Which side of the target node the edge enters from. Defaults to 'left'. */
+    targetSide?: PortSide;
 }
 
 /**

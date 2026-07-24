@@ -116,6 +116,8 @@ export function workflowToYaml(workflow: Workflow): string {
         };
         if (edge.label) edgeObj.label = edge.label;
         if (edge.priority !== undefined) edgeObj.priority = edge.priority;
+        if (edge.sourceSide) edgeObj.sourceSide = edge.sourceSide;
+        if (edge.targetSide) edgeObj.targetSide = edge.targetSide;
         yamlObj.edges.push(edgeObj);
     }
 
@@ -158,7 +160,9 @@ export function yamlToWorkflow(yamlStr: string): Workflow {
                 source: e.source,
                 target: e.target,
                 label: e.label,
-                priority: e.priority
+                priority: e.priority,
+                sourceSide: e.sourceSide,
+                targetSide: e.targetSide
             };
             workflow.edges.push(edge);
         }
