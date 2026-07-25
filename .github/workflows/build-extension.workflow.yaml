@@ -23,9 +23,14 @@ nodes:
       'y': 290
     data:
       label: End
+      summary: true
 edges:
   - source: start
     target: agent_1
+    sourceSide: bottom
+    targetSide: top
   - source: agent_1
     target: end_2
+    sourceSide: bottom
+    targetSide: top
 description: A new workflow

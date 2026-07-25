@@ -88,15 +88,14 @@
         const h = config ? config.height : 70;
         const x = node.position.x;
         const y = node.position.y;
-        const cx = x + w / 2;
-        const cy = y + h / 2;
-        const dx = canvasPos.x - cx;
-        const dy = canvasPos.y - cy;
-        // Determine which side the mouse is closest to
-        const distTop = Math.abs(canvasPos.x - cx) * 0.5 + Math.max(0, cy - canvasPos.y);
-        const distBottom = Math.abs(canvasPos.x - cx) * 0.5 + Math.max(0, canvasPos.y - cy - h);
-        const distLeft = Math.abs(canvasPos.y - cy) * 0.5 + Math.max(0, cx - canvasPos.x);
-        const distRight = Math.abs(canvasPos.y - cy) * 0.5 + Math.max(0, canvasPos.x - cx - w);
+        // Snap by nearest border line in node-local space.
+        // This avoids opposite-side flips when dragging around corners.
+        const localX = canvasPos.x - x;
+        const localY = canvasPos.y - y;
+        const distTop = Math.abs(localY);
+        const distBottom = Math.abs(h - localY);
+        const distLeft = Math.abs(localX);
+        const distRight = Math.abs(w - localX);
         const min = Math.min(distTop, distBottom, distLeft, distRight);
         if (min === distTop)
             return 'top';
@@ -2027,6 +2026,16 @@
                 state.nowMs = now;
                 pruneAnimationState(now);
                 render();
+            },
+            getEdgeSides: (edgeId) => {
+                const edge = state.workflow.edges.find((candidate) => candidate.id === edgeId);
+                if (!edge) {
+                    return null;
+                }
+                return {
+                    sourceSide: edge.sourceSide || 'right',
+                    targetSide: edge.targetSide || 'left'
+                };
             },
             getAnimationSnapshot: () => ({
                 edgeAnimations: { ...state.edgeAnimations },

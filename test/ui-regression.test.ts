@@ -352,4 +352,53 @@ describe('UI regression suite', () => {
         // Should render a badge (always shown, initialized to 0)
         expect(designerSource).toMatch(/executionCount.*\?\?.*0/);
     });
+
+    it('regression: dragging an edge endpoint to bottom/right border must keep bottom/right side', () => {
+        const api = (window as any).__workflowDesignerTestApi;
+
+        api.simulateMessage({
+            type: 'init',
+            workflow: {
+                name: 'edge-snap-regression',
+                nodes: [
+                    { id: 'start_1', type: 'start', position: { x: 100, y: 120 }, data: { label: 'Start' } },
+                    { id: 'agent_1', type: 'agent', position: { x: 320, y: 120 }, data: { agent: 'builder' } },
+                    { id: 'end_1', type: 'end', position: { x: 560, y: 120 }, data: { label: 'End' } },
+                ],
+                edges: [
+                    { id: 'start_1->agent_1', source: 'start_1', target: 'agent_1' },
+                    { id: 'agent_1->end_1', source: 'agent_1', target: 'end_1' },
+                ],
+            },
+            animationConfig: {
+                startNodeFlashMs: 3000,
+                edgeHandoffMs: 3000,
+                endNodeFlashMs: 1200,
+                edgeDashSpeed: 20,
+            },
+        });
+
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        expect(canvas).not.toBeNull();
+
+        // Drag source endpoint of start_1->agent_1 from right side to bottom border center.
+        // start_1: x=100, y=120, w=120, h=50 => right=(220,145), bottom=(160,170)
+        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 220, clientY: 145, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 160, clientY: 170, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 160, clientY: 170, bubbles: true }));
+
+        let sides = api.getEdgeSides('start_1->agent_1');
+        expect(sides).not.toBeNull();
+        expect(sides.sourceSide).toBe('bottom');
+
+        // Drag target endpoint of agent_1->end_1 from left side to right border center.
+        // end_1: x=560, y=120, w=120, h=50 => left=(560,145), right=(680,145)
+        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 560, clientY: 145, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 680, clientY: 145, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 680, clientY: 145, bubbles: true }));
+
+        sides = api.getEdgeSides('agent_1->end_1');
+        expect(sides).not.toBeNull();
+        expect(sides.targetSide).toBe('right');
+    });
 });
