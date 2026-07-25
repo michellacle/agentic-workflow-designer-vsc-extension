@@ -21,11 +21,11 @@ nodes:
   - id: agent_14
     type: agent
     position:
-      x: 140
-      'y': 170
+      x: 260
+      'y': -10
     data:
-      agent: reviewer
-      prompt: 'Review the implementer''s work. Return a JSON object with these fields: passed (boolean - true if the review passes, false otherwise), reason (string - detailed feedback on what needs improvement if failed, or summary of what passed), review_attempts (number - set to 1 if review_reason already exists in the workflow state indicating this is a retry, otherwise set to 0).'
+      agent: general
+      prompt: ''
       model: qwen3.6-27b
       timeout: 300
       retries: 0
@@ -36,19 +36,11 @@ nodes:
           target: state.review_reason
         - source: review_attempts
           target: state.review_attempts
-  - id: condition_19
-    type: condition
-    position:
-      x: 280
-      'y': 20
-    data:
-      expression: state.review_passed === true || state.review_attempts >= 1
-      description: Pass if review passed or already looped back once
   - id: agent_15
     type: agent
     position:
-      x: 260
-      'y': 310
+      x: 300
+      'y': 130
     data:
       agent: tester
       prompt: ''
@@ -146,18 +138,6 @@ edges:
   - source: agent_11
     target: agent_14
     sourceSide: bottom
-    targetSide: top
-  - source: agent_14
-    target: condition_19
-    targetSide: bottom
-  - source: condition_19
-    target: agent_11
-    label: 'False'
-    sourceSide: top
-    targetSide: bottom
-  - source: condition_19
-    target: agent_15
-    label: 'True'
     targetSide: top
   - source: agent_16
     target: end_17

@@ -1530,7 +1530,6 @@
                 break;
         }
 
-        html += `<button class="delete-node-btn" onclick="deleteSelectedNodes()">Delete Node</button>`;
         content.innerHTML = html;
 
         // Bind events

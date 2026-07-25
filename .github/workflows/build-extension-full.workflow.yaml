@@ -3,15 +3,15 @@ nodes:
   - id: start_1
     type: start
     position:
-      x: 80
-      'y': 10
+      x: 70
+      'y': -10
     data:
       label: Start
   - id: end_2
     type: end
     position:
-      x: 90
-      'y': 350
+      x: 370
+      'y': 300
     data:
       label: End
       summary: true
@@ -21,8 +21,8 @@ nodes:
       x: 70
       'y': 90
     data:
-      agent: general
-      prompt: build
+      agent: builder
+      prompt: build the extension
       description: build
       model: qwen3.6-27b
       timeout: 120
@@ -30,20 +30,54 @@ nodes:
   - id: condition_4
     type: condition
     position:
-      x: 70
-      'y': 230
+      x: 90
+      'y': 240
     data:
       prompt: |-
         Build success?
 
         If build fails return false, true otherwise. Build fails if there are lint error, compile errors, test failures.
+  - id: note_5
+    type: note
+    position:
+      x: 350
+      'y': 130
+    data:
+      text: 'Defect: Can''t delete Note.'
+      description: ''
+  - id: note_6
+    type: note
+    position:
+      x: 350
+      'y': -60
+    data:
+      text: 'Defect: Infinite loop protection'
+      description: ''
+  - id: note_7
+    type: note
+    position:
+      x: 350
+      'y': 30
+    data:
+      text: 'Defect: Condition node, false is on bottom instead of left.'
+      description: ''
 edges:
-  - source: agent_3
-    target: condition_4
-    sourceSide: bottom
-    targetSide: top
   - source: start_1
     target: agent_3
     sourceSide: bottom
+    targetSide: top
+  - source: condition_4
+    target: end_2
+    label: 'True'
+    sourceSide: right
+    targetSide: left
+  - source: condition_4
+    target: agent_3
+    label: 'False'
+    sourceSide: bottom
+    targetSide: left
+  - source: agent_3
+    target: condition_4
+    sourceSide: right
     targetSide: top
 description: A new workflow

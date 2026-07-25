@@ -254,23 +254,6 @@ textarea.property-input {
     font-size: 11px;
 }
 
-.delete-node-btn {
-    width: 100%;
-    padding: 8px;
-    margin-top: 16px;
-    background: var(--vscode-button-secondaryBackground, #666);
-    color: var(--vscode-button-secondaryForeground, #fff);
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.delete-node-btn:hover {
-    background: #d32f2f;
-}
-
 /* State Mappings */
 .mappings-list {
     margin-bottom: 8px;

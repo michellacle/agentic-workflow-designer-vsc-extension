@@ -75,8 +75,14 @@ export class AgentInvoker {
         const startTime = Date.now();
 
         try {
-            const agentConfig = await this.parseAgentFile(agentPath);
-            const agentName = agentConfig.name;
+            // Condition nodes pass an empty agentPath — use general agent instead
+            let agentName: string;
+            if (!agentPath) {
+                agentName = 'general';
+            } else {
+                const agentConfig = await this.parseAgentFile(agentPath);
+                agentName = agentConfig.name;
+            }
 
             if (record) {
                 record.prompt = prompt;

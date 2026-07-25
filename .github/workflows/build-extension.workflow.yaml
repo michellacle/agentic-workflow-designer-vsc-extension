@@ -3,13 +3,13 @@ nodes:
   - id: start
     type: start
     position:
-      x: 120
-      'y': 20
+      x: 110
+      'y': -60
   - id: agent_1
     type: agent
     position:
-      x: 110
-      'y': 160
+      x: 100
+      'y': 360
     data:
       agent: builder
       prompt: Build the extension
@@ -19,20 +19,60 @@ nodes:
   - id: end_2
     type: end
     position:
-      x: 120
-      'y': 340
+      x: 110
+      'y': 550
     data:
       label: End
       summary: true
+  - id: agent_3
+    type: agent
+    position:
+      x: 100
+      'y': 40
+    data:
+      agent: implementer
+      prompt: implement feature
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 0
+  - id: note_4
+    type: note
+    position:
+      x: 280
+      'y': -50
+    data:
+      text: Can't delete a node
+      description: ''
+  - id: condition_6
+    type: condition
+    position:
+      x: 300
+      'y': 200
+    data:
+      prompt: Verify that the previous agent actually attempted to do the tasked requireed by the workflow.
+      model: qwen3.6-27b
 edges:
-  - source: start
-    target: agent_1
-    label: move to the build state
-    sourceSide: bottom
-    targetSide: top
   - source: agent_1
     target: end_2
     label: move to the end state
     sourceSide: bottom
     targetSide: top
+  - source: start
+    target: agent_3
+    sourceSide: bottom
+    targetSide: top
+  - source: agent_3
+    target: condition_6
+    sourceSide: bottom
+    targetSide: left
+  - source: condition_6
+    target: agent_1
+    label: 'True'
+    sourceSide: right
+    targetSide: top
+  - source: condition_6
+    target: agent_3
+    label: 'False'
+    sourceSide: bottom
+    targetSide: left
 description: A new workflow
