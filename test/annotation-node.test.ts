@@ -8,7 +8,7 @@
  * - Be distinguishable via isAnnotationNode helper
  */
 
-import { NodeType, isAnnotationNode } from '../src/models/workflow';
+import { ExecutionStatus, NodeType, isAnnotationNode } from '../src/models/workflow';
 import { workflowToYaml, yamlToWorkflow } from '../src/utils/yamlSerializer';
 import { validateWorkflow } from '../src/utils/workflowValidator';
 import { WorkflowExecutor } from '../src/runtime/workflowExecutor';
@@ -247,7 +247,7 @@ describe('Runtime skips annotation nodes', () => {
         });
 
         // Workflow should complete (annotation nodes are skipped in traversal)
-        expect(status).toBe(1); // ExecutionStatus.Completed
+        expect(status).toBe(ExecutionStatus.Completed);
 
         // Note node should NOT have an execution record
         const ctx = executor.getExecutionContext();
@@ -294,7 +294,7 @@ describe('Runtime skips annotation nodes', () => {
             workspaceRoot: '/tmp',
         });
 
-        expect(status).toBe(1); // ExecutionStatus.Completed
+        expect(status).toBe(ExecutionStatus.Completed);
 
         // Annotation nodes should not have execution records
         const ctx = executor.getExecutionContext();
