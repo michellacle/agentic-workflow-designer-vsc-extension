@@ -175,20 +175,8 @@ export function activate(context: vscode.ExtensionContext) {
 function generateEmptyWorkflowYaml(name: string = 'new-workflow'): string {
     return `name: ${name}
 description: A new workflow
-nodes:
-  - id: start
-    type: start
-    position:
-      x: 100
-      y: 100
-  - id: end
-    type: end
-    position:
-      x: 100
-      y: 300
-edges:
-  - source: start
-    target: end
+nodes: []
+edges: []
 `;
 }
 

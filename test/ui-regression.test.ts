@@ -401,4 +401,130 @@ describe('UI regression suite', () => {
         expect(sides).not.toBeNull();
         expect(sides.targetSide).toBe('right');
     });
+
+    it('regression: canvas pan works in both edit and view modes (left-drag on empty canvas)', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // In onMouseDown, left-click on empty canvas should start panning in both modes.
+        // The old code had: else if (state.editMode && ...) for selection box,
+        // then else if (...) for pan in view mode only.
+        // New code should have pan for both modes without selection box.
+        expect(designerSource).not.toMatch(/selectionBox/);
+
+        // Verify that the empty canvas click handler starts panning without edit mode check
+        const mouseDownBody = ((): string | null => {
+            const fnStart = designerSource.indexOf('function onMouseDown(e)');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(mouseDownBody).not.toBeNull();
+
+        // Should NOT have selection box start logic
+        expect(mouseDownBody).not.toMatch(/selectionBox\s*=\s*\{/);
+        // Should have pan start on empty canvas without edit mode gate
+        expect(mouseDownBody).toMatch(/state\.panning\s*=\s*true/);
+    });
+
+    it('regression: node dragging works in both edit and view modes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // In onMouseMove, node dragging should NOT be gated by editMode
+        const mouseMoveBody = ((): string | null => {
+            const fnStart = designerSource.indexOf('function onMouseMove(e)');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(mouseMoveBody).not.toBeNull();
+
+        // Should NOT have editMode gate on dragging node
+        expect(mouseMoveBody).not.toMatch(/draggingNode\s+&&\s+state\.editMode/);
+        // Should have draggingNode check without editMode
+        expect(mouseMoveBody).toMatch(/if\s*\(\s*state\.draggingNode\s*\)/);
+    });
+
+    it('regression: delete key works in both edit and view modes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Delete/Backspace should NOT be gated by editMode
+        expect(designerSource).not.toMatch(/Delete.*Backspace.*editMode/);
+        // Should have delete without editMode check
+        expect(designerSource).toMatch(/if\s*\(\s*e\.key\s*===\s*'Delete'\s*\|\|\s*e\.key\s*===\s*'Backspace'\s*\)/);
+    });
+
+    it('regression: edge creation works in both edit and view modes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Edge creation (hitTestOutputPorts) should NOT be gated by editMode
+        // The old code had: if (state.editMode) { const portHit = hitTestOutputPorts... }
+        // New code should call hitTestOutputPorts directly without editMode check
+        const mouseDownBody = ((): string | null => {
+            const fnStart = designerSource.indexOf('function onMouseDown(e)');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(mouseDownBody).not.toBeNull();
+
+        // Should NOT have editMode gate around hitTestOutputPorts
+        expect(mouseDownBody).not.toMatch(/if\s*\(\s*state\.editMode\s*\)\s*\{[^}]*hitTestOutputPorts/);
+        // Should have hitTestOutputPorts call
+        expect(mouseDownBody).toMatch(/hitTestOutputPorts/);
+    });
+
+    it('regression: edit mode toggle shows/hides panels (edit mode = panels visible, view mode = panels hidden)', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // toggleEditMode should show panels when editMode is true, hide when false
+        const toggleBody = ((): string | null => {
+            const fnStart = designerSource.indexOf('function toggleEditMode()');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(toggleBody).not.toBeNull();
+
+        // Should remove hidden class when editMode is true (show panels)
+        expect(toggleBody).toMatch(/classList\.remove\('hidden'\)/);
+        // Should add hidden class when editMode is false (hide panels)
+        expect(toggleBody).toMatch(/classList\.add\('hidden'\)/);
+    });
+
+    it('regression: selection box is removed and nodesInRect function is gone', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Selection box code should be completely removed
+        expect(designerSource).not.toMatch(/selectionBox/);
+        expect(designerSource).not.toMatch(/nodesInRect/);
+        expect(designerSource).not.toMatch(/drawSelectionBox/);
+    });
 });

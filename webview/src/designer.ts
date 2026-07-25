@@ -48,8 +48,6 @@
         editingEdgeId: null as string | null,
         // Edge selection state
         selectedEdgeId: null as string | null,
-        // Selection box state
-        selectionBox: null as { startX: number; startY: number; endX: number; endY: number } | null,
         // Per-node execution counts (how many times each node has been entered)
         nodeExecutionCounts: {} as Record<string, number>,
     };
@@ -332,7 +330,7 @@
         drawArrowheads();
 
         // Draw hovered port highlight (both edit and view mode)
-        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.selectionBox) {
+        if (!state.draggingNode && !state.panning && !state.creatingEdge) {
             const mousePos = getCanvasPositionFromLastEvent();
             if (mousePos) {
                 const portHover = hitTestDraggablePorts(mousePos);
@@ -352,9 +350,6 @@
                 }
             }
         }
-
-        // Draw selection box
-        drawSelectionBox();
 
         ctx.restore();
     }
@@ -819,91 +814,72 @@
             return;
         }
 
-        // Check if clicking on an output port (start edge creation) — edit mode only
-        if (state.editMode) {
-            const portHit = hitTestOutputPorts(pos);
-            if (portHit) {
-                state.creatingEdge = {
-                    sourceNodeId: portHit.nodeId,
-                    sourcePort: portHit.port,
-                    currentX: pos.x,
-                    currentY: pos.y
-                };
-                return;
-            }
+        // Check if clicking on an output port (start edge creation) — both modes
+        const portHit = hitTestOutputPorts(pos);
+        if (portHit) {
+            state.creatingEdge = {
+                sourceNodeId: portHit.nodeId,
+                sourcePort: portHit.port,
+                currentX: pos.x,
+                currentY: pos.y
+            };
+            return;
         }
 
-        // Check if clicking on an edge (for selection) — edit mode only
-        if (state.editMode) {
-            const edgeHit = hitTestEdges(pos);
-            if (edgeHit) {
-                if (e.shiftKey) {
-                    // Toggle edge selection (deselect if already selected)
-                    if (state.selectedEdgeId === edgeHit.id) {
-                        state.selectedEdgeId = null;
-                    } else {
-                        state.selectedEdgeId = edgeHit.id;
-                        state.selectedNodeIds.clear();
-                    }
+        // Check if clicking on an edge (for selection) — both modes
+        const edgeHit = hitTestEdges(pos);
+        if (edgeHit) {
+            if (e.shiftKey) {
+                // Toggle edge selection (deselect if already selected)
+                if (state.selectedEdgeId === edgeHit.id) {
+                    state.selectedEdgeId = null;
                 } else {
-                    // Select edge, deselect nodes
                     state.selectedEdgeId = edgeHit.id;
                     state.selectedNodeIds.clear();
                 }
-                render();
-                return;
+            } else {
+                // Select edge, deselect nodes
+                state.selectedEdgeId = edgeHit.id;
+                state.selectedNodeIds.clear();
             }
+            render();
+            return;
         }
 
         // Check if clicking on a node
         const node = hitTestNodes(pos);
         if (node) {
-            if (state.editMode) {
-                if (e.shiftKey) {
-                    // Toggle selection
-                    if (state.selectedNodeIds.has(node.id)) {
-                        state.selectedNodeIds.delete(node.id);
-                    } else {
-                        state.selectedNodeIds.add(node.id);
-                    }
-                } else if (!state.selectedNodeIds.has(node.id)) {
-                    state.selectedNodeIds.clear();
+            if (e.shiftKey) {
+                // Toggle selection
+                if (state.selectedNodeIds.has(node.id)) {
+                    state.selectedNodeIds.delete(node.id);
+                } else {
                     state.selectedNodeIds.add(node.id);
                 }
-
-                // Start dragging — edit mode only
-                state.draggingNode = node.id;
-                state.draggingOffset = {
-                    x: pos.x - node.position.x,
-                    y: pos.y - node.position.y
-                };
-                saveHistory();
-                render();
-                updatePropertiesPanel(node);
-            } else {
-                // View mode: just select for visual feedback, no dragging
+            } else if (!state.selectedNodeIds.has(node.id)) {
                 state.selectedNodeIds.clear();
                 state.selectedNodeIds.add(node.id);
-                render();
             }
+
+            // Start dragging — both modes
+            state.draggingNode = node.id;
+            state.draggingOffset = {
+                x: pos.x - node.position.x,
+                y: pos.y - node.position.y
+            };
+            if (state.editMode) saveHistory();
+            render();
+            updatePropertiesPanel(node);
             return;
         }
 
-        // Click on empty canvas - start panning, selection box, or clear selection
+        // Click on empty canvas - start panning or clear selection
         if (e.button === 1) {
             // Middle mouse: always pan
             state.panning = true;
             state.panStart = { x: e.clientX - state.viewport.x, y: e.clientY - state.viewport.y };
-        } else if (state.editMode && state.selectedNodeIds.size === 0 && !state.selectedEdgeId) {
-            // Left click on empty canvas in edit mode: start selection box
-            state.selectionBox = {
-                startX: pos.x,
-                startY: pos.y,
-                endX: pos.x,
-                endY: pos.y,
-            };
         } else if (state.selectedNodeIds.size === 0 && !state.selectedEdgeId) {
-            // Left click on empty canvas in view mode: pan
+            // Left click on empty canvas: pan (both modes)
             state.panning = true;
             state.panStart = { x: e.clientX - state.viewport.x, y: e.clientY - state.viewport.y };
         } else {
@@ -937,7 +913,7 @@
         }
 
         // Cursor feedback for draggable ports (both edit and view mode)
-        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.selectionBox) {
+        if (!state.draggingNode && !state.panning && !state.creatingEdge) {
             const portHover = hitTestDraggablePorts(pos);
             canvas.style.cursor = portHover ? 'grab' : 'default';
         }
@@ -949,7 +925,7 @@
             return;
         }
 
-        if (state.draggingNode && state.editMode) {
+        if (state.draggingNode) {
             const node = state.workflow.nodes.find(n => n.id === state.draggingNode);
             if (node) {
                 node.position.x = Math.round((pos.x - state.draggingOffset.x) / 10) * 10;
@@ -962,13 +938,6 @@
         if (state.panning) {
             state.viewport.x = e.clientX - state.panStart.x;
             state.viewport.y = e.clientY - state.panStart.y;
-            render();
-            return;
-        }
-
-        if (state.selectionBox) {
-            state.selectionBox.endX = pos.x;
-            state.selectionBox.endY = pos.y;
             render();
             return;
         }
@@ -987,7 +956,7 @@
             return;
         }
 
-        if (state.creatingEdge && state.editMode) {
+        if (state.creatingEdge) {
             // Check if we released on a valid input port
             const portHit = hitTestInputPorts(pos);
             if (portHit && portHit.nodeId !== state.creatingEdge.sourceNodeId) {
@@ -1017,33 +986,11 @@
             return;
         }
 
-        state.draggingNode = null;
-        state.panning = false;
-
-        // Finalize selection box
-        if (state.selectionBox) {
-            const box = state.selectionBox;
-            const nodeIds = nodesInRect(box.startX, box.startY, box.endX, box.endY);
-
-            if (nodeIds.length > 0 || Math.abs(box.endX - box.startX) > 3 || Math.abs(box.endY - box.startY) > 3) {
-                if (e.shiftKey) {
-                    // Shift+drag: add to existing selection
-                    for (const id of nodeIds) {
-                        state.selectedNodeIds.add(id);
-                    }
-                } else {
-                    // Replace selection
-                    state.selectedNodeIds.clear();
-                    for (const id of nodeIds) {
-                        state.selectedNodeIds.add(id);
-                    }
-                }
-                updatePropertiesPanel(state.selectedNodeIds.size === 1 ? state.workflow.nodes.find(n => n.id === Array.from(state.selectedNodeIds).pop()) : null);
-            }
-
-            state.selectionBox = null;
-            render();
+        if (state.draggingNode) {
+            notifyWorkflowUpdate();
+            state.draggingNode = null;
         }
+        state.panning = false;
     }
 
     function onWheel(e) {
@@ -1071,7 +1018,7 @@
             return;
         }
 
-        if ((e.key === 'Delete' || e.key === 'Backspace') && state.editMode) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
             if (state.selectedNodeIds.size > 0) {
                 deleteSelectedNodes();
                 saveHistory();
@@ -1345,9 +1292,6 @@
         canvasContainer.addEventListener('drop', (e) => {
             e.preventDefault();
 
-            // Drop nodes only in edit mode
-            if (!state.editMode) return;
-
             const nodeType = e.dataTransfer.getData('nodeType');
             if (!nodeType || !NODE_CONFIGS[nodeType]) return;
 
@@ -1415,27 +1359,31 @@
         const btn = document.getElementById('btn-edit-mode');
 
         if (state.editMode) {
-            // Edit mode ON — show panels, enable editing
+            // Edit mode ON — show panels
             toolbox.classList.remove('hidden');
             propertiesPanel.classList.remove('hidden');
             btn.classList.add('active');
+            btn.title = 'Exit Edit Mode';
         } else {
-            // Edit mode OFF — hide panels, read-only canvas
+            // Edit mode OFF — hide panels
             toolbox.classList.add('hidden');
             propertiesPanel.classList.add('hidden');
             btn.classList.remove('active');
+            btn.title = 'Enter Edit Mode';
         }
 
         // Resize canvas after panels slide in/out
         setTimeout(() => resizeCanvas(), 250);
     }
 
-    // Apply initial edit mode state (default: OFF / read-only)
+    // Apply initial edit mode state (default: OFF / panels hidden)
     function applyInitialEditMode() {
         const toolbox = document.getElementById('toolbox');
         const propertiesPanel = document.getElementById('properties-panel');
+        const btn = document.getElementById('btn-edit-mode');
         if (toolbox) toolbox.classList.add('hidden');
         if (propertiesPanel) propertiesPanel.classList.add('hidden');
+        if (btn) btn.title = 'Enter Edit Mode';
     }
 
     // ===== Properties Panel =====
@@ -2111,44 +2059,6 @@
         ctx.closePath();
     }
 
-    // ===== Selection Box =====
-    function drawSelectionBox() {
-        if (!state.selectionBox) return;
-        const box = state.selectionBox;
-        const x = Math.min(box.startX, box.endX);
-        const y = Math.min(box.startY, box.endY);
-        const w = Math.abs(box.endX - box.startX);
-        const h = Math.abs(box.endY - box.startY);
-
-        ctx.fillStyle = isDarkTheme() ? 'rgba(0, 120, 215, 0.15)' : 'rgba(0, 120, 215, 0.12)';
-        ctx.strokeStyle = getThemeColor('focusBorder') || '#0078d5';
-        ctx.lineWidth = 1;
-        ctx.fillRect(x, y, w, h);
-        ctx.strokeRect(x, y, w, h);
-    }
-
-    function nodesInRect(x1, y1, x2, y2) {
-        const minX = Math.min(x1, x2);
-        const minY = Math.min(y1, y2);
-        const maxX = Math.max(x1, x2);
-        const maxY = Math.max(y1, y2);
-
-        const result = [];
-        for (const node of state.workflow.nodes) {
-            const config = NODE_CONFIGS[node.type];
-            const nw = config ? config.width : 140;
-            const nh = config ? config.height : 70;
-            const nx = node.position.x;
-            const ny = node.position.y;
-
-            // Check if node rectangle intersects selection rectangle
-            if (nx < maxX && nx + nw > minX && ny < maxY && ny + nh > minY) {
-                result.push(node.id);
-            }
-        }
-        return result;
-    }
-
     // ===== Animation Loop =====
     function startAnimationLoop() {
         if (state.animationFrameId) return; // Already running
@@ -2246,8 +2156,6 @@
 
     // ===== Double Click Handler =====
     function onDoubleClick(e) {
-        if (!state.editMode) return;
-
         const pos = getCanvasPosition(e);
         const edgeHit = hitTestEdges(pos);
         if (edgeHit) {

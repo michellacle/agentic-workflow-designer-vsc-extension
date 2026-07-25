@@ -3,13 +3,13 @@ nodes:
   - id: start
     type: start
     position:
-      x: 50
-      'y': 40
+      x: 120
+      'y': 20
   - id: agent_1
     type: agent
     position:
-      x: 80
-      'y': 140
+      x: 110
+      'y': 160
     data:
       agent: builder
       prompt: ''
@@ -19,18 +19,20 @@ nodes:
   - id: end_2
     type: end
     position:
-      x: 100
-      'y': 290
+      x: 120
+      'y': 340
     data:
       label: End
       summary: true
 edges:
   - source: start
     target: agent_1
+    label: move to the build state
     sourceSide: bottom
     targetSide: top
   - source: agent_1
     target: end_2
+    label: move to the end state
     sourceSide: bottom
     targetSide: top
 description: A new workflow

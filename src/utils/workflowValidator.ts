@@ -31,7 +31,7 @@ export function validateWorkflow(workflow: Workflow): ValidationError[] {
     // Check for at least one End node (annotation nodes don't count)
     const endNodes = workflow.nodes.filter(n => !isAnnotationNode(n.type) && n.type === NodeType.End);
     if (endNodes.length === 0) {
-        errors.push({ message: 'Workflow must have at least one End node', severity: 'warning' });
+        errors.push({ message: 'Workflow must have at least one End node', severity: 'error' });
     }
 
     // Check edge references

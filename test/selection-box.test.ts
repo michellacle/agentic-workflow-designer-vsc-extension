@@ -1,11 +1,14 @@
 /**
- * Tests for selection box drag feature in the workflow designer.
+ * Tests for canvas pan behavior (selection box removed).
+ *
+ * The selection box feature was removed in favor of left-drag panning.
+ * Multi-select is available via Shift+Click on individual nodes.
  *
  * Features tested:
- * 1. Click and drag on empty canvas to create a selection box
- * 2. Nodes whose bounding boxes intersect the selection box become selected
- * 3. Shift+drag adds to existing selection instead of replacing it
- * 4. Selection box is visually rendered as a rectangle
+ * 1. Selection box code is fully removed (no selectionBox state, no drawSelectionBox, no nodesInRect)
+ * 2. Left-drag on empty canvas starts panning in both edit and view modes
+ * 3. Middle-mouse drag also starts panning
+ * 4. Shift+Click on nodes still works for multi-select
  */
 
 import * as fs from 'fs';
@@ -31,119 +34,82 @@ function extractFunctionBody(source: string, fnName: string): string | null {
     return null;
 }
 
-// ===== Feature: Selection Box Drag =====
+// ===== Feature: Selection Box Removed, Canvas Pan Added =====
 
-describe('Selection box drag', () => {
+describe('Selection box removed and canvas pan behavior', () => {
     let designerContent: string;
 
     beforeAll(() => {
         designerContent = readFile('webview/src/designer.ts');
     });
 
-    describe('State variables', () => {
-        it('should have a selectionBox state variable', () => {
-            expect(designerContent).toMatch(/selectionBox/);
+    describe('Selection box code removed', () => {
+        it('should NOT have a selectionBox state variable', () => {
+            expect(designerContent).not.toMatch(/selectionBox/);
         });
 
-        it('should track selection box start and end coordinates', () => {
-            // Should have start and end (or x1/y1/x2/y2 or similar) for the box
-            expect(designerContent).toMatch(/selectionBox[\s\S]{0,200}(start|x1|from)/i);
+        it('should NOT have nodesInRect function', () => {
+            expect(designerContent).not.toMatch(/nodesInRect/);
+        });
+
+        it('should NOT have drawSelectionBox function', () => {
+            expect(designerContent).not.toMatch(/drawSelectionBox/);
         });
     });
 
-    describe('Mouse down - initiating selection box', () => {
-        it('should start selection box on mouse down when clicking empty canvas in edit mode', () => {
+    describe('Mouse down - left-drag on empty canvas starts pan', () => {
+        it('should start panning on left-click empty canvas without edit mode gate', () => {
             const onMouseDownBody = extractFunctionBody(designerContent, 'onMouseDown');
             expect(onMouseDownBody).not.toBeNull();
-            // Should reference selectionBox in onMouseDown
-            expect(onMouseDownBody).toMatch(/selectionBox/);
+            // Should NOT reference selectionBox
+            expect(onMouseDownBody).not.toMatch(/selectionBox/);
+            // Should start panning on empty canvas
+            expect(onMouseDownBody).toMatch(/state\.panning\s*=\s*true/);
         });
 
-        it('should distinguish between panning and selection box drag', () => {
-            // Should have logic to differentiate panning (middle mouse or no drag) from selection box
-            expect(designerContent).toMatch(/selectionBox[\s\S]{0,500}(panning|editMode)/i);
+        it('should support middle-mouse pan', () => {
+            const onMouseDownBody = extractFunctionBody(designerContent, 'onMouseDown');
+            expect(onMouseDownBody).not.toBeNull();
+            expect(onMouseDownBody).toMatch(/e\.button\s*===\s*1/);
         });
     });
 
-    describe('Mouse move - updating selection box', () => {
-        it('should update selection box coordinates on mouse move', () => {
+    describe('Mouse move - panning updates viewport', () => {
+        it('should update viewport on mouse move when panning', () => {
             const onMouseMoveBody = extractFunctionBody(designerContent, 'onMouseMove');
             expect(onMouseMoveBody).not.toBeNull();
-            expect(onMouseMoveBody).toMatch(/selectionBox/);
+            expect(onMouseMoveBody).toMatch(/state\.panning/);
+            expect(onMouseMoveBody).toMatch(/viewport\.x/);
+            expect(onMouseMoveBody).toMatch(/viewport\.y/);
         });
 
-        it('should render while selection box is being dragged', () => {
+        it('should NOT update selection box on mouse move', () => {
             const onMouseMoveBody = extractFunctionBody(designerContent, 'onMouseMove');
             expect(onMouseMoveBody).not.toBeNull();
-            // Should call render after updating selection box
-            expect(onMouseMoveBody).toMatch(/selectionBox[\s\S]{0,300}render|render[\s\S]{0,100}selectionBox/);
+            expect(onMouseMoveBody).not.toMatch(/selectionBox/);
         });
     });
 
-    describe('Mouse up - finalizing selection', () => {
-        it('should select nodes within the selection box on mouse up', () => {
+    describe('Mouse up - panning stops', () => {
+        it('should clear panning state on mouse up', () => {
             const onMouseUpBody = extractFunctionBody(designerContent, 'onMouseUp');
             expect(onMouseUpBody).not.toBeNull();
-            // Should reference selectionBox and selectedNodeIds
-            expect(onMouseUpBody).toMatch(/selectionBox/);
-            expect(onMouseUpBody).toMatch(/selectedNodeIds/);
+            expect(onMouseUpBody).toMatch(/state\.panning\s*=\s*false/);
         });
 
-        it('should clear selection box state after mouse up', () => {
+        it('should NOT finalize selection box on mouse up', () => {
             const onMouseUpBody = extractFunctionBody(designerContent, 'onMouseUp');
             expect(onMouseUpBody).not.toBeNull();
-            // Should set selectionBox to null after processing
-            expect(onMouseUpBody).toMatch(/selectionBox\s*=\s*null/);
+            expect(onMouseUpBody).not.toMatch(/selectionBox/);
         });
     });
 
-    describe('Node intersection detection', () => {
-        it('should have a function to check if a node is within a rectangle', () => {
-            // Should have a helper like nodesInRect, intersectRect, or similar
-            expect(designerContent).toMatch(/nodesInRect|intersectRect|nodeInRect|rectContains|intersectsRect/i);
-        });
-
-        it('should use node position and dimensions for intersection check', () => {
-            // The intersection function should reference node position and width/height
-            expect(designerContent).toMatch(/nodeInRect|intersectRect|nodesInRect/i);
-            const match = designerContent.match(/function\s+(nodesInRect|intersectRect|nodeInRect|rectContains|intersectsRect)\s*\([^)]*\)/i);
-            if (match) {
-                const fnBody = extractFunctionBody(designerContent, match[1]);
-                expect(fnBody).not.toBeNull();
-                expect(fnBody).toMatch(/position/);
-                expect(fnBody).toMatch(/width|height|config/i);
-            }
-        });
-    });
-
-    describe('Visual rendering', () => {
-        it('should draw a selection box rectangle on the canvas', () => {
-            // Should have a drawSelectionBox or similar function
-            expect(designerContent).toMatch(/drawSelectionBox|draw.*selection.*box|selectionBox.*draw/i);
-        });
-
-        it('should render the selection box with a visible border and fill', () => {
-            const drawFnMatch = designerContent.match(/function\s+(drawSelectionBox|draw.*Selection.*Box)\s*\(/i);
-            if (drawFnMatch) {
-                const fnBody = extractFunctionBody(designerContent, drawFnMatch[1]);
-                expect(fnBody).not.toBeNull();
-                // Should set fillStyle and strokeStyle for the box
-                expect(fnBody).toMatch(/fillStyle/);
-                expect(fnBody).toMatch(/strokeStyle/);
-            }
-        });
-
-        it('should call drawSelectionBox from the render function', () => {
-            const renderBody = extractFunctionBody(designerContent, 'render');
-            expect(renderBody).not.toBeNull();
-            expect(renderBody).toMatch(/drawSelectionBox|selectionBox/i);
-        });
-    });
-
-    describe('Shift+drag behavior', () => {
-        it('should support shift key to add to existing selection', () => {
-            // Should check shiftKey when processing selection box results
-            expect(designerContent).toMatch(/selectionBox[\s\S]{0,500}shiftKey|shiftKey[\s\S]{0,500}selectionBox/i);
+    describe('Shift+Click multi-select still works', () => {
+        it('should support shift key to toggle node selection', () => {
+            const onMouseDownBody = extractFunctionBody(designerContent, 'onMouseDown');
+            expect(onMouseDownBody).not.toBeNull();
+            expect(onMouseDownBody).toMatch(/shiftKey/);
+            expect(onMouseDownBody).toMatch(/selectedNodeIds/);
         });
     });
 });

@@ -20,21 +20,21 @@ This checklist was reconciled against the extension source on 2026-07-19. A chec
 - [x] Render Start, End, Agent, Condition, Human Approval, and Delay nodes on a visual canvas.
 - [x] Drag nodes from the toolbox and drop them at snapped canvas coordinates.
 - [x] Select a node by clicking it and select multiple nodes with Shift+Click.
-- [ ] Select one or more nodes by dragging a selection box.
+- [ ] Select one or more nodes by dragging a selection box. (Deferred — selection box removed; multi-select via Shift+Click only.)
 - [x] Delete selected nodes and their attached edges with Delete or Backspace.
 - [ ] Copy and paste nodes and their connections.
 - [x] Undo and redo workflow edits with a bounded in-memory history.
-- [x] Pan the canvas, zoom with the mouse wheel, display a grid, and snap nodes to the grid.
-- [x] Create connections by dragging between ports with a rubber-band preview.
+- [x] Pan the canvas by left-dragging on empty canvas or middle-mouse dragging, zoom with the mouse wheel, display a grid, and snap nodes to the grid.
+- [x] Create connections by dragging between ports with a rubber-band preview (both edit and view modes).
 - [x] Reject self-connections, duplicate connections, connections into Start, and connections out of End.
 - [x] Render edges on top of nodes so connection lines remain visible when crossing over node bodies. Arrowheads draw last, above both edges and nodes.
-- [ ] Move edge attachment points (ports) around a node's border by clicking and dragging. Ports snap to four sides (top, right, bottom, left). Available in both Edit Mode and View Mode.
-- [ ] Select and delete an individual connection.
+- [x] Move edge attachment points (ports) around a node's border by clicking and dragging. Ports snap to four sides (top, right, bottom, left). Available in both Edit Mode and View Mode.
+- [x] Select and delete an individual connection (both edit and view modes).
 - [ ] Edit a connection label after creating it.
 - [ ] Configure or apply connection priority.
 - [x] Enforce at most one Start node in the toolbox and validate that exactly one Start exists.
 - [x] Allow multiple End nodes and warn when no End node exists.
-- [x] Toggle **Edit Mode** via a toolbar button; when enabled, the Components (toolbox) and Properties panels are hidden so the canvas occupies the full available width. Useful for viewing the entire workflow while it runs, especially with the chat window open on the right.
+- [x] Toggle **Edit Mode** via a toolbar button; when enabled, the Components (toolbox) and Properties panels are shown. When disabled (View Mode), panels are hidden so the canvas occupies the full available width. Canvas interactions (pan, node drag, edge creation, delete) work in both modes; undo/redo is the safety net.
 
 ## Node Configuration
 

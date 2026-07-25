@@ -292,7 +292,7 @@ describe('WorkflowValidator', () => {
         expect(startErrors.length).toBeGreaterThan(0);
     });
 
-    it('should warn if no End node', () => {
+    it('should error if no End node', () => {
         const workflow: Workflow = {
             name: 'no-end',
             nodes: [
@@ -301,8 +301,8 @@ describe('WorkflowValidator', () => {
             edges: []
         };
         const errors = validateWorkflow(workflow);
-        const endWarnings = errors.filter((e: any) => e.message.includes('End node'));
-        expect(endWarnings.length).toBeGreaterThan(0);
+        const endErrors = errors.filter((e: any) => e.message.includes('End node') && e.severity === 'error');
+        expect(endErrors.length).toBeGreaterThan(0);
     });
 
     it('should fail if edge references non-existent node', () => {

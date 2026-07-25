@@ -163,11 +163,12 @@ describe('Feature 2: Select and delete individual connections', () => {
         expect(designerContent).toMatch(/function\s+bezierPoint\s*\(/);
     });
 
-    it('should check for edge hit in onMouseDown when in edit mode', () => {
+    it('should check for edge hit in onMouseDown in both modes (no editMode gate)', () => {
         const onMouseDownBody = extractFunctionBody(designerContent, 'onMouseDown');
         expect(onMouseDownBody).not.toBeNull();
         expect(onMouseDownBody).toContain('hitTestEdges');
-        expect(onMouseDownBody).toContain('editMode');
+        // Edge selection should NOT be gated by editMode
+        expect(onMouseDownBody).not.toMatch(/if\s*\(\s*state\.editMode\s*\)\s*\{[\s\S]*hitTestEdges/);
     });
 
     it('should set selectedEdgeId when an edge is clicked', () => {
@@ -259,10 +260,10 @@ describe('Feature 3: Edit connection label after creating it', () => {
         expect(onDoubleClickBody).toContain('currentLabel');
     });
 
-    it('should guard onDoubleClick behind editMode flag', () => {
+    it('should NOT guard onDoubleClick behind editMode flag (label edit works in both modes)', () => {
         const onDoubleClickBody = extractFunctionBody(designerContent, 'onDoubleClick');
         expect(onDoubleClickBody).not.toBeNull();
-        expect(onDoubleClickBody).toMatch(/editMode.*return|return.*editMode/s);
+        expect(onDoubleClickBody).not.toMatch(/editMode.*return|return.*editMode/s);
     });
 
     it('should handle edgeLabelUpdate message in onMessage', () => {

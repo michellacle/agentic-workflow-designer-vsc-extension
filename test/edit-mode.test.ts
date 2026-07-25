@@ -2,16 +2,17 @@
  * Tests for the Edit Mode feature in the workflow designer.
  *
  * The workflow designer starts in view mode (edit mode OFF) by default.
- * Panels (toolbox and properties) are hidden, and the canvas is read-only.
- * The user can toggle Edit Mode ON to enable editing: panels appear,
- * nodes can be dragged, edges created, and nodes deleted.
+ * Panels (toolbox and properties) are hidden, and the canvas shows the workflow.
+ * The user can toggle Edit Mode ON to show panels: toolbox and properties appear.
+ * Canvas interactions (pan, node drag, edge creation, delete) work in both modes.
+ * Undo/redo is the safety net for accidental edits.
  *
  * These tests verify:
  * 1. Edit Mode button exists in the toolbar HTML template
  * 2. toggleEditMode function correctly toggles state and DOM classes
  * 3. CSS transitions and .hidden states are properly defined
  * 4. Product requirements document the feature
- * 5. Edit mode guards editing interactions (drag, drop, delete)
+ * 5. Edit mode controls panel visibility only (not canvas interactions)
  */
 
 import * as fs from 'fs';
@@ -446,29 +447,33 @@ describe('Task 6: Edge cases and robustness', () => {
         expect(initFn).toContain('applyInitialEditMode');
     });
 
-    it('should guard node dragging behind editMode flag in onMouseDown', () => {
+    it('should NOT guard node dragging behind editMode flag (dragging works in both modes)', () => {
         const fnBody = extractFunctionBody(designerContent, 'onMouseDown')!;
-        expect(fnBody).toContain('state.editMode');
+        // Node click should start dragging without editMode check
+        expect(fnBody).not.toMatch(/if\s*\(\s*state\.editMode\s*\)\s*\{[\s\S]*draggingNode/);
     });
 
-    it('should guard edge creation behind editMode flag in onMouseDown', () => {
+    it('should NOT guard edge creation behind editMode flag (edge creation works in both modes)', () => {
         const fnBody = extractFunctionBody(designerContent, 'onMouseDown')!;
-        // Creating edges (port hit test) should be guarded
-        expect(fnBody).toMatch(/editMode.*hitTestOutputPorts|hitTestOutputPorts.*editMode/s);
+        // hitTestOutputPorts should NOT be gated by editMode
+        expect(fnBody).not.toMatch(/if\s*\(\s*state\.editMode\s*\)\s*\{[\s\S]*hitTestOutputPorts/);
     });
 
-    it('should guard node deletion behind editMode flag in onKeyDown', () => {
+    it('should NOT guard node deletion behind editMode flag (delete works in both modes)', () => {
         const fnBody = extractFunctionBody(designerContent, 'onKeyDown')!;
-        expect(fnBody).toMatch(/editMode.*Delete|Delete.*editMode/s);
+        expect(fnBody).not.toMatch(/editMode.*Delete|Delete.*editMode/s);
     });
 
-    it('should guard toolbox drop behind editMode flag', () => {
-        // The drop handler on canvasContainer should check editMode
-        expect(designerContent).toMatch(/addEventListener\('drop'.*editMode/s);
+    it('should NOT guard toolbox drop behind editMode flag (drop works in both modes)', () => {
+        // The drop handler callback should NOT check editMode
+        // Extract the drop handler body and verify no editMode check
+        const dropMatch = designerContent.match(/addEventListener\('drop',\s*\(e\)\s*=>\s*\{([\s\S]*?)\n\s*\}\)/);
+        expect(dropMatch).not.toBeNull();
+        expect(dropMatch![1]).not.toContain('editMode');
     });
 
-    it('should guard node dragging behind editMode flag in onMouseMove', () => {
+    it('should NOT guard node dragging behind editMode flag in onMouseMove', () => {
         const fnBody = extractFunctionBody(designerContent, 'onMouseMove')!;
-        expect(fnBody).toMatch(/draggingNode.*editMode|editMode.*draggingNode/s);
+        expect(fnBody).not.toMatch(/draggingNode.*editMode|editMode.*draggingNode/s);
     });
 });

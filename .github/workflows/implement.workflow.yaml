@@ -3,15 +3,15 @@ nodes:
   - id: start_1
     type: start
     position:
-      x: 50
-      'y': 0
+      x: 80
+      'y': -150
     data:
       label: Start
   - id: agent_11
     type: agent
     position:
-      x: 270
-      'y': -10
+      x: 260
+      'y': -170
     data:
       agent: implementer
       prompt: ''
@@ -21,8 +21,8 @@ nodes:
   - id: agent_14
     type: agent
     position:
-      x: 280
-      'y': 130
+      x: 140
+      'y': 170
     data:
       agent: reviewer
       prompt: 'Review the implementer''s work. Return a JSON object with these fields: passed (boolean - true if the review passes, false otherwise), reason (string - detailed feedback on what needs improvement if failed, or summary of what passed), review_attempts (number - set to 1 if review_reason already exists in the workflow state indicating this is a retry, otherwise set to 0).'
@@ -39,8 +39,8 @@ nodes:
   - id: condition_19
     type: condition
     position:
-      x: 530
-      'y': 70
+      x: 280
+      'y': 20
     data:
       expression: state.review_passed === true || state.review_attempts >= 1
       description: Pass if review passed or already looped back once
@@ -145,22 +145,31 @@ nodes:
 edges:
   - source: agent_11
     target: agent_14
+    sourceSide: bottom
+    targetSide: top
   - source: agent_14
     target: condition_19
+    targetSide: bottom
   - source: condition_19
     target: agent_11
     label: 'False'
+    sourceSide: top
+    targetSide: bottom
   - source: condition_19
     target: agent_15
     label: 'True'
+    targetSide: top
   - source: agent_16
     target: end_17
   - source: start_1
     target: agent_11
   - source: agent_15
     target: agent_18
+    sourceSide: bottom
+    targetSide: top
   - source: agent_18
     target: agent_16
+    targetSide: top
   - source: process_21
     target: note_20
   - source: note_20
