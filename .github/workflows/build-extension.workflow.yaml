@@ -12,7 +12,7 @@ nodes:
       'y': 160
     data:
       agent: builder
-      prompt: ''
+      prompt: Build the extension
       model: qwen3.6-27b
       timeout: 300
       retries: 3

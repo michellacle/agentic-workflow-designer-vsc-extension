@@ -770,15 +770,34 @@
     }
 
     function drawCreatingEdge() {
-        const { sourceNodeId, currentX, currentY } = state.creatingEdge;
+        const { sourceNodeId, sourcePort, currentX, currentY } = state.creatingEdge;
         const sourceNode = state.workflow.nodes.find(n => n.id === sourceNodeId);
         if (!sourceNode) return;
 
         const config = NODE_CONFIGS[sourceNode.type];
-        const sx = sourceNode.position.x + (config ? config.width : 140);
-        const sy = sourceNode.position.y + (config ? config.height / 2 : 35);
+        const w = config ? config.width : 140;
+        const h = config ? config.height : 70;
+        let sx, sy;
 
-        ctx.strokeStyle = '#4CAF50';
+        // Use correct port position for condition node True/False ports
+        if (sourceNode.type === 'condition') {
+            if (sourcePort === 'true') {
+                sx = sourceNode.position.x + w;
+                sy = sourceNode.position.y + h / 2;
+            } else if (sourcePort === 'false') {
+                sx = sourceNode.position.x + w / 2;
+                sy = sourceNode.position.y + h;
+            } else {
+                sx = sourceNode.position.x + w;
+                sy = sourceNode.position.y + h / 2;
+            }
+        } else {
+            sx = sourceNode.position.x + w;
+            sy = sourceNode.position.y + h / 2;
+        }
+
+        const color = sourcePort === 'true' ? '#4CAF50' : sourcePort === 'false' ? '#f44336' : '#4CAF50';
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.beginPath();
@@ -789,7 +808,7 @@
 
         // Draw arrowhead at the current mouse position
         const angle = Math.atan2(currentY - sy, currentX - sx);
-        ctx.fillStyle = '#4CAF50';
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.moveTo(currentX, currentY);
         ctx.lineTo(currentX - 10 * Math.cos(angle - Math.PI / 6), currentY - 10 * Math.sin(angle - Math.PI / 6));
@@ -1024,11 +1043,18 @@
                         e => e.source === state.creatingEdge.sourceNodeId && e.target === portHit.nodeId
                     );
                     if (!exists) {
+                        // Determine sourceSide based on condition port
+                        let sourceSide = 'right';
+                        if (sourceNode.type === 'condition') {
+                            sourceSide = state.creatingEdge.sourcePort === 'true' ? 'right' : 'bottom';
+                        }
                         state.workflow.edges.push({
                             id: `${state.creatingEdge.sourceNodeId}->${portHit.nodeId}`,
                             source: state.creatingEdge.sourceNodeId,
                             target: portHit.nodeId,
-                            label: portHit.port === 'true' ? 'True' : portHit.port === 'false' ? 'False' : ''
+                            sourceSide,
+                            targetSide: 'left',
+                            label: state.creatingEdge.sourcePort === 'true' ? 'True' : state.creatingEdge.sourcePort === 'false' ? 'False' : ''
                         });
                         saveHistory();
                         notifyWorkflowUpdate();
@@ -1264,15 +1290,15 @@
 
             // Condition node special ports
             if (node.type === 'condition') {
-                // True port (top-right)
+                // True port (right vertex of diamond)
                 const dx1 = pos.x - (x + w);
-                const dy1 = pos.y - (y + 15);
+                const dy1 = pos.y - (y + h / 2);
                 if (dx1 * dx1 + dy1 * dy1 < 64) {
                     return { nodeId: node.id, port: 'true' };
                 }
-                // False port (bottom-right)
-                const dx2 = pos.x - (x + w);
-                const dy2 = pos.y - (y + h - 15);
+                // False port (bottom vertex of diamond)
+                const dx2 = pos.x - (x + w / 2);
+                const dy2 = pos.y - (y + h);
                 if (dx2 * dx2 + dy2 * dy2 < 64) {
                     return { nodeId: node.id, port: 'false' };
                 }
@@ -1293,15 +1319,15 @@
 
             // Condition node special output ports first
             if (node.type === 'condition') {
-                // True port (top-right)
+                // True port (right vertex of diamond)
                 const dx1 = pos.x - (x + w);
-                const dy1 = pos.y - (y + 15);
+                const dy1 = pos.y - (y + h / 2);
                 if (dx1 * dx1 + dy1 * dy1 < 64) {
                     return { nodeId: node.id, port: 'true' };
                 }
-                // False port (bottom-right)
-                const dx2 = pos.x - (x + w);
-                const dy2 = pos.y - (y + h - 15);
+                // False port (bottom vertex of diamond)
+                const dx2 = pos.x - (x + w / 2);
+                const dy2 = pos.y - (y + h);
                 if (dx2 * dx2 + dy2 * dy2 < 64) {
                     return { nodeId: node.id, port: 'false' };
                 }

@@ -10,14 +10,15 @@ nodes:
   - id: end_2
     type: end
     position:
-      x: 110
-      'y': 270
+      x: 90
+      'y': 350
     data:
       label: End
+      summary: true
   - id: agent_3
     type: agent
     position:
-      x: 80
+      x: 70
       'y': 90
     data:
       agent: general
@@ -26,5 +27,23 @@ nodes:
       model: qwen3.6-27b
       timeout: 120
       retries: 0
-edges: []
+  - id: condition_4
+    type: condition
+    position:
+      x: 70
+      'y': 230
+    data:
+      prompt: |-
+        Build success?
+
+        If build fails return false, true otherwise. Build fails if there are lint error, compile errors, test failures.
+edges:
+  - source: agent_3
+    target: condition_4
+    sourceSide: bottom
+    targetSide: top
+  - source: start_1
+    target: agent_3
+    sourceSide: bottom
+    targetSide: top
 description: A new workflow

@@ -593,6 +593,45 @@ describe('UI regression suite', () => {
         expect(conditionCaseBody).toMatch(/propertyField\(\s*['"]Model['"]/);
         expect(conditionCaseBody).toMatch(/propertyField\(\s*['"]Prompt['"]/);
     });
+
+    it('regression: condition node port hit test positions match drawn port positions', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Extract hitTestOutputPorts function
+        const fnStart = designerSource.indexOf('function hitTestOutputPorts');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\n    function ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        // True port hit test should be at right vertex (x + w, y + h / 2)
+        expect(fnBody).toMatch(/node\.type\s*===\s*'condition'/);
+        expect(fnBody).toMatch(/x\s*\+\s*w[\s\S]*?y\s*\+\s*h\s*\/\s*2/);
+
+        // False port hit test should be at bottom vertex (x + w / 2, y + h)
+        expect(fnBody).toMatch(/x\s*\+\s*w\s*\/\s*2[\s\S]*?y\s*\+\s*h/);
+
+        // Should NOT use the old wrong positions (y + 15, y + h - 15)
+        expect(fnBody).not.toMatch(/y\s*\+\s*15/);
+        expect(fnBody).not.toMatch(/y\s*\+\s*h\s*-\s*15/);
+    });
+
+    it('regression: drawCreatingEdge uses correct port position for condition nodes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Extract drawCreatingEdge function
+        const fnStart = designerSource.indexOf('function drawCreatingEdge');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\n    function ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        // Should check sourcePort for true/false
+        expect(fnBody).toMatch(/sourcePort/);
+        expect(fnBody).toMatch(/===\s*'true'/);
+        expect(fnBody).toMatch(/===\s*'false'/);
+
+        // Should use different positions for true (right) vs false (bottom)
+        expect(fnBody).toMatch(/x\s*\+\s*w\s*\//); // bottom vertex for false
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {
