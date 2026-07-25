@@ -27,7 +27,9 @@ export function registerWorkflowChatParticipant(
         // Build chat context from the request
         const chatContext = {
             prompt: request.prompt,
-            references: request.references as any
+            references: Array.isArray(request.references)
+                ? request.references.map(r => ({ documentUri: (r as { documentUri?: string }).documentUri }))
+                : []
         };
 
         // Auto-discover workflow file if not already loaded by the designer
@@ -48,7 +50,9 @@ export function registerWorkflowChatParticipant(
             reportProgress: message => stream.progress(message)
         }, {
             prompt: request.prompt,
-            references: request.references as any
+            references: Array.isArray(request.references)
+                ? request.references.map(r => ({ documentUri: (r as { documentUri?: string }).documentUri }))
+                : []
         });
 
         switch (status) {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { NodeExecutionRecord, ExecutionStatus, WorkflowState } from '../models/workflow';
+import { NodeExecutionRecord, WorkflowState } from '../models/workflow';
 
 /**
  * Execution Details Panel - shows node execution details
@@ -174,7 +174,7 @@ export class ExecutionDetailsPanel {
 </html>`;
     }
 
-    private _getTimelineHtml(records: Map<string, NodeExecutionRecord>, state: WorkflowState): string {
+    private _getTimelineHtml(records: Map<string, NodeExecutionRecord>, _state: WorkflowState): string {
         const entries = Array.from(records.entries());
         const maxDuration = Math.max(...entries.map(([, r]) => r.duration || 0), 1);
 

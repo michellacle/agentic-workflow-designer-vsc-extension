@@ -102,7 +102,7 @@ export class WorkflowRuntime implements vscode.Disposable {
                     if (uriStr.endsWith('.workflow.yaml')) {
                         const fileUri = typeof uri === 'string' ? vscode.Uri.parse(uri) : uri;
                         const loaded = await this.loadWorkflowFromFile(fileUri);
-                        if (loaded) return true;
+                        if (loaded) {return true;}
                     }
                 }
             }

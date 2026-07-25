@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ExecutionContext, ExecutionStatus, NodeExecutionRecord } from '../models/workflow';
+import { ExecutionStatus, NodeExecutionRecord } from '../models/workflow';
 
 /**
  * Stores and manages workflow execution history
@@ -64,7 +64,7 @@ export class RunHistoryManager {
      */
     exportRunLogs(runIndex: number): string {
         const run = this._history[runIndex];
-        if (!run) return '';
+        if (!run) {return '';}
 
         const lines: string[] = [];
         lines.push(`Workflow Run #${runIndex + 1}`);

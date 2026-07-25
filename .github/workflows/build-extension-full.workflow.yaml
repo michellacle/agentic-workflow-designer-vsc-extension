@@ -1,0 +1,30 @@
+name: build-extension-full
+nodes:
+  - id: start_1
+    type: start
+    position:
+      x: 80
+      'y': 10
+    data:
+      label: Start
+  - id: end_2
+    type: end
+    position:
+      x: 110
+      'y': 270
+    data:
+      label: End
+  - id: agent_3
+    type: agent
+    position:
+      x: 80
+      'y': 90
+    data:
+      agent: general
+      prompt: build
+      description: build
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 0
+edges: []
+description: A new workflow

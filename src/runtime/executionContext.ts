@@ -6,6 +6,8 @@
  * The actual VS Code types are adapted in WorkflowRuntime / AgentInvoker.
  */
 
+import { NodeExecutionRecord } from '../models/workflow';
+
 export interface CopilotSubagentExecutionContext {
     /** VS Code ChatParticipantToolToken — required by runSubagent. Kept as unknown for testability. */
     toolInvocationToken: unknown;
@@ -33,7 +35,7 @@ export interface IAgentInvoker {
         timeout: number,
         modelHint: string | undefined,
         executionContext: CopilotSubagentExecutionContext,
-        record?: any,
+        record?: NodeExecutionRecord,
         onLog?: (message: string) => void,
         onProgress?: (message: string) => void,
         stateWrites?: Array<{ source: string; target: string }>

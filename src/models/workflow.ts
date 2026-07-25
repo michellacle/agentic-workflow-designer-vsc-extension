@@ -87,11 +87,11 @@ export interface AgentNodeData {
 }
 
 /**
- * Condition node data - evaluates workflow state
+ * Condition node data - agent-driven condition evaluation
  */
 export interface ConditionNodeData {
-    expression: string;   // e.g., "state.tests_passed === true"
-    description?: string;
+    prompt?: string;      // reasoning instructions for the condition agent
+    model?: string;       // model hint, e.g. "gpt-4o", "claude-sonnet-4-20250514"
 }
 
 /**

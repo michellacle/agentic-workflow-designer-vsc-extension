@@ -4,14 +4,42 @@ import {
     NodeData, StartNodeData, EndNodeData,
     AgentNodeData, ConditionNodeData,
     HumanApprovalNodeData, DelayNodeData, LoopNodeData,
-    NoteNodeData, ProcessNodeData, DecisionNodeData
+    NoteNodeData, ProcessNodeData, DecisionNodeData,
+    PortSide
 } from '../models/workflow';
+
+/** Plain-object shape for YAML serialization of a workflow. */
+interface YamlWorkflowObject {
+    name: string;
+    description?: string;
+    state?: Record<string, unknown>;
+    nodes: YamlNodeObject[];
+    edges: YamlEdgeObject[];
+}
+
+/** Plain-object shape for a single node in YAML. */
+interface YamlNodeObject {
+    id: string;
+    type: string;
+    position: { x: number; y: number };
+    data?: Record<string, unknown>;
+}
+
+/** Plain-object shape for a single edge in YAML. */
+interface YamlEdgeObject {
+    source: string;
+    target: string;
+    label?: string;
+    priority?: number;
+    sourceSide?: PortSide;
+    targetSide?: PortSide;
+}
 
 /**
  * Serialize a Workflow object to YAML string
  */
 export function workflowToYaml(workflow: Workflow): string {
-    const yamlObj: any = {
+    const yamlObj: YamlWorkflowObject = {
         name: workflow.name,
         nodes: [],
         edges: []
@@ -22,7 +50,7 @@ export function workflowToYaml(workflow: Workflow): string {
     }
 
     for (const node of workflow.nodes) {
-        const nodeObj: any = {
+        const nodeObj: YamlNodeObject = {
             id: node.id,
             type: node.type,
             position: { x: node.position.x, y: node.position.y }
@@ -56,8 +84,8 @@ export function workflowToYaml(workflow: Workflow): string {
             case NodeType.Condition:
                 const condData = node.data as ConditionNodeData;
                 nodeObj.data = {
-                    expression: condData.expression,
-                    description: condData.description
+                    prompt: condData.prompt,
+                    model: condData.model
                 };
                 break;
             case NodeType.HumanApproval:
@@ -110,14 +138,22 @@ export function workflowToYaml(workflow: Workflow): string {
     }
 
     for (const edge of workflow.edges) {
-        const edgeObj: any = {
+        const edgeObj: YamlEdgeObject = {
             source: edge.source,
             target: edge.target
         };
-        if (edge.label) edgeObj.label = edge.label;
-        if (edge.priority !== undefined) edgeObj.priority = edge.priority;
-        if (edge.sourceSide) edgeObj.sourceSide = edge.sourceSide;
-        if (edge.targetSide) edgeObj.targetSide = edge.targetSide;
+        if (edge.label) {
+            edgeObj.label = edge.label;
+        }
+        if (edge.priority !== undefined) {
+            edgeObj.priority = edge.priority;
+        }
+        if (edge.sourceSide) {
+            edgeObj.sourceSide = edge.sourceSide;
+        }
+        if (edge.targetSide) {
+            edgeObj.targetSide = edge.targetSide;
+        }
         yamlObj.edges.push(edgeObj);
     }
 
@@ -132,7 +168,7 @@ export function workflowToYaml(workflow: Workflow): string {
  * Parse a YAML string into a Workflow object
  */
 export function yamlToWorkflow(yamlStr: string): Workflow {
-    const obj: any = yaml.load(yamlStr);
+    const obj: YamlWorkflowObject = yaml.load(yamlStr) as YamlWorkflowObject;
     const workflow: Workflow = {
         name: obj.name || 'untitled-workflow',
         description: obj.description,
@@ -171,7 +207,7 @@ export function yamlToWorkflow(yamlStr: string): Workflow {
     return workflow;
 }
 
-function parseNodeData(type: NodeType, raw: any): NodeData {
+function parseNodeData(type: NodeType, raw: Record<string, unknown>): NodeData {
     switch (type) {
         case NodeType.Start:
             return { label: raw.label } as StartNodeData;
@@ -189,8 +225,8 @@ function parseNodeData(type: NodeType, raw: any): NodeData {
             } as AgentNodeData;
         case NodeType.Condition:
             return {
-                expression: raw.expression || '',
-                description: raw.description
+                prompt: raw.prompt,
+                model: raw.model
             } as ConditionNodeData;
         case NodeType.HumanApproval:
             return {

@@ -355,7 +355,7 @@ describe('Approval Node: Combined with Conditions', () => {
                     id: 'condition',
                     type: NodeType.Condition,
                     position: { x: 200, y: 0 },
-                    data: { expression: 'state.approval_approved === true' } as ConditionNodeData
+                    data: { prompt: 'Check if approved' } as ConditionNodeData
                 },
                 { id: 'proceed', type: NodeType.Delay, position: { x: 300, y: -50 }, data: { duration: 0 } as DelayNodeData },
                 { id: 'stop', type: NodeType.Delay, position: { x: 300, y: 50 }, data: { duration: 0 } as DelayNodeData },
@@ -384,7 +384,7 @@ describe('Approval Node: Combined with Conditions', () => {
                     id: 'condition',
                     type: NodeType.Condition,
                     position: { x: 100, y: 0 },
-                    data: { expression: 'state.requires_approval === true' } as ConditionNodeData
+                    data: { prompt: 'Check if approval required' } as ConditionNodeData
                 },
                 {
                     id: 'approval',

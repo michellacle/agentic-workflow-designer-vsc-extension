@@ -58,7 +58,7 @@ describe('Branch Routing', () => {
                     id: 'condition',
                     type: NodeType.Condition,
                     position: { x: 100, y: 0 },
-                    data: { expression: 'state.should_branch === true' } as ConditionNodeData
+                    data: { prompt: 'Should branch?' } as ConditionNodeData
                 },
                 { id: 'true_node', type: NodeType.Delay, position: { x: 200, y: -50 }, data: { duration: 0 } as DelayNodeData },
                 { id: 'false_node', type: NodeType.Delay, position: { x: 200, y: 50 }, data: { duration: 0 } as DelayNodeData },
@@ -108,7 +108,7 @@ describe('Branch Routing', () => {
                     id: 'condition',
                     type: NodeType.Condition,
                     position: { x: 100, y: 0 },
-                    data: { expression: 'state.tests_passed === true' } as ConditionNodeData
+                    data: { prompt: 'Did tests pass?' } as ConditionNodeData
                 },
                 { id: 'pass_node', type: NodeType.Delay, position: { x: 200, y: -50 }, data: { duration: 0 } as DelayNodeData },
                 { id: 'fail_node', type: NodeType.Delay, position: { x: 200, y: 50 }, data: { duration: 0 } as DelayNodeData },
@@ -134,13 +134,13 @@ describe('Branch Routing', () => {
                     id: 'cond_a',
                     type: NodeType.Condition,
                     position: { x: 100, y: -50 },
-                    data: { expression: 'state.a === true' } as ConditionNodeData
+                    data: { prompt: 'Check A' } as ConditionNodeData
                 },
                 {
                     id: 'cond_b',
                     type: NodeType.Condition,
                     position: { x: 100, y: 50 },
-                    data: { expression: 'state.b === true' } as ConditionNodeData
+                    data: { prompt: 'Check B' } as ConditionNodeData
                 },
                 { id: 'end', type: NodeType.End, position: { x: 300, y: 0 }, data: {} }
             ],
@@ -158,33 +158,16 @@ describe('Branch Routing', () => {
     // ---- Edge label matching tests ----
 
     describe('Edge label matching', () => {
-        let ConditionEvaluator: any;
-
-        beforeAll(async () => {
-            const mod = await import('../src/runtime/conditionEvaluator');
-            ConditionEvaluator = mod.ConditionEvaluator;
-        });
-
         it('should match "True" label for true branch', () => {
             const workflow = createBranchWorkflow();
-            const conditionNode = workflow.nodes.find(n => n.id === 'condition')!;
-            const data = conditionNode.data as ConditionNodeData;
-            const result = ConditionEvaluator.evaluate(data.expression, { should_branch: true });
-
-            expect(result).toBe(true);
-            // Edge with label "True" should be taken
+            // Edge with label "True" should exist
             const trueEdge = workflow.edges.find(e => e.source === 'condition' && e.label === 'True');
             expect(trueEdge).toBeDefined();
         });
 
         it('should match "False" label for false branch', () => {
             const workflow = createBranchWorkflow();
-            const conditionNode = workflow.nodes.find(n => n.id === 'condition')!;
-            const data = conditionNode.data as ConditionNodeData;
-            const result = ConditionEvaluator.evaluate(data.expression, { should_branch: false });
-
-            expect(result).toBe(false);
-            // Edge with label "False" should be taken
+            // Edge with label "False" should exist
             const falseEdge = workflow.edges.find(e => e.source === 'condition' && e.label === 'False');
             expect(falseEdge).toBeDefined();
         });
@@ -317,13 +300,13 @@ describe('Branch Routing', () => {
                         id: 'outer_cond',
                         type: NodeType.Condition,
                         position: { x: 100, y: 0 },
-                        data: { expression: 'state.outer === true' } as ConditionNodeData
+                        data: { prompt: 'Check outer' } as ConditionNodeData
                     },
                     {
                         id: 'inner_cond',
                         type: NodeType.Condition,
                         position: { x: 200, y: -50 },
-                        data: { expression: 'state.inner === true' } as ConditionNodeData
+                        data: { prompt: 'Check inner' } as ConditionNodeData
                     },
                     { id: 'inner_true', type: NodeType.Delay, position: { x: 300, y: -100 }, data: { duration: 0 } as DelayNodeData },
                     { id: 'inner_false', type: NodeType.Delay, position: { x: 300, y: 0 }, data: { duration: 0 } as DelayNodeData },

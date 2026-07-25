@@ -1,4 +1,4 @@
-import { Workflow, Node, Edge, NodeType, LoopNodeData, isAnnotationNode } from '../models/workflow';
+import { Workflow, NodeType, LoopNodeData, AgentNodeData, ConditionNodeData, isAnnotationNode } from '../models/workflow';
 
 export interface ValidationError {
     node?: string;
@@ -61,7 +61,9 @@ export function validateWorkflow(workflow: Workflow): ValidationError[] {
         connectedNodes.add(edge.target);
     }
     for (const node of workflow.nodes) {
-        if (isAnnotationNode(node.type)) continue;
+        if (isAnnotationNode(node.type)) {
+            continue;
+        }
         if (!connectedNodes.has(node.id) && node.type !== NodeType.Start && node.type !== NodeType.End) {
             errors.push({ node: node.id, message: `Node '${node.id}' is not connected to any other node`, severity: 'warning' });
         }
@@ -70,15 +72,15 @@ export function validateWorkflow(workflow: Workflow): ValidationError[] {
     // Check Agent node data
     for (const node of workflow.nodes) {
         if (node.type === NodeType.Agent) {
-            const agentData = node.data as any;
+            const agentData = node.data as AgentNodeData;
             if (!agentData.agent) {
                 errors.push({ node: node.id, message: `Agent node '${node.id}' has no agent configured`, severity: 'error' });
             }
         }
         if (node.type === NodeType.Condition) {
-            const condData = node.data as any;
-            if (!condData.expression) {
-                errors.push({ node: node.id, message: `Condition node '${node.id}' has no expression`, severity: 'error' });
+            const condData = node.data as ConditionNodeData;
+            if (!condData.prompt) {
+                errors.push({ node: node.id, message: `Condition node '${node.id}' has no prompt`, severity: 'error' });
             }
         }
         if (node.type === NodeType.Loop) {
@@ -133,7 +135,7 @@ export function detectCycles(workflow: Workflow): boolean {
 
         for (const neighbor of adj.get(nodeId) || []) {
             if (!visited.has(neighbor)) {
-                if (hasCycleFrom(neighbor)) return true;
+                if (hasCycleFrom(neighbor)) {return true;}
             } else if (recStack.has(neighbor)) {
                 return true;
             }
@@ -145,7 +147,7 @@ export function detectCycles(workflow: Workflow): boolean {
 
     for (const node of workflow.nodes) {
         if (!visited.has(node.id)) {
-            if (hasCycleFrom(node.id)) return true;
+            if (hasCycleFrom(node.id)) {return true;}
         }
     }
 

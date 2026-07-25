@@ -459,9 +459,10 @@ describe('Task 6: Edge cases and robustness', () => {
         expect(fnBody).not.toMatch(/if\s*\(\s*state\.editMode\s*\)\s*\{[\s\S]*hitTestOutputPorts/);
     });
 
-    it('should NOT guard node deletion behind editMode flag (delete works in both modes)', () => {
+    it('should guard node deletion behind editMode flag (delete only works in edit mode)', () => {
         const fnBody = extractFunctionBody(designerContent, 'onKeyDown')!;
-        expect(fnBody).not.toMatch(/editMode.*Delete|Delete.*editMode/s);
+        // Delete/Backspace should be gated by editMode to prevent accidental deletion in view mode
+        expect(fnBody).toMatch(/editMode.*Delete|Delete.*editMode/s);
     });
 
     it('should NOT guard toolbox drop behind editMode flag (drop works in both modes)', () => {
@@ -472,8 +473,9 @@ describe('Task 6: Edge cases and robustness', () => {
         expect(dropMatch![1]).not.toContain('editMode');
     });
 
-    it('should NOT guard node dragging behind editMode flag in onMouseMove', () => {
+    it('should guard node dragging behind editMode flag in onMouseMove', () => {
         const fnBody = extractFunctionBody(designerContent, 'onMouseMove')!;
-        expect(fnBody).not.toMatch(/draggingNode.*editMode|editMode.*draggingNode/s);
+        // Node dragging should be gated by editMode to prevent accidental layout changes in view mode
+        expect(fnBody).toMatch(/draggingNode.*editMode|editMode.*draggingNode/s);
     });
 });

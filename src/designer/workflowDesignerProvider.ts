@@ -112,13 +112,13 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
                     await vscode.commands.executeCommand('workflowDesigner.runWorkflow');
                     break;
                 case 'pause':
-                    if (this.runtime) this.runtime.pause();
+                    if (this.runtime) {this.runtime.pause();}
                     break;
                 case 'stop':
-                    if (this.runtime) this.runtime.stop();
+                    if (this.runtime) {this.runtime.stop();}
                     break;
                 case 'resume':
-                    if (this.runtime) this.runtime.resume();
+                    if (this.runtime) {this.runtime.resume();}
                     break;
                 case 'nodeSelected':
                     // Could open details panel
@@ -176,21 +176,21 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
         });
     }
 
-    async saveCustomDocument(document: WorkflowDocument, cancellation: vscode.CancellationToken): Promise<void> {
+    async saveCustomDocument(document: WorkflowDocument, _cancellation: vscode.CancellationToken): Promise<void> {
         await document.save();
         // Publish validation diagnostics on save
         publishValidationDiagnostics(this.diagnosticsCollection, document.uri, document.workflow);
     }
 
-    async saveCustomDocumentAs(document: WorkflowDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+    async saveCustomDocumentAs(document: WorkflowDocument, destination: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<void> {
         await document.saveAs(destination);
     }
 
-    async revertCustomDocument(document: WorkflowDocument, cancellation: vscode.CancellationToken): Promise<void> {
+    async revertCustomDocument(document: WorkflowDocument, _cancellation: vscode.CancellationToken): Promise<void> {
         await document.load();
     }
 
-    async backupCustomDocument(document: WorkflowDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
+    async backupCustomDocument(document: WorkflowDocument, context: vscode.CustomDocumentBackupContext, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
         await document.backup(context.destination);
         return {
             id: context.destination.fsPath,
@@ -275,7 +275,7 @@ export class WorkflowDesignerProvider implements vscode.CustomEditorProvider<Wor
 </html>`;
     }
 
-    private postMessage(webview: vscode.Webview, message: any) {
+    private postMessage(webview: vscode.Webview, message: unknown) {
         webview.postMessage(message);
     }
 
@@ -304,7 +304,9 @@ function publishValidationDiagnostics(
     uri: vscode.Uri,
     workflow: Workflow
 ): void {
-    if (!collection) return;
+    if (!collection) {
+        return;
+    }
 
     const errors = validateWorkflow(workflow);
     const diagnostics: vscode.Diagnostic[] = [];

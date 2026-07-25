@@ -19,7 +19,7 @@ export class WorkflowExplorerProvider implements vscode.TreeDataProvider<Workflo
 
     getChildren(element?: WorkflowTreeItem): Thenable<WorkflowTreeItem[]> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) return Promise.resolve([]);
+        if (!workspaceFolders) {return Promise.resolve([]);}
 
         // If element is a workspace folder, show workflow files
         if (element && element.kind === 'folder') {

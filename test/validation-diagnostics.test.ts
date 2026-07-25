@@ -84,7 +84,7 @@ describe('Validation error structure', () => {
         expect(agentErrors[0].message).toContain('agent');
     });
 
-    it('should return errors for Condition node without expression', () => {
+    it('should return errors for Condition node without prompt', () => {
         const workflow: Workflow = {
             name: 'bad-condition',
             nodes: [

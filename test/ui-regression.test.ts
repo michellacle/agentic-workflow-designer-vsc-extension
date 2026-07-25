@@ -304,7 +304,7 @@ describe('UI regression suite', () => {
                     { id: 'start_1', type: 'start', position: { x: 50, y: 50 }, data: { label: 'Start' } },
                     { id: 'agent_impl', type: 'agent', position: { x: 240, y: 50 }, data: { agent: 'implementer' } },
                     { id: 'agent_rev', type: 'agent', position: { x: 240, y: 180 }, data: { agent: 'reviewer' } },
-                    { id: 'condition_1', type: 'condition', position: { x: 240, y: 310 }, data: { expression: 'state.review_passed === true' } },
+                    { id: 'condition_1', type: 'condition', position: { x: 240, y: 310 }, data: { prompt: 'Check if review passed' } },
                     { id: 'end_1', type: 'end', position: { x: 430, y: 310 }, data: { label: 'End' } },
                 ],
                 edges: [
@@ -433,10 +433,10 @@ describe('UI regression suite', () => {
         expect(mouseDownBody).toMatch(/state\.panning\s*=\s*true/);
     });
 
-    it('regression: node dragging works in both edit and view modes', () => {
+    it('regression: node dragging only works in edit mode, not view mode', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
-        // In onMouseMove, node dragging should NOT be gated by editMode
+        // In onMouseMove, node dragging should be gated by editMode to prevent accidental layout changes
         const mouseMoveBody = ((): string | null => {
             const fnStart = designerSource.indexOf('function onMouseMove(e)');
             if (fnStart < 0) return null;
@@ -452,19 +452,15 @@ describe('UI regression suite', () => {
         })();
         expect(mouseMoveBody).not.toBeNull();
 
-        // Should NOT have editMode gate on dragging node
-        expect(mouseMoveBody).not.toMatch(/draggingNode\s+&&\s+state\.editMode/);
-        // Should have draggingNode check without editMode
-        expect(mouseMoveBody).toMatch(/if\s*\(\s*state\.draggingNode\s*\)/);
+        // Should have editMode gate on dragging node
+        expect(mouseMoveBody).toMatch(/draggingNode\s+&&\s+state\.editMode/);
     });
 
-    it('regression: delete key works in both edit and view modes', () => {
+    it('regression: delete key only works in edit mode, not view mode', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
-        // Delete/Backspace should NOT be gated by editMode
-        expect(designerSource).not.toMatch(/Delete.*Backspace.*editMode/);
-        // Should have delete without editMode check
-        expect(designerSource).toMatch(/if\s*\(\s*e\.key\s*===\s*'Delete'\s*\|\|\s*e\.key\s*===\s*'Backspace'\s*\)/);
+        // Delete/Backspace should be gated by editMode to prevent accidental deletion in view mode
+        expect(designerSource).toMatch(/editMode.*Delete.*Backspace|state\.editMode.*Delete/);
     });
 
     it('regression: edge creation works in both edit and view modes', () => {
@@ -527,4 +523,85 @@ describe('UI regression suite', () => {
         expect(designerSource).not.toMatch(/nodesInRect/);
         expect(designerSource).not.toMatch(/drawSelectionBox/);
     });
+
+    it('regression: agent and condition nodes show prompt first line on canvas', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // getPromptFirstLine function should exist
+        expect(designerSource).toMatch(/getPromptFirstLine/);
+
+        // Agent node rendering should use getPromptFirstLine for sub-labels
+        expect(designerSource).toMatch(/case\s+'agent':[\s\S]*?getPromptFirstLine/);
+
+        // Condition node rendering should use getPromptFirstLine for sub-labels
+        expect(designerSource).toMatch(/case\s+'condition':[\s\S]*?getPromptFirstLine/);
+    });
+
+    it('regression: description field removed from properties panel for all node types', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Find the updatePropertiesPanel function body
+        const fnStart = designerSource.indexOf('function updatePropertiesPanel');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\nfunction ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        // Extract each node type's case from the properties panel switch
+        const agentCase = _extractCaseBody(fnBody, "'agent'");
+        expect(agentCase).not.toBeNull();
+        expect(agentCase).not.toMatch(/propertyField\(\s*['"]Description['"]/);
+
+        const conditionCase = _extractCaseBody(fnBody, "'condition'");
+        expect(conditionCase).not.toBeNull();
+        expect(conditionCase).not.toMatch(/propertyField\(\s*['"]Description['"]/);
+
+        const approvalCase = _extractCaseBody(fnBody, "'human_approval'");
+        expect(approvalCase).not.toBeNull();
+        expect(approvalCase).not.toMatch(/propertyField\(\s*['"]Description['"]/);
+
+        const delayCase = _extractCaseBody(fnBody, "'delay'");
+        expect(delayCase).not.toBeNull();
+        expect(delayCase).not.toMatch(/propertyField\(\s*['"]Description['"]/);
+
+        const noteCase = _extractCaseBody(fnBody, "'note'");
+        expect(noteCase).not.toBeNull();
+        expect(noteCase).not.toMatch(/propertyField\(\s*['"]Description['"]/);
+
+        const processCase = _extractCaseBody(fnBody, "'process'");
+        expect(processCase).not.toBeNull();
+        expect(processCase).not.toMatch(/propertyField\(\s*['"]Description['"]/);
+    });
+
+    it('regression: condition nodes use agent-driven evaluation (no expression field)', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // The updatePropertiesPanel switch should have condition case with Model + Prompt
+        // Find the updatePropertiesPanel function and check its condition case
+        const fnStart = designerSource.indexOf('function updatePropertiesPanel');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\nfunction ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        // Condition case in properties panel should have Model + Prompt
+        const conditionCase = fnBody.substring(
+            fnBody.indexOf("case 'condition':")
+        );
+        const nextCaseIdx = conditionCase.indexOf("case '", 1);
+        const conditionCaseBody = nextCaseIdx > 0 ? conditionCase.substring(0, nextCaseIdx) : conditionCase;
+
+        expect(conditionCaseBody).not.toMatch(/propertyField\(\s*['"]Expression['"]/);
+        expect(conditionCaseBody).toMatch(/propertyField\(\s*['"]Model['"]/);
+        expect(conditionCaseBody).toMatch(/propertyField\(\s*['"]Prompt['"]/);
+    });
 });
+
+function _extractCaseBody(source: string, caseLabel: string): string | null {
+    const idx = source.indexOf('case ' + caseLabel + ':');
+    if (idx < 0) return null;
+    const nextCase = source.indexOf('case ', idx + 1);
+    const defaultCase = source.indexOf('default:', idx + 1);
+    const breakEnd = source.indexOf('break;', idx + 1);
+    const candidates = [nextCase, defaultCase, breakEnd].filter(n => n > idx + 1);
+    const end = candidates.length > 0 ? Math.min(...candidates) : source.length;
+    return source.substring(idx, end);
+}

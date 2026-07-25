@@ -40,7 +40,7 @@ function createBranchWorkflow(): Workflow {
                 id: 'condition',
                 type: NodeType.Condition,
                 position: { x: 100, y: 0 },
-                data: { expression: 'state.passed === true' } as ConditionNodeData,
+                data: { prompt: 'Check if tests passed' } as ConditionNodeData,
             },
             { id: 'trueNode', type: NodeType.Delay, position: { x: 200, y: -50 }, data: { duration: 0 } as DelayNodeData },
             { id: 'falseNode', type: NodeType.Delay, position: { x: 200, y: 50 }, data: { duration: 0 } as DelayNodeData },
@@ -172,65 +172,86 @@ describe('WorkflowExecutor integration', () => {
     });
 
     describe('branch routing', () => {
-        it('should take the true branch when condition evaluates to true', async () => {
-            // Set state before execution so condition evaluates to true
+        it('should take a branch when condition agent returns true', async () => {
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'true' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
             const workflow = createBranchWorkflow();
-            const status = await executor.run({
+            const status = await mockExecutor.run({
                 workflow,
                 executionContext: createMockExecutionContext(),
                 workspaceRoot: '/tmp',
             });
 
             expect(status).toBe(ExecutionStatus.Completed);
-
-            // Check that trueNode was executed and falseNode was skipped
-            const ctx = executor.getExecutionContext();
+            const ctx = mockExecutor.getExecutionContext();
             const trueRecord = ctx.nodeRecords.get('trueNode');
             const falseRecord = ctx.nodeRecords.get('falseNode');
-
-            // Condition evaluates state.passed === true, but state.passed is undefined,
-            // so it evaluates to false. falseNode should be taken.
-            expect(falseRecord?.status).toBe(NodeStatus.Completed);
-            expect(trueRecord?.status).toBe(NodeStatus.Skipped);
+            expect(trueRecord?.status).toBe(NodeStatus.Completed);
+            expect(falseRecord?.status).toBe(NodeStatus.Skipped);
         });
 
-        it('should take the false branch when condition evaluates to false', async () => {
+        it('should take the false branch when condition agent returns false', async () => {
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'false' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
             const workflow = createBranchWorkflow();
-            await executor.run({
+            await mockExecutor.run({
                 workflow,
                 executionContext: createMockExecutionContext(),
                 workspaceRoot: '/tmp',
             });
 
-            const ctx = executor.getExecutionContext();
+            const ctx = mockExecutor.getExecutionContext();
             const falseRecord = ctx.nodeRecords.get('falseNode');
             expect(falseRecord?.status).toBe(NodeStatus.Completed);
         });
 
         it('should mark untaken branch nodes as Skipped (but UI never shows gray)', async () => {
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'true' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
             const workflow = createBranchWorkflow();
-            await executor.run({
+            await mockExecutor.run({
                 workflow,
                 executionContext: createMockExecutionContext(),
                 workspaceRoot: '/tmp',
             });
 
-            const ctx = executor.getExecutionContext();
+            const ctx = mockExecutor.getExecutionContext();
+            // When condition returns true, trueNode is taken (Completed) and falseNode is Skipped
             const trueRecord = ctx.nodeRecords.get('trueNode');
+            const falseRecord = ctx.nodeRecords.get('falseNode');
+            expect(trueRecord?.status).toBe(NodeStatus.Completed);
             // Internally marked as Skipped for record-keeping, but UI renders them
             // with their default type color (never gray)
-            expect(trueRecord?.status).toBe(NodeStatus.Skipped);
+            expect(falseRecord?.status).toBe(NodeStatus.Skipped);
         });
 
         it('should log branch decisions in node records', async () => {
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'true' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
             const workflow = createBranchWorkflow();
-            await executor.run({
+            await mockExecutor.run({
                 workflow,
                 executionContext: createMockExecutionContext(),
                 workspaceRoot: '/tmp',
             });
 
-            const ctx = executor.getExecutionContext();
+            const ctx = mockExecutor.getExecutionContext();
             const conditionRecord = ctx.nodeRecords.get('condition');
             expect(conditionRecord?.logs).toBeDefined();
             const logText = conditionRecord!.logs!.join('\n');

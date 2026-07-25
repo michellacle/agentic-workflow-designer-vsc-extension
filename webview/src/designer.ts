@@ -222,8 +222,6 @@
 
     // ===== Initialization =====
     function init() {
-        console.log('[Designer] init() called');
-
         // Resolve VS Code theme colors
         resolveThemeColors();
 
@@ -281,9 +279,7 @@
     // ===== Canvas Resize =====
     function resizeCanvas() {
         const rect = canvasContainer.getBoundingClientRect();
-        console.log('[Designer] resizeCanvas:', rect.width, 'x', rect.height);
         if (rect.width === 0 || rect.height === 0) {
-            console.warn('[Designer] Container has zero dimensions, skipping resize');
             return;
         }
         canvas.width = rect.width * window.devicePixelRatio;
@@ -292,7 +288,6 @@
         canvas.style.height = rect.height + 'px';
         // Reset transform before re-applying scale (avoids compounding on resize)
         ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-        console.log('[Designer] canvas set to', canvas.width, 'x', canvas.height);
         render();
     }
 
@@ -409,11 +404,11 @@
         ctx.fillStyle = getThemeColor('inputBackground');
         ctx.strokeStyle = color;
         ctx.lineWidth = state.selectedNodeIds.has(node.id) ? 3 : 2;
+        const isDiamond = node.type === 'condition' || node.type === 'decision';
         if (isAnnotation) {
             ctx.setLineDash([6, 4]);
         }
-        if (node.type === 'decision') {
-            // Diamond shape for Decision nodes
+        if (isDiamond) {
             drawDiamond(ctx, x, y, w, h);
         } else {
             roundRect(ctx, x, y, w, h, 8);
@@ -433,7 +428,11 @@
                 ctx.strokeStyle = color;
                 ctx.globalAlpha = 0.2 + pulse * 0.35;
                 ctx.lineWidth = 2 + pulse * 2;
-                roundRect(ctx, x - 4, y - 4, w + 8, h + 8, 10);
+                if (isDiamond) {
+                    drawDiamond(ctx, x - 4, y - 4, w + 8, h + 8);
+                } else {
+                    roundRect(ctx, x - 4, y - 4, w + 8, h + 8, 10);
+                }
                 ctx.stroke();
                 ctx.globalAlpha = 1;
             }
@@ -444,54 +443,87 @@
                     const blink = Math.sin(state.animationTime * 0.28) > 0 ? 1 : 0.35;
                     ctx.fillStyle = color;
                     ctx.globalAlpha = 0.1 + blink * 0.2;
-                    roundRect(ctx, x - 2, y - 2, w + 4, h + 4, 9);
+                    if (isDiamond) {
+                        drawDiamond(ctx, x - 2, y - 2, w + 4, h + 4);
+                    } else {
+                        roundRect(ctx, x - 2, y - 2, w + 4, h + 4, 9);
+                    }
                     ctx.fill();
                     ctx.globalAlpha = 1;
                 }
             }
         }
 
-        // Header bar
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x + 8, y);
-        ctx.lineTo(x + w - 8, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + 8);
-        ctx.lineTo(x + w, y + h * 0.3);
-        ctx.lineTo(x, y + h * 0.3);
-        ctx.lineTo(x, y + 8);
-        ctx.quadraticCurveTo(x, y, x + 8, y);
-        ctx.fill();
+        // Header bar (skip for diamond-shaped nodes)
+        if (!isDiamond) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x + 8, y);
+            ctx.lineTo(x + w - 8, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + 8);
+            ctx.lineTo(x + w, y + h * 0.3);
+            ctx.lineTo(x, y + h * 0.3);
+            ctx.lineTo(x, y + 8);
+            ctx.quadraticCurveTo(x, y, x + 8, y);
+            ctx.fill();
 
-        // Execution count badge (top-right of header, always shown)
-        const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
-        const badgeText = String(executionCount);
-        ctx.font = 'bold 10px system-ui, sans-serif';
-        const badgeMetrics = ctx.measureText(badgeText);
-        const badgeW = badgeMetrics.width + 10;
-        const badgeH = 16;
-        const badgeX = x + w - badgeW - 6;
-        const badgeY = y + 3;
+            // Execution count badge (top-right of header, always shown)
+            const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
+            const badgeText = String(executionCount);
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            const badgeMetrics = ctx.measureText(badgeText);
+            const badgeW = badgeMetrics.width + 10;
+            const badgeH = 16;
+            const badgeX = x + w - badgeW - 6;
+            const badgeY = y + 3;
 
-        // Badge background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
-        ctx.fill();
+            // Badge background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+            ctx.fill();
 
-        // Badge text
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
-        ctx.textAlign = 'center';
+            // Badge text
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
+            ctx.textAlign = 'center';
+        } else {
+            // Diamond nodes: small execution badge at top-center outside the diamond
+            const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
+            if (executionCount > 0) {
+                const badgeText = String(executionCount);
+                ctx.font = 'bold 10px system-ui, sans-serif';
+                const badgeMetrics = ctx.measureText(badgeText);
+                const badgeW = badgeMetrics.width + 10;
+                const badgeH = 16;
+                const badgeX = x + w / 2 - badgeW / 2;
+                const badgeY = y - badgeH - 2;
+
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+                ctx.fill();
+
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.fillText(badgeText, x + w / 2, badgeY + 12);
+            }
+        }
 
         // Icon and label
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = getThemeColor('foreground');
         ctx.font = 'bold 12px system-ui, sans-serif';
         ctx.textAlign = 'center';
         const displayLabel = getDisplayLabel(node);
-        ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
+        if (isDiamond) {
+            // Center label inside diamond
+            ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h / 2 + 5);
+        } else {
+            ctx.fillStyle = '#fff';
+            ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
+        }
 
         // Sub-labels for annotation nodes
         if (node.type === 'note') {
@@ -516,18 +548,40 @@
             ctx.fillText(optionText, x + w / 2, y + h * 0.3 + 30);
         }
 
-        // Sub-labels for agent nodes: agent name + model
+        // Sub-labels for agent nodes: first line of prompt + model
         if (node.type === 'agent') {
             ctx.textAlign = 'center';
-            const agentName = node.data.agent || 'unknown';
-            const model = node.data.model || 'no model';
-            ctx.fillStyle = getThemeColor('descriptionForeground');
-            ctx.font = '10px system-ui, sans-serif';
-            ctx.fillText(agentName.substring(0, 18), x + w / 2, y + h * 0.3 + 28);
-            // Model name in a badge-like style
-            ctx.fillStyle = '#2196F3';
-            ctx.font = 'bold 10px system-ui, sans-serif';
-            ctx.fillText(model.substring(0, 20), x + w / 2, y + h * 0.3 + 42);
+            const promptLine = getPromptFirstLine(node);
+            const model = node.data.model || '';
+            if (promptLine) {
+                const truncated = promptLine.length > 30 ? promptLine.substring(0, 27) + '...' : promptLine;
+                ctx.fillStyle = getThemeColor('descriptionForeground');
+                ctx.font = '10px system-ui, sans-serif';
+                ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 28);
+            }
+            if (model) {
+                ctx.fillStyle = '#2196F3';
+                ctx.font = 'bold 10px system-ui, sans-serif';
+                ctx.fillText(model.substring(0, 20), x + w / 2, y + h * 0.3 + (promptLine ? 42 : 28));
+            }
+        }
+
+        // Sub-labels for condition nodes: first line of prompt + model
+        if (node.type === 'condition') {
+            ctx.textAlign = 'center';
+            const promptLine = getPromptFirstLine(node);
+            const model = (node.data as any).model || '';
+            if (promptLine) {
+                const truncated = promptLine.length > 30 ? promptLine.substring(0, 27) + '...' : promptLine;
+                ctx.fillStyle = getThemeColor('descriptionForeground');
+                ctx.font = '10px system-ui, sans-serif';
+                ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 28);
+            }
+            if (model) {
+                ctx.fillStyle = '#2196F3';
+                ctx.font = 'bold 10px system-ui, sans-serif';
+                ctx.fillText(model.substring(0, 20), x + w / 2, y + h * 0.3 + (promptLine ? 42 : 28));
+            }
         }
 
         // Ports
@@ -575,35 +629,35 @@
             }
         }
 
-        // Condition node has two output ports (True/False)
+        // Condition node has two output ports (True/False) on diamond vertices
         if (node.type === 'condition') {
-            // True port (top-right)
+            // True port (right vertex)
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
-            ctx.arc(x + w, y + 15, portRadius, 0, Math.PI * 2);
+            ctx.arc(x + w, y + h / 2, portRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
             ctx.stroke();
 
             ctx.fillStyle = '#4CAF50';
-            ctx.font = '9px system-ui';
+            ctx.font = 'bold 9px system-ui';
             ctx.textAlign = 'left';
-            ctx.fillText('True', x + w + 8, y + 18);
+            ctx.fillText('True', x + w + 8, y + h / 2 + 3);
 
-            // False port (bottom-right)
+            // False port (bottom vertex)
             ctx.fillStyle = '#f44336';
             ctx.beginPath();
-            ctx.arc(x + w, y + h - 15, portRadius, 0, Math.PI * 2);
+            ctx.arc(x + w / 2, y + h, portRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
             ctx.stroke();
 
             ctx.fillStyle = '#f44336';
-            ctx.font = '9px system-ui';
-            ctx.textAlign = 'left';
-            ctx.fillText('False', x + w + 8, y + h - 12);
+            ctx.font = 'bold 9px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillText('False', x + w / 2, y + h + 14);
         }
     }
 
@@ -925,7 +979,7 @@
             return;
         }
 
-        if (state.draggingNode) {
+        if (state.draggingNode && state.editMode) {
             const node = state.workflow.nodes.find(n => n.id === state.draggingNode);
             if (node) {
                 node.position.x = Math.round((pos.x - state.draggingOffset.x) / 10) * 10;
@@ -1018,7 +1072,7 @@
             return;
         }
 
-        if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (state.editMode && (e.key === 'Delete' || e.key === 'Backspace')) {
             if (state.selectedNodeIds.size > 0) {
                 deleteSelectedNodes();
                 saveHistory();
@@ -1067,9 +1121,24 @@
             const config = NODE_CONFIGS[node.type];
             if (!config) continue;
 
-            if (pos.x >= node.position.x && pos.x <= node.position.x + config.width &&
-                pos.y >= node.position.y && pos.y <= node.position.y + config.height) {
-                return node;
+            const x = node.position.x;
+            const y = node.position.y;
+            const w = config.width;
+            const h = config.height;
+
+            // Diamond-shaped nodes use point-in-diamond hit test
+            if (node.type === 'condition' || node.type === 'decision') {
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                const dx = Math.abs(pos.x - cx);
+                const dy = Math.abs(pos.y - cy);
+                if (dx / (w / 2) + dy / (h / 2) <= 1) {
+                    return node;
+                }
+            } else {
+                if (pos.x >= x && pos.x <= x + w && pos.y >= y && pos.y <= y + h) {
+                    return node;
+                }
             }
         }
         return null;
@@ -1409,30 +1478,25 @@
                 html += propertySelectField('Agent File', node.data.agent || '', state.agentFiles);
                 html += propertyField('Model', 'text', node.data.model || '', 'e.g., Claude Sonnet 4.6 (copilot)');
                 html += propertyField('Prompt', 'textarea', node.data.prompt || '');
-                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of what this agent does');
                 html += propertyField('Timeout (sec)', 'number', node.data.timeout || 120);
                 html += propertyField('Retries', 'number', node.data.retries || 0);
                 html += renderStateMappings(node);
                 break;
             case 'condition':
-                html += propertyField('Expression', 'textarea', node.data.expression || '', 'e.g., state.tests_passed === true');
-                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this condition');
+                html += propertyField('Model', 'text', node.data.model || '', 'e.g., Claude Sonnet 4.6 (copilot)');
+                html += propertyField('Prompt', 'textarea', node.data.prompt || '', 'Reasoning instructions for routing decision');
                 break;
             case 'human_approval':
                 html += propertyField('Message', 'textarea', node.data.message || 'Approve this step?');
-                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this approval step');
                 break;
             case 'delay':
                 html += propertyField('Duration (sec)', 'number', node.data.duration || 5);
-                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description of this delay');
                 break;
             case 'note':
                 html += propertyField('Text', 'textarea', node.data.text || '', 'Note text content');
-                html += propertyField('Description', 'textarea', node.data.description || '', 'Optional description');
                 break;
             case 'process':
                 html += propertyField('Title', 'text', node.data.title || '', 'Process title');
-                html += propertyField('Description', 'textarea', node.data.description || '', 'Process description');
                 break;
             case 'decision':
                 html += propertyField('Question', 'text', node.data.question || '', 'Decision question');
@@ -1595,6 +1659,14 @@
         if (node.type === 'process') return (node.data as any).title || 'Process';
         if (node.type === 'decision') return (node.data as any).question?.substring(0, 18) || 'Decision';
         return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
+    }
+
+    /** Get the first line of a node's prompt (for agent and condition nodes). */
+    function getPromptFirstLine(node) {
+        const prompt = (node.data as any).prompt;
+        if (!prompt || typeof prompt !== 'string') return null;
+        const firstLine = prompt.split('\n')[0].trim();
+        return firstLine || null;
     }
 
     /** Render decision options editor in properties panel. */

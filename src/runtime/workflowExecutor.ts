@@ -87,7 +87,7 @@ export class WorkflowExecutor {
 
     constructor(private readonly observer: ExecutionObserver, agentInvoker?: IAgentInvoker) {
         this._stateManager = new StateManager();
-        this._agentInvoker = agentInvoker ?? null as any; // production code must inject AgentInvoker
+        this._agentInvoker = agentInvoker ?? null!; // production code must inject AgentInvoker
     }
 
     /**
@@ -97,7 +97,9 @@ export class WorkflowExecutor {
         this._executionStateListeners.push(listener);
         return () => {
             const idx = this._executionStateListeners.indexOf(listener);
-            if (idx >= 0) this._executionStateListeners.splice(idx, 1);
+            if (idx >= 0) {
+                this._executionStateListeners.splice(idx, 1);
+            }
         };
     }
 
@@ -230,7 +232,7 @@ export class WorkflowExecutor {
         // Initialize all node execution counts to 0 so every node shows a counter
         this._stateManager.initializeNodeExecutionCounts(workflow.nodes.map(n => n.id));
         this._abortController = new AbortController();
-        if (workspaceRoot) this._workspaceRoot = workspaceRoot;
+        if (workspaceRoot) {this._workspaceRoot = workspaceRoot;}
         this.observer.onStatusChange(ExecutionStatus.Running);
 
         if (chatContext) {
@@ -289,12 +291,12 @@ export class WorkflowExecutor {
                 const skippedNodeIds = new Set<string>();
 
                 for (const nodeId of currentNodeIds) {
-                    if (this.isAborted()) break;
+                    if (this.isAborted()) {break;}
                     // Also check pause flag before each individual node
-                    if (this._pauseRequested) break;
+                    if (this._pauseRequested) {break;}
 
                     const node = workflow.nodes.find(n => n.id === nodeId);
-                    if (!node) continue;
+                    if (!node) {continue;}
 
                     const label = this.getNodeLabel(node);
                     this.observer.onLog(`  ⠋ Running ${nodeId} (${label})...`);
@@ -418,7 +420,9 @@ export class WorkflowExecutor {
         let lastError = '';
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            if (this.isAborted()) return false;
+            if (this.isAborted()) {
+                return false;
+            }
 
             const result = await this._agentInvoker.invokeAgent(
                 agentPath,
@@ -476,38 +480,65 @@ export class WorkflowExecutor {
 
     private async executeConditionNode(node: Node, workflow: Workflow): Promise<NodeExecutionResult> {
         const data = node.data as ConditionNodeData;
-        const result = ConditionEvaluator.evaluate(data.expression, this._stateManager.state);
+        const record = this._stateManager.getNodeRecord(node.id);
 
-        this._stateManager.addLog(node.id, `Condition evaluated to: ${result}`);
-        this._stateManager.set(`${node.id}_result`, result);
-
-        // Safety counter: track how many times this condition has looped back (evaluated to false).
-        // If it exceeds the max (default 1), force true to prevent infinite loops.
-        if (!result) {
-            const loopKey = `${node.id}_loopCount`;
-            const loopCount = (this._stateManager.get(loopKey) as number) || 0;
-            const newCount = loopCount + 1;
-            this._stateManager.set(loopKey, newCount);
-            this._stateManager.addLog(node.id, `Loop back count: ${newCount}`);
-
-            // Force exit after exceeding max loop backs (default: 1)
-            const maxLoopBacks = (data as any).maxLoopBacks ?? 1;
-            if (newCount > maxLoopBacks) {
-                this._stateManager.addLog(node.id, `Exceeded max loop backs (${maxLoopBacks}), forcing exit.`);
-                this.observer.onLog(`     ⚠ Condition ${node.id} exceeded max loop backs, forcing exit.`);
-                return { success: true, branchResult: true };
-            }
+        const copilotContext = this._activeCopilotContext;
+        if (!copilotContext) {
+            const message = 'Condition nodes require execution from the @workflow Copilot Chat participant.';
+            this._stateManager.addError(node.id, message);
+            this.observer.onLog(`     ✗ ${message}`);
+            throw new Error(message);
         }
+
+        // Build the system prompt that forces a true/false response
+        const systemPrompt = 'You are a workflow routing agent. Review the provided context and decide which branch to take. Respond with ONLY the word "true" or "false" (lowercase, no quotes, no extra text).';
+        const fullPrompt = data.prompt
+            ? `${systemPrompt}\n\nYour routing instructions:\n${data.prompt}`
+            : systemPrompt;
+
+        this.observer.onLog(`     → Condition: ${data.prompt || '(no prompt)'}`);
+        if (data.model) {
+            this.observer.onLog(`     → Model: ${data.model}`);
+        }
+
+        const result = await this._agentInvoker.invokeAgent(
+            '', // no agent file needed for condition nodes
+            fullPrompt,
+            { ...this._stateManager.state },
+            120, // default timeout
+            data.model,
+            {
+                ...copilotContext,
+                workflowAbortSignal: this._abortController?.signal
+            },
+            record,
+            (msg: string) => this.observer.onLog(`     ${msg}`),
+            (msg: string) => this.observer.onProgress(msg)
+        );
+
+        if (!result.success) {
+            this._stateManager.addError(node.id, `Condition agent failed: ${result.output}`);
+            this.observer.onLog(`     ✗ Condition agent failed: ${result.output}`);
+            throw new Error(`Condition agent failed: ${result.output}`);
+        }
+
+        // Parse the true/false response
+        const rawOutput = result.output.trim().toLowerCase();
+        const branchResult = rawOutput === 'true' || rawOutput === 'yes' || rawOutput === '1';
+
+        this._stateManager.addLog(node.id, `Condition agent responded: ${result.output.trim()} → ${branchResult}`);
+        this._stateManager.set(`${node.id}_result`, branchResult);
+        this._stateManager.set(`${node.id}_output`, result.output);
 
         const outgoingEdges = workflow.edges.filter(e => e.source === node.id);
         for (const edge of outgoingEdges) {
             const isTruePath = this.isTrueEdge(edge);
-            if ((result && isTruePath) || (!result && !isTruePath)) {
-                this._stateManager.addLog(node.id, `Taking branch: ${edge.label || (result ? 'True' : 'False')}`);
+            if ((branchResult && isTruePath) || (!branchResult && !isTruePath)) {
+                this._stateManager.addLog(node.id, `Taking branch: ${edge.label || (branchResult ? 'True' : 'False')}`);
             }
         }
 
-        return { success: true, branchResult: result };
+        return { success: true, branchResult };
     }
 
     private async executeHumanApprovalNode(node: Node): Promise<NodeExecutionResult> {
@@ -528,15 +559,15 @@ export class WorkflowExecutor {
 
         const start = Date.now();
         while (Date.now() - start < data.duration * 1000) {
-            if (this.isAborted()) throw new Error('Aborted during delay');
-            if (this._pauseRequested) return { success: true };
+            if (this.isAborted()) {throw new Error('Aborted during delay');}
+            if (this._pauseRequested) {return { success: true };}
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         return { success: true };
     }
 
-    private executeLoopNode(node: Node, workflow: Workflow): NodeExecutionResult {
+    private executeLoopNode(node: Node, _workflow: Workflow): NodeExecutionResult {
         const data = node.data as LoopNodeData;
         const stateKey = 'loop_iterationCount';
 
@@ -580,7 +611,9 @@ export class WorkflowExecutor {
 
     private executeEndNode(node: Node): void {
         const data = node.data as EndNodeData;
-        if (data.summary === false) return;
+        if (data.summary === false) {
+            return;
+        }
 
         const summary = this.buildExecutionSummary();
         this._stateManager.set('executionSummary', summary);
@@ -666,7 +699,7 @@ export class WorkflowExecutor {
      * an annotation node, traversal continues through it to the next executable node.
      */
     private getNextExecutableNodes(nodeId: string, node: Node, workflow: Workflow, branchResult?: boolean): string[] {
-        let targets = this.getNextNodes(nodeId, node, workflow, branchResult);
+        const targets = this.getNextNodes(nodeId, node, workflow, branchResult);
         // For each target that is an annotation node, transparently traverse through it
         const resolved: string[] = [];
         for (const t of targets) {
@@ -718,7 +751,9 @@ export class WorkflowExecutor {
         }
 
         const node = workflow.nodes.find(n => n.id === nodeId);
-        if (!node) return;
+        if (!node) {
+            return;
+        }
 
         this._stateManager.skipNode(nodeId, this.getNodeLabel(node));
         this.observer.onLog(`  ⊘ ${nodeId} skipped (untaken branch)`);
@@ -733,7 +768,7 @@ export class WorkflowExecutor {
     // ---- Private utilities ----
 
     private getNodeLabel(node: Node): string {
-        const d = node.data as any;
+        const d = node.data as unknown as Record<string, string>;
         return d.label || d.agent || d.message || node.id;
     }
 
@@ -741,10 +776,16 @@ export class WorkflowExecutor {
         const agentsDir = path.join(workspaceRoot, '.github', 'agents');
         const agentFile = path.join(agentsDir, `${agentName}.agent.md`);
 
-        if (fs.existsSync(agentFile)) return agentFile;
-        if (fs.existsSync(agentName)) return agentName;
+        if (fs.existsSync(agentFile)) {
+            return agentFile;
+        }
+        if (fs.existsSync(agentName)) {
+            return agentName;
+        }
         const relativePath = path.join(workspaceRoot, agentName);
-        if (fs.existsSync(relativePath)) return relativePath;
+        if (fs.existsSync(relativePath)) {
+            return relativePath;
+        }
         return agentFile;
     }
 
@@ -753,9 +794,13 @@ export class WorkflowExecutor {
     }
 
     private formatDuration(ms: number): string {
-        if (ms < 1000) return `${ms}ms`;
+        if (ms < 1000) {
+            return `${ms}ms`;
+        }
         const seconds = Math.floor(ms / 1000);
-        if (seconds < 60) return `${seconds}s`;
+        if (seconds < 60) {
+            return `${seconds}s`;
+        }
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `${minutes}m ${remainingSeconds}s`;

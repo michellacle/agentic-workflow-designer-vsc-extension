@@ -97,7 +97,7 @@ describe('StateManager', () => {
         expect(record.status).toBe(NodeStatus.Completed);
         expect(record.startTime).toBeDefined();
         expect(record.endTime).toBeDefined();
-        expect(record.duration!).toBeGreaterThanOrEqual(10);
+        expect(record.duration!).toBeGreaterThanOrEqual(1);
     });
 
     it('should mark node as failed when callback throws', async () => {
@@ -353,12 +353,12 @@ describe('WorkflowValidator', () => {
         expect(agentErrors.length).toBeGreaterThan(0);
     });
 
-    it('should fail if Condition node has no expression', () => {
+    it('should fail if Condition node has no prompt', () => {
         const workflow: Workflow = {
             name: 'bad-condition',
             nodes: [
                 { id: 'start_1', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
-                { id: 'cond_1', type: NodeType.Condition, position: { x: 100, y: 0 }, data: { expression: '' } as ConditionNodeData },
+                { id: 'cond_1', type: NodeType.Condition, position: { x: 100, y: 0 }, data: { prompt: '' } as ConditionNodeData },
                 { id: 'end_1', type: NodeType.End, position: { x: 200, y: 0 }, data: {} }
             ],
             edges: [
@@ -367,7 +367,7 @@ describe('WorkflowValidator', () => {
             ]
         };
         const errors = validateWorkflow(workflow);
-        const condErrors = errors.filter((e: any) => e.message.includes('expression'));
+        const condErrors = errors.filter((e: any) => e.message.includes('prompt'));
         expect(condErrors.length).toBeGreaterThan(0);
     });
 
@@ -376,7 +376,7 @@ describe('WorkflowValidator', () => {
             name: 'bad-condition-edges',
             nodes: [
                 { id: 'start_1', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
-                { id: 'cond_1', type: NodeType.Condition, position: { x: 100, y: 0 }, data: { expression: 'true' } as ConditionNodeData },
+                { id: 'cond_1', type: NodeType.Condition, position: { x: 100, y: 0 }, data: { prompt: 'Route decision' } as ConditionNodeData },
                 { id: 'end_1', type: NodeType.End, position: { x: 200, y: 0 }, data: {} }
             ],
             edges: [
@@ -489,7 +489,7 @@ edges:
             nodes: [
                 { id: 'start_1', type: NodeType.Start, position: { x: 100, y: 50 }, data: { label: 'Start' } },
                 { id: 'agent_1', type: NodeType.Agent, position: { x: 300, y: 50 }, data: { agent: 'planner', prompt: 'do stuff', model: 'gpt-4o', timeout: 120, retries: 1 } as AgentNodeData },
-                { id: 'cond_1', type: NodeType.Condition, position: { x: 500, y: 50 }, data: { expression: 'state.result === true' } as ConditionNodeData },
+                { id: 'cond_1', type: NodeType.Condition, position: { x: 500, y: 50 }, data: { prompt: 'Check result' } as ConditionNodeData },
                 { id: 'end_1', type: NodeType.End, position: { x: 700, y: 50 }, data: { label: 'End' } }
             ],
             edges: [

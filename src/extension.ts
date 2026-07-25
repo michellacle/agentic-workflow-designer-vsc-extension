@@ -6,14 +6,15 @@ import {
     registerWorkflowChatParticipant,
     requestWorkflowRunInCopilotChat
 } from './chat/workflowChatParticipant';
-import { validateWorkflow, ValidationError } from './utils/workflowValidator';
-import { Workflow, NodeType } from './models/workflow';
+import { validateWorkflow } from './utils/workflowValidator';
+import { Workflow } from './models/workflow';
 
 let runtime: WorkflowRuntime | undefined;
 let explorerProvider: WorkflowExplorerProvider | undefined;
 let diagnosticsCollection: vscode.DiagnosticCollection | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
+    // eslint-disable-next-line no-console
     console.log('Agent Workflow Designer extension is now active!');
 
     // Register custom editor for workflow files
@@ -65,12 +66,14 @@ export function activate(context: vscode.ExtensionContext) {
                 prompt: 'Enter a name for the new workflow',
                 placeHolder: 'my-workflow',
                 validateInput: value => {
-                    if (!value || !value.trim()) return 'Workflow name is required';
-                    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(value)) return 'Use only letters, numbers, hyphens, and underscores (start with a letter or number)';
+                    if (!value || !value.trim()) {return 'Workflow name is required';}
+                    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(value)) {return 'Use only letters, numbers, hyphens, and underscores (start with a letter or number)';}
                     return null;
                 }
             });
-            if (!name) return;
+            if (!name) {
+                return;
+            }
 
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -109,13 +112,13 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }),
         vscode.commands.registerCommand('workflowDesigner.pauseWorkflow', () => {
-            if (runtime) runtime.pause();
+            if (runtime) {runtime.pause();}
         }),
         vscode.commands.registerCommand('workflowDesigner.stopWorkflow', () => {
-            if (runtime) runtime.stop();
+            if (runtime) {runtime.stop();}
         }),
         vscode.commands.registerCommand('workflowDesigner.resumeWorkflow', () => {
-            if (runtime) runtime.resume();
+            if (runtime) {runtime.resume();}
         }),
         vscode.commands.registerCommand('workflowDesigner.saveWorkflow', () => {
             vscode.commands.executeCommand('workbench.action.files.save');
@@ -139,7 +142,9 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }),
         vscode.commands.registerCommand('workflowDesigner.exportExecutionLogs', async () => {
-            if (!runtime) return;
+            if (!runtime) {
+                return;
+            }
             const logs = runtime.exportCurrentExecutionLogs();
             const uri = await vscode.window.showSaveDialog({
                 filters: { 'Text': ['txt'], 'Log': ['log'] },
@@ -175,8 +180,25 @@ export function activate(context: vscode.ExtensionContext) {
 function generateEmptyWorkflowYaml(name: string = 'new-workflow'): string {
     return `name: ${name}
 description: A new workflow
-nodes: []
-edges: []
+nodes:
+  - id: start
+    type: start
+    position:
+      x: 200
+      y: 100
+    data:
+      label: Start
+  - id: end
+    type: end
+    position:
+      x: 200
+      y: 300
+    data:
+      label: End
+      summary: true
+edges:
+  - source: start
+    target: end
 `;
 }
 
@@ -194,7 +216,6 @@ function publishValidationDiagnostics(
 
     // Build a map of node id -> line number in the YAML file
     const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
-    const nodeLineMap = buildNodeLineMap(document, workflow);
 
     for (const error of errors) {
         const severity = error.severity === 'error'
@@ -257,24 +278,6 @@ function findEdgeInDocument(document: vscode.TextDocument, edgeId: string): numb
         }
     }
     return null;
-}
-
-/**
- * Build a map of node id -> approximate line for positioning diagnostics.
- */
-function buildNodeLineMap(document: vscode.TextDocument | undefined, workflow: Workflow): Map<string, number> {
-    const map = new Map<string, number>();
-    if (!document) return map;
-    const lines = document.getText().split('\n');
-    for (const node of workflow.nodes) {
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].trim().includes(`id: ${node.id}`)) {
-                map.set(node.id, i);
-                break;
-            }
-        }
-    }
-    return map;
 }
 
 export function deactivate() {
