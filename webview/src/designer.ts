@@ -549,7 +549,8 @@
                     }
                     if (truncated !== model) truncated += '…';
                     const totalWidth = ctx.measureText(prefix + truncated).width;
-                    const startX = x + w / 2 - totalWidth / 2;
+                    // Clamp start so text never overflows the left edge
+                    const startX = Math.max(x + 8, x + w / 2 - totalWidth / 2);
                     ctx.fillStyle = '#fff';
                     ctx.fillText(prefix, startX, labelY);
                     ctx.fillStyle = '#64B5F6';
