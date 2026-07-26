@@ -497,8 +497,8 @@
             }
         }
 
-        // Purple header bar for annotation nodes (note/process/decision)
-        if (isAnnotation) {
+        // Purple header bar for annotation nodes (process/decision only — note nodes skip this)
+        if (isAnnotation && node.type !== 'note') {
             const annotationPurple = '#7B1FA2';
             const headerHeight = 22;
             ctx.fillStyle = annotationPurple;
