@@ -382,20 +382,20 @@ describe('UI regression suite', () => {
         expect(canvas).not.toBeNull();
 
         // Drag source endpoint of start_1->agent_1 from right side to bottom border center.
-        // start_1: x=100, y=120, w=120, h=50 => right=(220,145), bottom=(160,170)
-        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 220, clientY: 145, bubbles: true }));
-        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 160, clientY: 170, bubbles: true }));
-        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 160, clientY: 170, bubbles: true }));
+        // start_1: x=100, y=120, w=108, h=45 => right=(208,142.5), bottom=(154,165)
+        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 208, clientY: 143, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 154, clientY: 165, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 154, clientY: 165, bubbles: true }));
 
         let sides = api.getEdgeSides('start_1->agent_1');
         expect(sides).not.toBeNull();
         expect(sides.sourceSide).toBe('bottom');
 
         // Drag target endpoint of agent_1->end_1 from left side to right border center.
-        // end_1: x=560, y=120, w=120, h=50 => left=(560,145), right=(680,145)
-        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 560, clientY: 145, bubbles: true }));
-        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 680, clientY: 145, bubbles: true }));
-        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 680, clientY: 145, bubbles: true }));
+        // end_1: x=560, y=120, w=108, h=45 => left=(560,142.5), right=(668,142.5)
+        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 560, clientY: 143, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: 668, clientY: 143, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 668, clientY: 143, bubbles: true }));
 
         sides = api.getEdgeSides('agent_1->end_1');
         expect(sides).not.toBeNull();
@@ -650,6 +650,49 @@ describe('UI regression suite', () => {
         // Should detect condition agent errors
         expect(executorSource).toMatch(/isConditionAgentError/);
         expect(executorSource).toMatch(/agent error:/i);
+    });
+
+    it('regression: end node dimensions should match start node dimensions', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Extract individual node config lines directly (avoids nested brace issues)
+        const startMatch = designerSource.match(/start:\s*\{\s*label:[^}]*width:\s*(\d+),\s*height:\s*(\d+)/);
+        expect(startMatch).not.toBeNull();
+        const startWidth = parseInt(startMatch![1], 10);
+        const startHeight = parseInt(startMatch![2], 10);
+
+        const endMatch = designerSource.match(/end:\s*\{\s*label:[^}]*width:\s*(\d+),\s*height:\s*(\d+)/);
+        expect(endMatch).not.toBeNull();
+        const endWidth = parseInt(endMatch![1], 10);
+        const endHeight = parseInt(endMatch![2], 10);
+
+        // End node should match start node dimensions
+        expect(endWidth).toBe(startWidth);
+        expect(endHeight).toBe(startHeight);
+    });
+
+    it('regression: note nodes should not render a header bar', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // The header bar rendering should skip note nodes (like diamonds)
+        // Check that the header bar condition excludes 'note' type
+        const headerBarMatch = designerSource.match(/Header bar[\s\S]*?if\s*\(([^)]+)\)/);
+        expect(headerBarMatch).not.toBeNull();
+        const headerCondition = headerBarMatch![1];
+        // Should exclude note nodes from header rendering
+        expect(headerCondition).toMatch(/node\.type\s*!==\s*['"]note['"]/);
+
+        // Note node rendering should center text in body, not use header sub-label pattern
+        // Should NOT have a note sub-label that positions text below a header (y + h * 0.3 + 30)
+        // Extract the note-specific rendering block and check it in isolation
+        const noteBlockMatch = designerSource.match(/node\.type\s*===\s*['"]note['"]([\s\S]*?)(?:break;|case\s+|default:|\s*\}\s*else\s*\{)/);
+        const noteBlock = noteBlockMatch ? noteBlockMatch[1] : '';
+        const noteSubLabelMatch = noteBlock.match(/fillText[\s\S]*?y\s*\+\s*h\s*\*\s*0\.3/);
+        expect(noteSubLabelMatch).toBeNull();
+
+        // Note nodes should render text centered in body (y + h / 2 pattern)
+        const noteBodyMatch = designerSource.match(/node\.type\s*===\s*['"]note['"][\s\S]*?fillText[\s\S]*?y\s*\+\s*h\s*\/\s*2/);
+        expect(noteBodyMatch).not.toBeNull();
     });
 });
 

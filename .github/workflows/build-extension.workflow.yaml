@@ -3,13 +3,13 @@ nodes:
   - id: start
     type: start
     position:
-      x: 110
+      x: 120
       'y': -60
   - id: agent_1
     type: agent
     position:
-      x: 100
-      'y': 360
+      x: 200
+      'y': 330
     data:
       agent: builder
       prompt: Build the extension
@@ -19,15 +19,15 @@ nodes:
   - id: end_2
     type: end
     position:
-      x: 110
-      'y': 550
+      x: 220
+      'y': 490
     data:
       label: End
       summary: true
   - id: agent_3
     type: agent
     position:
-      x: 100
+      x: 110
       'y': 40
     data:
       agent: implementer
@@ -35,22 +35,62 @@ nodes:
       model: qwen3.6-27b
       timeout: 120
       retries: 0
-  - id: note_4
-    type: note
-    position:
-      x: 280
-      'y': -50
-    data:
-      text: Can't delete a node
-      description: ''
   - id: condition_6
     type: condition
     position:
-      x: 300
+      x: 110
       'y': 200
     data:
-      prompt: Verify that the previous agent actually attempted to do the tasked requireed by the workflow.
+      prompt: Sanity check the the previous agent worked the issue provided to the workflow.
       model: qwen3.6-27b
+  - id: note_10
+    type: note
+    position:
+      x: 530
+      'y': 40
+    data:
+      text: Remove Note header, note should only have body.
+      description: ''
+  - id: process_11
+    type: process
+    position:
+      x: 200
+      'y': 580
+    data:
+      title: michel tests extension by reloading VSC
+      description: ''
+  - id: note_12
+    type: note
+    position:
+      x: 540
+      'y': 130
+    data:
+      text: Double the height of the condition node
+      description: ''
+  - id: note_13
+    type: note
+    position:
+      x: 310
+      'y': 160
+    data:
+      text: The Condition node keeps failing
+      description: ''
+  - id: note_14
+    type: note
+    position:
+      x: 580
+      'y': 250
+    data:
+      text: Feature, review last workflow execution log, identify issue, and fix error if there are any.
+      description: ''
+  - id: process_15
+    type: process
+    position:
+      x: 390
+      'y': 550
+    data:
+      title: Process name
+      description: ''
 edges:
   - source: agent_1
     target: end_2
@@ -64,7 +104,7 @@ edges:
   - source: agent_3
     target: condition_6
     sourceSide: bottom
-    targetSide: left
+    targetSide: top
   - source: condition_6
     target: agent_1
     label: 'True'
@@ -73,6 +113,6 @@ edges:
   - source: condition_6
     target: agent_3
     label: 'False'
-    sourceSide: bottom
+    sourceSide: left
     targetSide: left
 description: A new workflow

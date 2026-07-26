@@ -141,8 +141,8 @@
 
     // ===== Node Configurations =====
     const NODE_CONFIGS = {
-        start: { label: 'Start', color: '#4CAF50', width: 120, height: 50, icon: '●' },
-        end: { label: 'End', color: '#f44336', width: 120, height: 50, icon: '●' },
+        start: { label: 'Start', color: '#4CAF50', width: 108, height: 45, icon: '●' },
+        end: { label: 'End', color: '#f44336', width: 108, height: 45, icon: '●' },
         agent: { label: 'Agent', color: '#2196F3', width: 140, height: 90, icon: '🤖' },
         condition: { label: 'Condition', color: '#FF9800', width: 140, height: 70, icon: '◇' },
         human_approval: { label: 'Approval', color: '#9C27B0', width: 140, height: 70, icon: '👤' },
@@ -454,8 +454,8 @@
             }
         }
 
-        // Header bar (skip for diamond-shaped nodes)
-        if (!isDiamond) {
+        // Header bar (skip for diamond-shaped nodes and note nodes)
+        if (!isDiamond && node.type !== 'note') {
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.moveTo(x + 8, y);
@@ -489,6 +489,8 @@
             ctx.textAlign = 'center';
             ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
             ctx.textAlign = 'center';
+        } else if (node.type === 'note') {
+            // Note nodes: no header bar, no badge — just body text
         } else {
             // Diamond nodes: small execution badge at top-center outside the diamond
             const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
@@ -520,19 +522,19 @@
         if (isDiamond) {
             // Center label inside diamond
             ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h / 2 + 5);
+        } else if (node.type === 'note') {
+            // Note nodes: center text in body (no header)
+            ctx.fillStyle = getThemeColor('foreground');
+            ctx.font = '12px system-ui, sans-serif';
+            const text = (node.data as any).text || '';
+            const truncated = text.length > 40 ? text.substring(0, 37) + '...' : text;
+            ctx.fillText(truncated, x + w / 2, y + h / 2 + 4);
         } else {
             ctx.fillStyle = '#fff';
             ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
         }
 
         // Sub-labels for annotation nodes
-        if (node.type === 'note') {
-            ctx.fillStyle = getThemeColor('descriptionForeground');
-            ctx.font = '10px system-ui, sans-serif';
-            const text = (node.data as any).text || '';
-            const truncated = text.length > 25 ? text.substring(0, 22) + '...' : text;
-            ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 30);
-        }
         if (node.type === 'process') {
             ctx.fillStyle = getThemeColor('descriptionForeground');
             ctx.font = '10px system-ui, sans-serif';
@@ -856,16 +858,23 @@
             const isEdgeAnimating = !!edgeAnimation && state.nowMs >= edgeAnimation.startTime && state.nowMs <= edgeAnimation.endTime;
             const isSelected = state.selectedEdgeId === edge.id;
 
-            const angle = Math.atan2(ty - cp2y, tx - cp2x);
+            // Tangent direction at the target (direction of curve travel as it arrives).
+            const tangentAngle = Math.atan2(ty - cp2y, tx - cp2x);
+            // Offset the tip slightly back along the tangent so the arrowhead sits
+            // just before the node boundary and isn't covered by the node fill.
+            const tipOffset = 3;
+            const ax = tx - tipOffset * Math.cos(tangentAngle);
+            const ay = ty - tipOffset * Math.sin(tangentAngle);
+            // Arrowhead points in the direction of travel; base extends opposite.
             ctx.fillStyle = isEdgeAnimating
                 ? getThemeColor('buttonBackground')
                 : isSelected
                     ? getThemeColor('focusBorder')
                     : getThemeColor('descriptionForeground');
             ctx.beginPath();
-            ctx.moveTo(tx, ty);
-            ctx.lineTo(tx - 10 * Math.cos(angle - Math.PI / 6), ty - 10 * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(tx - 10 * Math.cos(angle + Math.PI / 6), ty - 10 * Math.sin(angle + Math.PI / 6));
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(ax - 10 * Math.cos(tangentAngle - Math.PI / 6), ay - 10 * Math.sin(tangentAngle - Math.PI / 6));
+            ctx.lineTo(ax - 10 * Math.cos(tangentAngle + Math.PI / 6), ay - 10 * Math.sin(tangentAngle + Math.PI / 6));
             ctx.closePath();
             ctx.fill();
         }
@@ -1680,7 +1689,7 @@
 
     /** Get display label for a node (handles annotation nodes). */
     function getDisplayLabel(node) {
-        if (node.type === 'note') return (node.data as any).text?.substring(0, 20) || 'Note';
+        if (node.type === 'note') return 'Note';
         if (node.type === 'process') return (node.data as any).title || 'Process';
         if (node.type === 'decision') return (node.data as any).question?.substring(0, 18) || 'Decision';
         return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;

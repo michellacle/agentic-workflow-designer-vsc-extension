@@ -538,7 +538,7 @@ export class WorkflowExecutor {
             throw new Error(`Condition agent failed: ${result.output}`);
         }
 
-        // Parse the true/false response — strictly validate
+        // Parse the true/false response
         const rawOutput = result.output.trim();
         const lower = rawOutput.toLowerCase();
 
@@ -551,18 +551,42 @@ export class WorkflowExecutor {
             throw new Error(errorMessage);
         }
 
-        // Strict validation: only accept exact "true"/"false"/"yes"/"no"/"1"/"0"
-        // Anything else (prose, explanations, garbled output) is an error
-        const validTrue = lower === 'true' || lower === 'yes' || lower === '1';
-        const validFalse = lower === 'false' || lower === 'no' || lower === '0';
-        if (!validTrue && !validFalse) {
+        // First try exact match for clean responses
+        const exactTrue = lower === 'true' || lower === 'yes' || lower === '1';
+        const exactFalse = lower === 'false' || lower === 'no' || lower === '0';
+        if (exactTrue || exactFalse) {
+            const branchResult = exactTrue;
+            this._stateManager.addLog(node.id, `Condition agent responded: ${rawOutput} → ${branchResult}`);
+            this._stateManager.set(`${node.id}_result`, branchResult);
+            this._stateManager.set(`${node.id}_output`, result.output);
+            const outgoingEdges = workflow.edges.filter(e => e.source === node.id);
+            for (const edge of outgoingEdges) {
+                const isTruePath = this.isTrueEdge(edge);
+                if ((branchResult && isTruePath) || (!branchResult && !isTruePath)) {
+                    this._stateManager.addLog(node.id, `Taking branch: ${edge.label || (branchResult ? 'True' : 'False')}`);
+                }
+            }
+            return { success: true, branchResult };
+        }
+
+        // Fallback: extract true/false from prose responses (e.g. "Based on my review... true")
+        // Match standalone words only to avoid false positives in substrings
+        const matchTrue = /\btrue\b|\byes\b|\b1\b/i.exec(rawOutput);
+        const matchFalse = /\bfalse\b|\bno\b|\b0\b/i.exec(rawOutput);
+
+        let branchResult: boolean | undefined;
+        if (matchTrue && (!matchFalse || matchTrue.index <= matchFalse.index)) {
+            branchResult = true;
+        } else if (matchFalse) {
+            branchResult = false;
+        }
+
+        if (branchResult === undefined) {
             const errorMessage = `Condition agent did not return a valid true/false response. Got: "${rawOutput.substring(0, 200)}"`;
             this._stateManager.addError(node.id, errorMessage);
             this.observer.onLog(`     ✗ ${errorMessage}`);
             throw new Error(errorMessage);
         }
-
-        const branchResult = validTrue;
 
         this._stateManager.addLog(node.id, `Condition agent responded: ${rawOutput} → ${branchResult}`);
         this._stateManager.set(`${node.id}_result`, branchResult);
