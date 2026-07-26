@@ -8,7 +8,7 @@ nodes:
   - id: agent_1
     type: agent
     position:
-      x: 200
+      x: 290
       'y': 330
     data:
       agent: builder
@@ -19,7 +19,7 @@ nodes:
   - id: end_2
     type: end
     position:
-      x: 220
+      x: 310
       'y': 490
     data:
       label: End
@@ -33,7 +33,7 @@ nodes:
       agent: implementer
       prompt: implement feature
       model: qwen3.6-27b
-      timeout: 120
+      timeout: 300
       retries: 0
   - id: condition_6
     type: condition
@@ -46,8 +46,8 @@ nodes:
   - id: note_10
     type: note
     position:
-      x: 530
-      'y': 40
+      x: 820
+      'y': 10
     data:
       text: Remove Note header, note should only have body.
       description: ''
@@ -62,34 +62,50 @@ nodes:
   - id: note_12
     type: note
     position:
-      x: 540
-      'y': 130
+      x: 820
+      'y': 180
     data:
       text: Double the height of the condition node
       description: ''
   - id: note_13
     type: note
     position:
-      x: 310
-      'y': 160
+      x: 830
+      'y': 90
     data:
-      text: The Condition node keeps failing
+      text: The Condition times out too quickly, increase the note timeout.
       description: ''
   - id: note_14
     type: note
     position:
-      x: 580
-      'y': 250
+      x: 500
+      'y': 110
     data:
       text: Feature, review last workflow execution log, identify issue, and fix error if there are any.
       description: ''
   - id: process_15
     type: process
     position:
-      x: 390
-      'y': 550
+      x: 420
+      'y': 520
     data:
-      title: Process name
+      title: Michel prompts agent in chat to review last execution logs and fix issues.
+      description: ''
+  - id: note_16
+    type: note
+    position:
+      x: 500
+      'y': 200
+    data:
+      text: 'Feature: factory, a canvas that shows all workflows, can execute one or more workflows in parallel.'
+      description: ''
+  - id: note_17
+    type: note
+    position:
+      x: 480
+      'y': 10
+    data:
+      text: Feature, exception handling, route to fix last execution agent.
       description: ''
 edges:
   - source: agent_1

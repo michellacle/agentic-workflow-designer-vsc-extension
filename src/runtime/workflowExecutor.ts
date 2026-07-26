@@ -521,7 +521,7 @@ export class WorkflowExecutor {
             '', // no agent file needed for condition nodes
             fullPrompt,
             { ...this._stateManager.state },
-            120, // default timeout
+            data.timeout || 120,
             data.model,
             {
                 ...copilotContext,

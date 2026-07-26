@@ -92,6 +92,7 @@ export interface AgentNodeData {
 export interface ConditionNodeData {
     prompt?: string;      // reasoning instructions for the condition agent
     model?: string;       // model hint, e.g. "gpt-4o", "claude-sonnet-4-20250514"
+    timeout?: number;     // seconds before timeout (default: 120)
 }
 
 /**

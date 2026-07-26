@@ -550,21 +550,15 @@
             ctx.fillText(optionText, x + w / 2, y + h * 0.3 + 30);
         }
 
-        // Sub-labels for agent nodes: first line of prompt + model
+        // Sub-labels for agent nodes: first line of prompt
         if (node.type === 'agent') {
             ctx.textAlign = 'center';
             const promptLine = getPromptFirstLine(node);
-            const model = node.data.model || '';
             if (promptLine) {
                 const truncated = promptLine.length > 30 ? promptLine.substring(0, 27) + '...' : promptLine;
                 ctx.fillStyle = getThemeColor('descriptionForeground');
                 ctx.font = '10px system-ui, sans-serif';
                 ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 28);
-            }
-            if (model) {
-                ctx.fillStyle = '#2196F3';
-                ctx.font = 'bold 10px system-ui, sans-serif';
-                ctx.fillText(model.substring(0, 20), x + w / 2, y + h * 0.3 + (promptLine ? 42 : 28));
             }
         }
 
@@ -1695,6 +1689,15 @@
         if (node.type === 'decision') return (node.data as any).question?.substring(0, 18) || 'Decision';
         // Condition nodes: diamond shape is the symbol — no text label needed
         if (node.type === 'condition') return '';
+        // Agent nodes: include model name on the same line as the label
+        if (node.type === 'agent') {
+            const label = node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
+            const model = node.data.model || '';
+            if (model) {
+                return label + ' ' + model.substring(0, 25);
+            }
+            return label;
+        }
         return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
     }
 
