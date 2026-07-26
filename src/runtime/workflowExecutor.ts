@@ -538,8 +538,9 @@ export class WorkflowExecutor {
             throw new Error(`Condition agent failed: ${result.output}`);
         }
 
-        // Parse the true/false response
+        // Parse the true/false response — strictly validate
         const rawOutput = result.output.trim();
+        const lower = rawOutput.toLowerCase();
 
         // Detect agent errors in output — if the agent returned an error message
         // instead of a proper true/false, fail the node rather than defaulting to false
@@ -550,7 +551,18 @@ export class WorkflowExecutor {
             throw new Error(errorMessage);
         }
 
-        const branchResult = rawOutput.toLowerCase() === 'true' || rawOutput.toLowerCase() === 'yes' || rawOutput.toLowerCase() === '1';
+        // Strict validation: only accept exact "true"/"false"/"yes"/"no"/"1"/"0"
+        // Anything else (prose, explanations, garbled output) is an error
+        const validTrue = lower === 'true' || lower === 'yes' || lower === '1';
+        const validFalse = lower === 'false' || lower === 'no' || lower === '0';
+        if (!validTrue && !validFalse) {
+            const errorMessage = `Condition agent did not return a valid true/false response. Got: "${rawOutput.substring(0, 200)}"`;
+            this._stateManager.addError(node.id, errorMessage);
+            this.observer.onLog(`     ✗ ${errorMessage}`);
+            throw new Error(errorMessage);
+        }
+
+        const branchResult = validTrue;
 
         this._stateManager.addLog(node.id, `Condition agent responded: ${rawOutput} → ${branchResult}`);
         this._stateManager.set(`${node.id}_result`, branchResult);

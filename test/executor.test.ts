@@ -663,5 +663,66 @@ describe('WorkflowExecutor integration', () => {
             expect(ctx.nodeRecords.get('falseNode')?.status).toBe(NodeStatus.Completed);
             expect(ctx.nodeRecords.get('trueNode')?.status).toBe(NodeStatus.Skipped);
         });
+
+        it('should fail workflow when condition agent returns prose instead of true/false', async () => {
+            const workflow = createBranchWorkflow();
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return {
+                        success: true,
+                        output: "I cannot validate the previous agent's output because it appears to be an error message rather than actual test results.",
+                    };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            // Should fail because output is not a valid true/false
+            expect(status).toBe(ExecutionStatus.Failed);
+            const logText = observer.logs.join('\n');
+            expect(logText).toContain('valid true/false');
+        });
+
+        it('should fail workflow when condition agent returns ambiguous output like "maybe"', async () => {
+            const workflow = createBranchWorkflow();
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'maybe' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Failed);
+        });
+
+        it('should accept "yes" as true and "no" as false', async () => {
+            const workflow = createBranchWorkflow();
+            let callCount = 0;
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    callCount++;
+                    return { success: true, output: callCount === 1 ? 'yes' : 'no' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Completed);
+            const ctx = mockExecutor.getExecutionContext();
+            expect(ctx.nodeRecords.get('trueNode')?.status).toBe(NodeStatus.Completed);
+        });
     });
 });
