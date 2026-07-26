@@ -986,12 +986,11 @@ describe('UI regression suite', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
         // The Note node has text wrapping logic using wrapText for its body content.
-        // The Process node should also truncate its title text in the header area
-        // so long titles don't overflow the node boundary.
-        // Verify: the drawNode function handles process node title truncation.
+        // The Process node should also wrap its title text across multiple lines
+        // and truncate with "..." when lines exceed available space.
+        // Verify: the drawNode function handles process node title wrapping using wrapText.
 
-        // Extract the else branch that draws non-agent, non-note, non-diamond node labels
-        // (this is where process nodes draw their icon + title)
+        // Extract the drawNode function body
         const drawNodeBody = (() => {
             const fnStart = designerSource.indexOf('function drawNode(node)');
             if (fnStart < 0) return null;
@@ -1007,17 +1006,22 @@ describe('UI regression suite', () => {
         })();
         expect(drawNodeBody).not.toBeNull();
 
-        // The process node title drawing should include truncation logic.
-        // Look for evidence that the icon+label fillText call for process nodes
-        // uses truncation (either wrapText, measureText, or a truncated variable)
-        // rather than a bare fillText with the raw displayLabel.
-        // Specifically, the code should NOT have a bare fillText that concatenates
-        // config.icon + ' ' + displayLabel without any truncation.
-        const bareFillTextPattern = /fillText\s*\(\s*config\.icon\s*\+\s*['"]\s*['"]\s*\+\s*displayLabel/;
-        expect(drawNodeBody).not.toMatch(bareFillTextPattern);
+        // The process node title drawing should use wrapText for multi-line wrapping.
+        // Look for wrapText being called in the process/decision node branch.
+        expect(drawNodeBody).toMatch(/wrapText\s*\(\s*headerText/);
 
-        // Verify wrapText function exists (used by Note nodes and should inform Process behavior)
+        // Should display wrapped lines in a loop (for loop with fillText)
+        expect(drawNodeBody).toMatch(/for\s*\([^)]*displayLines\.length/);
+
+        // Should show "..." when truncated
+        expect(drawNodeBody).toMatch(/fillText\s*\(\s*['"]\.\.\.['"]/);
+
+        // Verify wrapText function exists (shared by Note and Process nodes)
         expect(designerSource).toMatch(/function wrapText/);
+
+        // Verify process description startY is dynamically calculated based on title height
+        // (to avoid overlap when title wraps to multiple lines)
+        expect(drawNodeBody).toMatch(/titleHeight/);
     });
 });
 

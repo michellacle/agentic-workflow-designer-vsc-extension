@@ -600,18 +600,24 @@
                     ctx.fillText(displayLabel, x + w / 2, labelY);
                 }
             } else {
-                // Process/decision/other nodes: truncate icon + label to fit header width
+                // Process/decision/other nodes: wrap icon + label to fit header width
                 ctx.fillStyle = '#fff';
                 const headerText = config.icon + ' ' + displayLabel;
-                const headerY = y + h * 0.3 + 14;
                 // Reserve space for badge (~36px) + padding (16px each side)
                 const maxWidth = w - 52;
-                let truncated = headerText;
-                while (truncated.length > 0 && ctx.measureText(truncated + '\u2026').width > maxWidth) {
-                    truncated = truncated.substring(0, truncated.length - 1);
+                const lineHeight = 15;
+                const lines = wrapText(headerText, ctx, maxWidth);
+                // Limit lines to fit available header space (roughly 2 lines in the header area)
+                const maxLines = 2;
+                const displayLines = lines.slice(0, maxLines);
+                const headerY = y + h * 0.3 + 14;
+                for (let i = 0; i < displayLines.length; i++) {
+                    ctx.fillText(displayLines[i], x + w / 2, headerY + i * lineHeight);
                 }
-                if (truncated !== headerText) truncated += '\u2026';
-                ctx.fillText(truncated, x + w / 2, headerY);
+                // Show "..." if truncated
+                if (lines.length > maxLines) {
+                    ctx.fillText('...', x + w / 2, headerY + maxLines * lineHeight);
+                }
             }
         }
 
@@ -622,11 +628,21 @@
             const desc = (node.data as any).description || '';
             const padding = 8;
             const maxWidth = w - padding * 2;
-            const lines = wrapText(desc, ctx, maxWidth);
-            const displayLines = lines.slice(0, 3);
-            const startY = y + h * 0.3 + 18;
-            for (let i = 0; i < displayLines.length; i++) {
-                ctx.fillText(displayLines[i], x + w / 2, startY + i * 14);
+            const descLines = wrapText(desc, ctx, maxWidth);
+            // Calculate title height to offset description start
+            const titleText = config.icon + ' ' + displayLabel;
+            const titleMaxWidth = w - 52;
+            const titleLineHeight = 15;
+            const titleLines = wrapText(titleText, ctx, titleMaxWidth);
+            const titleMaxLines = 2;
+            const titleDisplayLines = Math.min(titleLines.length, titleMaxLines);
+            const titleTruncated = titleLines.length > titleMaxLines;
+            const titleHeight = (titleDisplayLines + (titleTruncated ? 1 : 0)) * titleLineHeight;
+            const maxDescLines = 3;
+            const displayDescLines = descLines.slice(0, maxDescLines);
+            const startY = y + h * 0.3 + 14 + titleHeight + 4;
+            for (let i = 0; i < displayDescLines.length; i++) {
+                ctx.fillText(displayDescLines[i], x + w / 2, startY + i * 14);
             }
         }
         if (node.type === 'decision') {
