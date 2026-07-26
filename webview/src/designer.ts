@@ -600,8 +600,18 @@
                     ctx.fillText(displayLabel, x + w / 2, labelY);
                 }
             } else {
+                // Process/decision/other nodes: truncate icon + label to fit header width
                 ctx.fillStyle = '#fff';
-                ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
+                const headerText = config.icon + ' ' + displayLabel;
+                const headerY = y + h * 0.3 + 14;
+                // Reserve space for badge (~36px) + padding (16px each side)
+                const maxWidth = w - 52;
+                let truncated = headerText;
+                while (truncated.length > 0 && ctx.measureText(truncated + '\u2026').width > maxWidth) {
+                    truncated = truncated.substring(0, truncated.length - 1);
+                }
+                if (truncated !== headerText) truncated += '\u2026';
+                ctx.fillText(truncated, x + w / 2, headerY);
             }
         }
 

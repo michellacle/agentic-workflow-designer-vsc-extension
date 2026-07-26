@@ -981,6 +981,44 @@ describe('UI regression suite', () => {
         expect(note.data.width).toBe(180);
         expect(note.data.height).toBe(100);
     });
+
+    it('regression: Process node title text should wrap/truncate to fit node width like Note node', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // The Note node has text wrapping logic using wrapText for its body content.
+        // The Process node should also truncate its title text in the header area
+        // so long titles don't overflow the node boundary.
+        // Verify: the drawNode function handles process node title truncation.
+
+        // Extract the else branch that draws non-agent, non-note, non-diamond node labels
+        // (this is where process nodes draw their icon + title)
+        const drawNodeBody = (() => {
+            const fnStart = designerSource.indexOf('function drawNode(node)');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(drawNodeBody).not.toBeNull();
+
+        // The process node title drawing should include truncation logic.
+        // Look for evidence that the icon+label fillText call for process nodes
+        // uses truncation (either wrapText, measureText, or a truncated variable)
+        // rather than a bare fillText with the raw displayLabel.
+        // Specifically, the code should NOT have a bare fillText that concatenates
+        // config.icon + ' ' + displayLabel without any truncation.
+        const bareFillTextPattern = /fillText\s*\(\s*config\.icon\s*\+\s*['"]\s*['"]\s*\+\s*displayLabel/;
+        expect(drawNodeBody).not.toMatch(bareFillTextPattern);
+
+        // Verify wrapText function exists (used by Note nodes and should inform Process behavior)
+        expect(designerSource).toMatch(/function wrapText/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {
