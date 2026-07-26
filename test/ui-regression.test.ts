@@ -935,6 +935,52 @@ describe('UI regression suite', () => {
         expect(fnBody).toMatch(/saveHistory/);
         expect(fnBody).toMatch(/notifyWorkflowUpdate/);
     });
+
+    it('regression: note node can be resized in view mode and persists width/height', () => {
+        const api = (window as any).__workflowDesignerTestApi;
+
+        api.simulateMessage({
+            type: 'init',
+            workflow: {
+                name: 'resize-view-mode',
+                nodes: [
+                    {
+                        id: 'note_1',
+                        type: 'note',
+                        position: { x: 100, y: 100 },
+                        data: { text: 'Resizable note' }
+                    }
+                ],
+                edges: []
+            },
+            animationConfig: {
+                startNodeFlashMs: 3000,
+                edgeHandoffMs: 3000,
+                endNodeFlashMs: 1200,
+                edgeDashSpeed: 20,
+            },
+        });
+
+        // Ensure view mode (default) and perform drag on resize handle area.
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        expect(canvas).not.toBeNull();
+
+        // Node position is (100,100), default note size is 140x70.
+        // Handle top-left is (x + w - 6 - 4, y + h - 6 - 4) = (230,160).
+        const downX = 234;
+        const downY = 164;
+        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: downX, clientY: downY, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: downX + 44, clientY: downY + 34, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: downX + 44, clientY: downY + 34, bubbles: true }));
+
+        const workflow = api.getWorkflowSnapshot();
+        const note = workflow.nodes.find((n: any) => n.id === 'note_1');
+        expect(note).toBeDefined();
+
+        // 140x70 + drag delta(44,34) => 184x104, rounded to nearest 10 => 180x100.
+        expect(note.data.width).toBe(180);
+        expect(note.data.height).toBe(100);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {

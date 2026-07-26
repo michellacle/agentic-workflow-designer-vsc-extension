@@ -1023,10 +1023,10 @@
 
         // Check if clicking on a resize handle (note/process nodes)
         const resizeHit = hitTestResizeHandle(pos);
-        if (resizeHit && state.editMode) {
+        if (resizeHit) {
             const config = NODE_CONFIGS[resizeHit.type];
-            const startW = (resizeHit.data as any).width || (config ? config.width : 140);
-            const startH = (resizeHit.data as any).height || (config ? config.height : 70);
+            const startW = resizeHit.data.width || (config ? config.width : 140);
+            const startH = resizeHit.data.height || (config ? config.height : 70);
             state.resizingNode = {
                 nodeId: resizeHit.id,
                 startW,
@@ -2458,6 +2458,8 @@
                 animationConfig: { ...state.animationConfig }
             }),
             getVisualStatus: (nodeId, runtimeStatus) => getVisualNodeStatus(nodeId, runtimeStatus)
+            ,
+            getWorkflowSnapshot: () => JSON.parse(JSON.stringify(state.workflow))
         };
     }
 
