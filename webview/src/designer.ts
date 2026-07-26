@@ -18,6 +18,7 @@
         selectedNodeIds: new Set(),
         draggingNode: null,
         draggingOffset: { x: 0, y: 0 },
+        resizingNode: null, // { nodeId, startW, startH, startMouseX, startMouseY }
         creatingEdge: null, // { sourceNodeId, sourcePort, currentX, currentY }
         panning: false,
         panStart: { x: 0, y: 0 },
@@ -59,6 +60,9 @@
         nodeId: string;
     } | null;
 
+    // Resize handle hit radius
+    const RESIZE_HANDLE_RADIUS = 8;
+
     // Track last mouse position for hover effects
     let lastMouseCanvasPos = null as { x: number; y: number } | null;
 
@@ -75,8 +79,15 @@
     // ===== Canvas Setup =====
     function getPortPosition(node, side) {
         const config = NODE_CONFIGS[node.type];
-        const w = config ? config.width : 140;
-        const h = config ? config.height : 70;
+        // Use custom width/height for note/process nodes if set
+        let w, h;
+        if (node.type === 'note' || node.type === 'process') {
+            w = node.data.width || (config ? config.width : 140);
+            h = node.data.height || (config ? config.height : 70);
+        } else {
+            w = config ? config.width : 140;
+            h = config ? config.height : 70;
+        }
         const x = node.position.x;
         const y = node.position.y;
         switch (side) {
@@ -94,8 +105,15 @@
 
     function snapSideToBorder(node, canvasPos) {
         const config = NODE_CONFIGS[node.type];
-        const w = config ? config.width : 140;
-        const h = config ? config.height : 70;
+        // Use custom width/height for note/process nodes if set
+        let w, h;
+        if (node.type === 'note' || node.type === 'process') {
+            w = node.data.width || (config ? config.width : 140);
+            h = node.data.height || (config ? config.height : 70);
+        } else {
+            w = config ? config.width : 140;
+            h = config ? config.height : 70;
+        }
         const x = node.position.x;
         const y = node.position.y;
 
@@ -378,8 +396,13 @@
         const config = NODE_CONFIGS[node.type] || NODE_CONFIGS.agent;
         const x = node.position.x;
         const y = node.position.y;
-        const w = config.width;
-        const h = config.height;
+        // Use custom width/height for note/process nodes if set
+        const w = (node.type === 'note' || node.type === 'process')
+            ? (node.data.width || config.width)
+            : config.width;
+        const h = (node.type === 'note' || node.type === 'process')
+            ? (node.data.height || config.height)
+            : config.height;
         const now = state.nowMs;
 
         // Determine color
@@ -523,12 +546,26 @@
             // Center label inside diamond (no icon - diamond shape is the symbol)
             ctx.fillText(displayLabel, x + w / 2, y + h / 2 + 5);
         } else if (node.type === 'note') {
-            // Note nodes: center text in body (no header)
+            // Note nodes: wrap text to fit node width, truncate if overflow
             ctx.fillStyle = getThemeColor('foreground');
             ctx.font = '12px system-ui, sans-serif';
+            ctx.textAlign = 'center';
             const text = (node.data as any).text || '';
-            const truncated = text.length > 40 ? text.substring(0, 37) + '...' : text;
-            ctx.fillText(truncated, x + w / 2, y + h / 2 + 4);
+            const padding = 8;
+            const maxWidth = w - padding * 2;
+            const lineHeight = 15;
+            const lines = wrapText(text, ctx, maxWidth);
+            // Truncate lines that exceed height
+            const maxLines = Math.floor((h - padding * 2) / lineHeight);
+            const displayLines = lines.slice(0, maxLines);
+            const startY = y + padding + lineHeight;
+            for (let i = 0; i < displayLines.length; i++) {
+                ctx.fillText(displayLines[i], x + w / 2, startY + i * lineHeight);
+            }
+            // Show "..." if truncated
+            if (lines.length > maxLines) {
+                ctx.fillText('...', x + w / 2, startY + maxLines * lineHeight);
+            }
         } else {
             ctx.textAlign = 'center';
             if (node.type === 'agent') {
@@ -573,8 +610,14 @@
             ctx.fillStyle = getThemeColor('descriptionForeground');
             ctx.font = '10px system-ui, sans-serif';
             const desc = (node.data as any).description || '';
-            const truncated = desc.length > 25 ? desc.substring(0, 22) + '...' : desc;
-            ctx.fillText(truncated, x + w / 2, y + h * 0.3 + 30);
+            const padding = 8;
+            const maxWidth = w - padding * 2;
+            const lines = wrapText(desc, ctx, maxWidth);
+            const displayLines = lines.slice(0, 3);
+            const startY = y + h * 0.3 + 18;
+            for (let i = 0; i < displayLines.length; i++) {
+                ctx.fillText(displayLines[i], x + w / 2, startY + i * 14);
+            }
         }
         if (node.type === 'decision') {
             ctx.fillStyle = getThemeColor('descriptionForeground');
@@ -616,6 +659,72 @@
 
         // Ports
         drawPorts(node, x, y, w, h);
+
+        // Resize handle for note/process nodes
+        drawResizeHandle(node, x, y, w, h, color);
+    }
+
+    /** Draw a 6x6px square resize handle at the bottom-right corner of note/process nodes. */
+    function drawResizeHandle(node, x, y, w, h, color) {
+        if (node.type !== 'note' && node.type !== 'process') return;
+
+        const handleSize = 6;
+        const offset = 4;
+        const hx = x + w - handleSize - offset;
+        const hy = y + h - handleSize - offset;
+
+        ctx.fillStyle = color;
+        ctx.fillRect(hx, hy, handleSize, handleSize);
+    }
+
+    /** Hit test for the resize handle of note/process nodes. */
+    function hitTestResizeHandle(pos) {
+        const handleSize = 6;
+        const offset = 4;
+        const hitPadding = 4; // extra padding for easier hit testing
+
+        for (let i = state.workflow.nodes.length - 1; i >= 0; i--) {
+            const node = state.workflow.nodes[i];
+            if (node.type !== 'note' && node.type !== 'process') continue;
+
+            const config = NODE_CONFIGS[node.type];
+            const w = node.data.width || (config ? config.width : 140);
+            const h = node.data.height || (config ? config.height : 70);
+            const x = node.position.x;
+            const y = node.position.y;
+
+            const hx = x + w - handleSize - offset;
+            const hy = y + h - handleSize - offset;
+
+            if (pos.x >= hx - hitPadding && pos.x <= hx + handleSize + hitPadding &&
+                pos.y >= hy - hitPadding && pos.y <= hy + handleSize + hitPadding) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /** Wrap text into lines that fit within maxWidth. */
+    function wrapText(text, ctx, maxWidth) {
+        if (!text) return [''];
+        const words = text.split(' ');
+        const lines: string[] = [];
+        let currentLine = '';
+
+        for (const word of words) {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const testWidth = ctx.measureText(testLine).width;
+
+            if (testWidth > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+
+        if (currentLine) lines.push(currentLine);
+        return lines.length > 0 ? lines : [''];
     }
 
     function drawPorts(node, x, y, w, h) {
@@ -912,6 +1021,23 @@
     function onMouseDown(e) {
         const pos = getCanvasPosition(e);
 
+        // Check if clicking on a resize handle (note/process nodes)
+        const resizeHit = hitTestResizeHandle(pos);
+        if (resizeHit && state.editMode) {
+            const config = NODE_CONFIGS[resizeHit.type];
+            const startW = (resizeHit.data as any).width || (config ? config.width : 140);
+            const startH = (resizeHit.data as any).height || (config ? config.height : 70);
+            state.resizingNode = {
+                nodeId: resizeHit.id,
+                startW,
+                startH,
+                startMouseX: pos.x,
+                startMouseY: pos.y
+            };
+            canvas.style.cursor = 'nwse-resize';
+            return;
+        }
+
         // Check if clicking on a port to drag it (both edit and view mode)
         const portDragHit = hitTestDraggablePorts(pos);
         if (portDragHit) {
@@ -1004,6 +1130,33 @@
         const pos = getCanvasPosition(e);
         lastMouseCanvasPos = pos;
 
+        // Resizing node (note/process)
+        if (state.resizingNode) {
+            const node = state.workflow.nodes.find(n => n.id === state.resizingNode!.nodeId);
+            if (node) {
+                const dx = pos.x - state.resizingNode.startMouseX;
+                const dy = pos.y - state.resizingNode.startMouseY;
+                const newW = Math.max(80, Math.min(600, state.resizingNode.startW + dx));
+                const newH = Math.max(40, Math.min(400, state.resizingNode.startH + dy));
+                node.data.width = Math.round(newW / 10) * 10;
+                node.data.height = Math.round(newH / 10) * 10;
+                render();
+            }
+            canvas.style.cursor = 'nwse-resize';
+            return;
+        }
+
+        // Cursor feedback for resize handle hover (note/process nodes)
+        if (!state.draggingNode && !state.panning && !state.creatingEdge && !draggingPort) {
+            const resizeHit = hitTestResizeHandle(pos);
+            if (resizeHit) {
+                canvas.style.cursor = 'nwse-resize';
+            } else {
+                const portHover = hitTestDraggablePorts(pos);
+                canvas.style.cursor = portHover ? 'grab' : 'default';
+            }
+        }
+
         // Port dragging (both edit and view mode)
         if (draggingPort) {
             const node = state.workflow.nodes.find(n => n.id === draggingPort.nodeId);
@@ -1023,10 +1176,7 @@
         }
 
         // Cursor feedback for draggable ports (both edit and view mode)
-        if (!state.draggingNode && !state.panning && !state.creatingEdge) {
-            const portHover = hitTestDraggablePorts(pos);
-            canvas.style.cursor = portHover ? 'grab' : 'default';
-        }
+        // (already handled above with resize handle check)
 
         if (state.creatingEdge) {
             state.creatingEdge.currentX = pos.x;
@@ -1055,6 +1205,16 @@
 
     function onMouseUp(e) {
         const pos = getCanvasPosition(e);
+
+        // Stop resizing
+        if (state.resizingNode) {
+            state.resizingNode = null;
+            canvas.style.cursor = 'default';
+            saveHistory();
+            notifyWorkflowUpdate();
+            render();
+            return;
+        }
 
         // Stop port dragging
         if (draggingPort) {
@@ -1558,9 +1718,13 @@
                 break;
             case 'note':
                 html += propertyField('Text', 'textarea', node.data.text || '', 'Note text content');
+                html += propertyField('Width', 'number', node.data.width || NODE_CONFIGS.note.width);
+                html += propertyField('Height', 'number', node.data.height || NODE_CONFIGS.note.height);
                 break;
             case 'process':
                 html += propertyField('Title', 'text', node.data.title || '', 'Process title');
+                html += propertyField('Width', 'number', node.data.width || NODE_CONFIGS.process.width);
+                html += propertyField('Height', 'number', node.data.height || NODE_CONFIGS.process.height);
                 break;
             case 'decision':
                 html += propertyField('Question', 'text', node.data.question || '', 'Decision question');
@@ -1828,13 +1992,15 @@
             'Duration (sec)': 'duration',
             'Text': 'text',
             'Title': 'title',
-            'Question': 'question'
+            'Question': 'question',
+            'Width': 'width',
+            'Height': 'height'
         };
 
         const key = keyMap[label];
         if (!key) return;
 
-        if (label.includes('sec') || label.includes('Retries')) {
+        if (label.includes('sec') || label.includes('Retries') || label === 'Width' || label === 'Height') {
             node.data[key] = parseInt(value) || 0;
         } else {
             node.data[key] = value;

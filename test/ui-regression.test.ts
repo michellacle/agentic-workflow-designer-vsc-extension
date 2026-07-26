@@ -810,6 +810,131 @@ describe('UI regression suite', () => {
         // Should compute available width from node dimensions
         expect(drawSection).toMatch(/availableWidth|maxWidth|maxLabelWidth/);
     });
+
+    it('regression: note and process nodes support resizable dimensions via data.width/height', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // drawNode should use node.data.width/height for note/process types
+        const drawNodeFn = designerSource.match(/function drawNode[\s\S]*?(?=\n    function )/);
+        expect(drawNodeFn).not.toBeNull();
+        const fnBody = drawNodeFn![0];
+
+        // Should reference node.data.width or node.data.height for sizing
+        expect(fnBody).toMatch(/node\.data\.(width|height)/);
+    });
+
+    it('regression: resize handle is drawn for note and process nodes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Should have a function or code to draw a resize handle
+        expect(designerSource).toMatch(/drawResizeHandle|resize.*handle|RESIZE_HANDLE/i);
+
+        // Should check for note or process node types when drawing resize handle
+        const handleMatch = designerSource.match(/drawResizeHandle[\s\S]*?(?=\n    function )/);
+        if (handleMatch) {
+            expect(handleMatch[0]).toMatch(/note|process/);
+        }
+    });
+
+    it('regression: resize handle hit test exists and is checked before node hit test', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Should have a hitTestResizeHandle function
+        expect(designerSource).toMatch(/hitTestResizeHandle/);
+
+        // onMouseDown should check resize handle before node hit test
+        const onMouseDownFn = designerSource.match(/function onMouseDown[\s\S]*?(?=\n    function )/);
+        expect(onMouseDownFn).not.toBeNull();
+        const fnBody = onMouseDownFn![0];
+        expect(fnBody).toMatch(/hitTestResizeHandle/);
+    });
+
+    it('regression: mouse move handles resize state and clamps dimensions', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // onMouseMove should handle resizingNode state
+        const onMouseMoveFn = designerSource.match(/function onMouseMove[\s\S]*?(?=\n    function )/);
+        expect(onMouseMoveFn).not.toBeNull();
+        const fnBody = onMouseMoveFn![0];
+
+        // Should reference resizingNode
+        expect(fnBody).toMatch(/resizingNode/);
+        // Should clamp dimensions (min/max)
+        expect(fnBody).toMatch(/Math\.max.*Math\.min|Math\.min.*Math\.max|clamp/);
+    });
+
+    it('regression: properties panel shows Width/Height inputs for note and process nodes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // updatePropertiesPanel should have Width/Height fields for note/process
+        const fnStart = designerSource.indexOf('function updatePropertiesPanel');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\nfunction ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        const noteCase = _extractCaseBody(fnBody, "'note'");
+        expect(noteCase).not.toBeNull();
+        expect(noteCase).toMatch(/propertyField\(\s*['"]Width/);
+        expect(noteCase).toMatch(/propertyField\(\s*['"]Height/);
+
+        const processCase = _extractCaseBody(fnBody, "'process'");
+        expect(processCase).not.toBeNull();
+        expect(processCase).toMatch(/propertyField\(\s*['"]Width/);
+        expect(processCase).toMatch(/propertyField\(\s*['"]Height/);
+    });
+
+    it('regression: getPortPosition and snapSideToBorder use custom width/height for note/process nodes', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // getPortPosition should check node.data.width/height for note/process
+        const getPortPositionFn = designerSource.match(/function getPortPosition[\s\S]*?(?=\n    function )/);
+        expect(getPortPositionFn).not.toBeNull();
+        expect(getPortPositionFn![0]).toMatch(/node\.data\.(width|height)/);
+
+        // snapSideToBorder should also check node.data.width/height for note/process
+        const snapSideToBorderFn = designerSource.match(/function snapSideToBorder[\s\S]*?(?=\n    function )/);
+        expect(snapSideToBorderFn).not.toBeNull();
+        expect(snapSideToBorderFn![0]).toMatch(/node\.data\.(width|height)/);
+    });
+
+    it('regression: cursor changes to resize cursor when hovering resize handle', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // onMouseMove should set cursor to a resize cursor when hovering handle
+        const onMouseMoveFn = designerSource.match(/function onMouseMove[\s\S]*?(?=\n    function )/);
+        expect(onMouseMoveFn).not.toBeNull();
+        const fnBody = onMouseMoveFn![0];
+
+        // Should reference a resize cursor style
+        expect(fnBody).toMatch(/nwse-resize|nesw-resize|ns-resize|ew-resize|col-resize|row-resize/);
+    });
+
+    it('regression: updateNodeProperty keyMap includes Width and Height keys', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // updateNodeProperty should map Width/Height labels to data keys
+        const fnStart = designerSource.indexOf('function updateNodeProperty');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\n    function ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        expect(fnBody).toMatch(/['"]Width['"]\s*:\s*['"]width['"]/);
+        expect(fnBody).toMatch(/['"]Height['"]\s*:\s*['"]height['"]/);
+    });
+
+    it('regression: resize state is saved to history on mouse up', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // onMouseUp should save history and notify workflow update after resize
+        const onMouseUpFn = designerSource.match(/function onMouseUp[\s\S]*?(?=\n    function )/);
+        expect(onMouseUpFn).not.toBeNull();
+        const fnBody = onMouseUpFn![0];
+
+        // Should check for resizingNode and save history
+        expect(fnBody).toMatch(/resizingNode/);
+        expect(fnBody).toMatch(/saveHistory/);
+        expect(fnBody).toMatch(/notifyWorkflowUpdate/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {

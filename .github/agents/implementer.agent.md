@@ -93,6 +93,10 @@ Always follow the **Red-Green-Refactor** cycle:
 
 ## Output Format
 
-Output a summary of changes made to the console.
+Output a summary of the work done
+* The features/bugs you implemented
+* Summarize the tests run
+* Summarize the unit tests created
+* Confidence level that you have completed
 
 

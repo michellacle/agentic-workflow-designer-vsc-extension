@@ -54,8 +54,8 @@ nodes:
   - id: process_11
     type: process
     position:
-      x: 200
-      'y': 580
+      x: 120
+      'y': 630
     data:
       title: michel tests extension by reloading VSC
       description: ''
@@ -87,7 +87,7 @@ nodes:
     type: process
     position:
       x: 420
-      'y': 520
+      'y': 630
     data:
       title: Michel prompts agent in chat to review last execution logs and fix issues.
       description: ''

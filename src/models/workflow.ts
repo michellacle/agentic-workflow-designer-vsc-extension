@@ -128,6 +128,9 @@ export interface LoopNodeData {
 export interface NoteNodeData {
     text: string;
     description?: string;
+    /** Optional custom size — defaults to NODE_CONFIGS width/height. */
+    width?: number;
+    height?: number;
 }
 
 /**
@@ -136,6 +139,9 @@ export interface NoteNodeData {
 export interface ProcessNodeData {
     title: string;
     description?: string;
+    /** Optional custom size — defaults to NODE_CONFIGS width/height. */
+    width?: number;
+    height?: number;
 }
 
 /**
