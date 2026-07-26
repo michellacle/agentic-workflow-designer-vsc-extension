@@ -710,26 +710,33 @@ describe('UI regression suite', () => {
         expect(labelBlock![1]).toMatch(/displayLabel/);
     });
 
-    it('regression: agent node getDisplayLabel includes model name on the same line as the label', () => {
+    it('regression: agent node displays "Agent: <model>" with model name in blue and no robot icon', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
-        // getDisplayLabel should include model name on the same line for agent nodes
-        // so the node renders "🤖 Agent <model name>" instead of model on a separate sub-label line
-        const getDisplayLabelFn = designerSource.match(/function getDisplayLabel[\s\S]*?\n    \}/);
-        expect(getDisplayLabelFn).not.toBeNull();
-        const fnBody = getDisplayLabelFn![0];
-        // Should have an agent check that includes model
-        expect(fnBody).toMatch(/node\.type\s*===\s*['"]agent['"]/);
-        expect(fnBody).toMatch(/node\.data\.model/);
-        // Should concatenate label with model (not return them separately)
-        expect(fnBody).toMatch(/label\s*\+\s*['"]\s*['"]\s*\+\s*model/);
+        // Agent nodes should render "Agent:" in white and model name in blue on the canvas
+        // Robot icon (🤖) should be removed from agent node config
+        const nodeConfigMatch = designerSource.match(/agent:\s*\{[^}]*\}/);
+        expect(nodeConfigMatch).not.toBeNull();
+        // Should NOT have robot icon
+        expect(nodeConfigMatch![0]).not.toMatch(/🤖/);
+        expect(nodeConfigMatch![0]).toMatch(/icon:\s*['"]['"]/);
+
+        // Canvas draw section should render agent label with colon and model in blue
+        const agentDrawMatch = designerSource.match(/Agent nodes: "Agent:" in white[\s\S]*?\}/);
+        expect(agentDrawMatch).not.toBeNull();
+        const drawSection = agentDrawMatch![0];
+        // Should render "Agent:" with colon
+        expect(drawSection).toMatch(/displayLabel\s*\+\s*['"]:['"]/);
+        // Should render model name in blue
+        expect(drawSection).toMatch(/#64B5F6/);
+        expect(drawSection).toMatch(/node\.data\.model/);
     });
 
     it('regression: agent node sub-label section does not render model name separately', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
         // The sub-label section for agent nodes should only render promptLine, not model
-        // Model should be on the main label line via getDisplayLabel
+        // Model should be on the main label line via canvas draw, not in sub-labels
         const agentSubLabelMatch = designerSource.match(/Sub-labels for agent nodes[\s\S]*?(?=Sub-labels for condition nodes|function drawPorts)/);
         expect(agentSubLabelMatch).not.toBeNull();
         const subLabelSection = agentSubLabelMatch![0];

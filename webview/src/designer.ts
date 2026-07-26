@@ -143,7 +143,7 @@
     const NODE_CONFIGS = {
         start: { label: 'Start', color: '#4CAF50', width: 108, height: 45, icon: '●' },
         end: { label: 'End', color: '#f44336', width: 108, height: 45, icon: '●' },
-        agent: { label: 'Agent', color: '#2196F3', width: 140, height: 90, icon: '🤖' },
+        agent: { label: 'Agent', color: '#2196F3', width: 140, height: 90, icon: '' },
         condition: { label: 'Condition', color: '#FF9800', width: 140, height: 140, icon: '◇' },
         human_approval: { label: 'Approval', color: '#9C27B0', width: 140, height: 70, icon: '👤' },
         delay: { label: 'Delay', color: '#607D8B', width: 140, height: 70, icon: '⏱' },
@@ -530,8 +530,27 @@
             const truncated = text.length > 40 ? text.substring(0, 37) + '...' : text;
             ctx.fillText(truncated, x + w / 2, y + h / 2 + 4);
         } else {
-            ctx.fillStyle = '#fff';
-            ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
+            ctx.textAlign = 'center';
+            if (node.type === 'agent') {
+                // Agent nodes: "Agent:" in white, model name in blue
+                const model = node.data.model || '';
+                const labelY = y + h * 0.3 + 14;
+                if (model) {
+                    const truncated = model.substring(0, 22);
+                    ctx.font = 'bold 12px system-ui, sans-serif';
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(displayLabel + ':', x + w / 2, labelY);
+                    ctx.fillStyle = '#64B5F6';
+                    ctx.fillText(truncated, x + w / 2, labelY + 16);
+                } else {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px system-ui, sans-serif';
+                    ctx.fillText(displayLabel, x + w / 2, labelY);
+                }
+            } else {
+                ctx.fillStyle = '#fff';
+                ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h * 0.3 + 14);
+            }
         }
 
         // Sub-labels for annotation nodes
@@ -1689,14 +1708,9 @@
         if (node.type === 'decision') return (node.data as any).question?.substring(0, 18) || 'Decision';
         // Condition nodes: diamond shape is the symbol — no text label needed
         if (node.type === 'condition') return '';
-        // Agent nodes: include model name on the same line as the label
+        // Agent nodes: return label only (model rendered separately in blue)
         if (node.type === 'agent') {
-            const label = node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
-            const model = node.data.model || '';
-            if (model) {
-                return label + ' ' + model.substring(0, 25);
-            }
-            return label;
+            return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
         }
         return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
     }

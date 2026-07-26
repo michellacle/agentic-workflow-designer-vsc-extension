@@ -12,7 +12,7 @@ nodes:
       'y': 330
     data:
       agent: builder
-      prompt: Build the extension
+      prompt: Build the VSC extension
       model: qwen3.6-27b
       timeout: 300
       retries: 3
