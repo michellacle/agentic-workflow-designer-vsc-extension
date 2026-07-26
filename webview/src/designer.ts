@@ -520,8 +520,8 @@
         ctx.textAlign = 'center';
         const displayLabel = getDisplayLabel(node);
         if (isDiamond) {
-            // Center label inside diamond
-            ctx.fillText(config.icon + ' ' + displayLabel, x + w / 2, y + h / 2 + 5);
+            // Center label inside diamond (no icon - diamond shape is the symbol)
+            ctx.fillText(displayLabel, x + w / 2, y + h / 2 + 5);
         } else if (node.type === 'note') {
             // Note nodes: center text in body (no header)
             ctx.fillStyle = getThemeColor('foreground');
@@ -1520,6 +1520,7 @@
             case 'condition':
                 html += propertyField('Model', 'text', node.data.model || '', 'e.g., Claude Sonnet 4.6 (copilot)');
                 html += propertyField('Prompt', 'textarea', node.data.prompt || '', 'Reasoning instructions for routing decision');
+                html += propertyField('Timeout (sec)', 'number', node.data.timeout || 120);
                 break;
             case 'human_approval':
                 html += propertyField('Message', 'textarea', node.data.message || 'Approve this step?');
@@ -1692,6 +1693,8 @@
         if (node.type === 'note') return 'Note';
         if (node.type === 'process') return (node.data as any).title || 'Process';
         if (node.type === 'decision') return (node.data as any).question?.substring(0, 18) || 'Decision';
+        // Condition nodes: diamond shape is the symbol — no text label needed
+        if (node.type === 'condition') return '';
         return node.data.label || NODE_CONFIGS[node.type]?.label || node.id;
     }
 

@@ -694,6 +694,67 @@ describe('UI regression suite', () => {
         const noteBodyMatch = designerSource.match(/node\.type\s*===\s*['"]note['"][\s\S]*?fillText[\s\S]*?y\s*\+\s*h\s*\/\s*2/);
         expect(noteBodyMatch).not.toBeNull();
     });
+
+    it('regression: condition node diamond display omits redundant diamond icon symbol', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Diamond node rendering should NOT prepend config.icon to the label
+        // (the diamond shape itself is the symbol, so "◇ Condition" is redundant)
+        // Find the isDiamond fillText block that renders the label (not the badge)
+        // Look for the comment that identifies the label rendering section
+        const labelBlock = designerSource.match(/Center label inside diamond[\s\S]*?fillText\(([^,)]+)/);
+        expect(labelBlock).not.toBeNull();
+        // The fillText argument should NOT contain config.icon
+        expect(labelBlock![1]).not.toMatch(/config\.icon/);
+        // Should use displayLabel only
+        expect(labelBlock![1]).toMatch(/displayLabel/);
+    });
+
+    it('regression: condition node getDisplayLabel returns empty string (diamond shape is the symbol)', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // getDisplayLabel should return empty string for condition nodes
+        // so the diamond renders without redundant "Condition" text
+        const getDisplayLabelFn = designerSource.match(/function getDisplayLabel[\s\S]*?\n    \}/);
+        expect(getDisplayLabelFn).not.toBeNull();
+        const fnBody = getDisplayLabelFn![0];
+        // Should have a condition check that returns empty string
+        expect(fnBody).toMatch(/node\.type\s*===\s*['"]condition['"]/);
+        expect(fnBody).toMatch(/return\s*['"][\s]*['"]/);
+    });
+
+    it('regression: condition node properties panel includes Timeout field', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Find the updatePropertiesPanel function body
+        const fnStart = designerSource.indexOf('function updatePropertiesPanel');
+        expect(fnStart).toBeGreaterThan(-1);
+        const fnEnd = designerSource.indexOf('\nfunction ', fnStart + 1);
+        const fnBody = designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+
+        // Condition case in properties panel should include Timeout field
+        const conditionCase = _extractCaseBody(fnBody, "'condition'");
+        expect(conditionCase).not.toBeNull();
+        expect(conditionCase).toMatch(/propertyField\(\s*['"]Timeout/);
+    });
+
+    it('regression: executor uses condition node timeout from data instead of hardcoded value', () => {
+        const executorSource = readFile('src/runtime/workflowExecutor.ts');
+
+        // Find executeConditionNode method body
+        const fnStart = executorSource.indexOf('async executeConditionNode');
+        expect(fnStart).toBeGreaterThan(-1);
+        // Find the next method after executeConditionNode
+        const nextMethodMatch = executorSource.substring(fnStart + 1).match(/\n\s+(private\s+)?async\s+\w+/);
+        const fnEnd = nextMethodMatch ? fnStart + nextMethodMatch.index! : executorSource.length;
+        const fnBody = executorSource.substring(fnStart, fnEnd);
+
+        // Should use data.timeout with a fallback default, not a hardcoded 120
+        expect(fnBody).toMatch(/data\.timeout\s*\|\|\s*120/);
+        // Should NOT have a bare "120," as the timeout argument on its own line
+        // The invokeAgent call should have data.timeout || 120 as the timeout param
+        expect(fnBody).toMatch(/invokeAgent[\s\S]*data\.timeout/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {
