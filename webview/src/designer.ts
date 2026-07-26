@@ -599,15 +599,35 @@
                     ctx.fillStyle = '#fff';
                     ctx.fillText(displayLabel, x + w / 2, labelY);
                 }
-            } else {
-                // Process/decision/other nodes: wrap icon + label to fit header width
+            } else if (node.type === 'process') {
+                // Process nodes: wrap title to fit body width with dynamic line count (like note nodes)
                 ctx.fillStyle = '#fff';
                 const headerText = config.icon + ' ' + displayLabel;
-                // Reserve space for badge (~36px) + padding (16px each side)
+                const padding = 8;
+                const maxWidth = w - padding * 2;
+                const lineHeight = 15;
+                const lines = wrapText(headerText, ctx, maxWidth);
+                // Calculate max lines based on available body height, reserving space for description
+                const bodyHeight = h - h * 0.3 - 14;
+                const descReserved = 20;
+                const titleMaxHeight = Math.max(lineHeight, bodyHeight - descReserved);
+                const maxLines = Math.max(1, Math.floor(titleMaxHeight / lineHeight));
+                const displayLines = lines.slice(0, maxLines);
+                const headerY = y + h * 0.3 + 14;
+                for (let i = 0; i < displayLines.length; i++) {
+                    ctx.fillText(displayLines[i], x + w / 2, headerY + i * lineHeight);
+                }
+                // Show "..." if truncated
+                if (lines.length > maxLines) {
+                    ctx.fillText('...', x + w / 2, headerY + maxLines * lineHeight);
+                }
+            } else {
+                // Other nodes: wrap icon + label to fit body width
+                ctx.fillStyle = '#fff';
+                const headerText = config.icon + ' ' + displayLabel;
                 const maxWidth = w - 52;
                 const lineHeight = 15;
                 const lines = wrapText(headerText, ctx, maxWidth);
-                // Limit lines to fit available header space (roughly 2 lines in the header area)
                 const maxLines = 2;
                 const displayLines = lines.slice(0, maxLines);
                 const headerY = y + h * 0.3 + 14;
@@ -629,12 +649,15 @@
             const padding = 8;
             const maxWidth = w - padding * 2;
             const descLines = wrapText(desc, ctx, maxWidth);
-            // Calculate title height to offset description start
+            // Calculate title height to offset description start (match title rendering logic)
             const titleText = config.icon + ' ' + displayLabel;
-            const titleMaxWidth = w - 52;
+            const titleMaxWidth = w - padding * 2;
             const titleLineHeight = 15;
             const titleLines = wrapText(titleText, ctx, titleMaxWidth);
-            const titleMaxLines = 2;
+            const bodyHeight = h - h * 0.3 - 14;
+            const descReserved = 20;
+            const titleMaxHeight = Math.max(titleLineHeight, bodyHeight - descReserved);
+            const titleMaxLines = Math.max(1, Math.floor(titleMaxHeight / titleLineHeight));
             const titleDisplayLines = Math.min(titleLines.length, titleMaxLines);
             const titleTruncated = titleLines.length > titleMaxLines;
             const titleHeight = (titleDisplayLines + (titleTruncated ? 1 : 0)) * titleLineHeight;
