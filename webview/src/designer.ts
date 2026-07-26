@@ -170,7 +170,7 @@
         human_approval: { label: 'Approval', color: '#9C27B0', width: 140, height: 70, icon: '👤' },
         delay: { label: 'Delay', color: '#607D8B', width: 140, height: 70, icon: '⏱' },
         // Outer loop annotation nodes - muted colors
-        note: { label: 'Note', color: '#8D6E63', width: 140, height: 70, icon: '📝' },
+        note: { label: 'Note', color: '#FFD54F', width: 140, height: 70, icon: '📝' },
         process: { label: 'Process', color: '#78909C', width: 140, height: 70, icon: '⚙' },
         decision: { label: 'Decision', color: '#A1887F', width: 140, height: 70, icon: '⬡' }
     };

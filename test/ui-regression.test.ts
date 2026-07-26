@@ -1023,6 +1023,19 @@ describe('UI regression suite', () => {
         // (to avoid overlap when title wraps to multiple lines)
         expect(drawNodeBody).toMatch(/titleHeight/);
     });
+
+    it('regression: note annotation nodes use a yellow sticky-note header color', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Note nodes should have a yellow header color (not brown/purple)
+        // to resemble a traditional sticky note
+        const noteConfigMatch = designerSource.match(/note:\s*\{[^}]*color:\s*['"]([^'"]+)['"]/);
+        expect(noteConfigMatch).not.toBeNull();
+        const noteColor = noteConfigMatch![1];
+
+        // Should be a yellow shade (FFD54F or similar yellow hex)
+        expect(noteColor).toMatch(/^#FF[0-9A-Fa-f]/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {

@@ -46,55 +46,55 @@ nodes:
   - id: note_10
     type: note
     position:
-      x: 690
-      'y': -30
+      x: 750
+      'y': -10
     data:
       text: Remove Note header, note should only have body.
       description: ''
   - id: process_11
     type: process
     position:
-      x: 270
-      'y': 680
+      x: 190
+      'y': 770
     data:
       title: michel tests extension by reloading VSC
       description: ''
   - id: note_12
     type: note
     position:
-      x: 860
-      'y': 220
+      x: 870
+      'y': 240
     data:
       text: Double the height of the condition node
       description: ''
   - id: note_13
     type: note
     position:
-      x: 820
-      'y': 80
+      x: 800
+      'y': 130
     data:
       text: The Condition times out too quickly, increase the note timeout.
       description: ''
   - id: note_14
     type: note
     position:
-      x: 510
-      'y': 100
+      x: 590
+      'y': 90
     data:
       text: Feature, review last workflow execution log, identify issue, and fix error if there are any.
       description: ''
   - id: process_15
     type: process
     position:
-      x: 320
-      'y': 810
+      x: -140
+      'y': 370
     data:
       title: Michel prompts agent in chat to review last execution logs and fix issues.
       description: ''
   - id: note_16
     type: note
     position:
-      x: 480
+      x: 580
       'y': 190
     data:
       text: 'Feature: factory, a canvas that shows all workflows, can execute one or more workflows in parallel.'
@@ -102,24 +102,24 @@ nodes:
   - id: note_17
     type: note
     position:
-      x: 440
-      'y': -30
+      x: 490
+      'y': -40
     data:
       text: Feature, exception handling, route to fix last execution agent.
       description: ''
   - id: note_18
     type: note
     position:
-      x: 580
-      'y': 290
+      x: 670
+      'y': 310
     data:
       text: Build a feature refining loop that goes into a grill me session
       description: ''
   - id: note_19
     type: note
     position:
-      x: 530
-      'y': 420
+      x: 630
+      'y': 430
     data:
       text: add quality checks agent followed by a verifier
       description: ''
@@ -134,8 +134,8 @@ nodes:
   - id: note_21
     type: note
     position:
-      x: 820
-      'y': 350
+      x: 860
+      'y': 390
     data:
       text: Note text here
       description: ''
@@ -179,4 +179,19 @@ edges:
     sourceSide: bottom
     targetSide: top
     type: agentic
+  - source: process_11
+    target: end_2
+    sourceSide: right
+    targetSide: bottom
+    type: annotation
+  - source: process_15
+    target: start
+    sourceSide: left
+    targetSide: left
+    type: annotation
+  - source: process_11
+    target: process_15
+    sourceSide: left
+    targetSide: bottom
+    type: annotation
 description: A new workflow
