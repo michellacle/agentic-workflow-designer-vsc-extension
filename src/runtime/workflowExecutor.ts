@@ -85,6 +85,9 @@ export class WorkflowExecutor {
     private _pauseResolver: ((value: void) => void) | null = null;
     private _pausePromise: Promise<void> | null = null;
 
+    /** Maximum times a single node may be executed before loop protection triggers. */
+    private static readonly MAX_NODE_EXECUTIONS = 50;
+
     constructor(private readonly observer: ExecutionObserver, agentInvoker?: IAgentInvoker) {
         this._stateManager = new StateManager();
         this._agentInvoker = agentInvoker ?? null!; // production code must inject AgentInvoker
@@ -302,7 +305,20 @@ export class WorkflowExecutor {
                     this.observer.onLog(`  ⠋ Running ${nodeId} (${label})...`);
 
                     // Increment execution count for this node entry
-                    this._stateManager.incrementNodeExecutionCount(nodeId);
+                    const execCount = this._stateManager.incrementNodeExecutionCount(nodeId);
+
+                    // Infinite loop protection: abort if a node has been executed too many times
+                    if (execCount > WorkflowExecutor.MAX_NODE_EXECUTIONS) {
+                        const label = this.getNodeLabel(node);
+                        this.observer.onLog(`\n⚠ Loop protection triggered: node ${nodeId} (${label}) exceeded max execution count (${WorkflowExecutor.MAX_NODE_EXECUTIONS}).`);
+                        this.observer.onLog(`   This likely indicates an infinite loop in the workflow.`);
+                        this._stateManager.addError(nodeId, `Node exceeded max execution count (${WorkflowExecutor.MAX_NODE_EXECUTIONS}). Workflow aborted to prevent infinite loop.`);
+                        this.observer.onNotification('error', `Infinite loop detected: node ${nodeId} executed ${execCount} times.`);
+                        hadFailure = true;
+                        // Clear next nodes to exit the while loop immediately
+                        currentNodeIds = [];
+                        break;
+                    }
 
                     // Single deep call: processNode handles record creation, timing, status, and errors
                     const result = await this._stateManager.processNode(nodeId, label, async () => {
@@ -523,10 +539,20 @@ export class WorkflowExecutor {
         }
 
         // Parse the true/false response
-        const rawOutput = result.output.trim().toLowerCase();
-        const branchResult = rawOutput === 'true' || rawOutput === 'yes' || rawOutput === '1';
+        const rawOutput = result.output.trim();
 
-        this._stateManager.addLog(node.id, `Condition agent responded: ${result.output.trim()} → ${branchResult}`);
+        // Detect agent errors in output — if the agent returned an error message
+        // instead of a proper true/false, fail the node rather than defaulting to false
+        if (this.isConditionAgentError(rawOutput)) {
+            const errorMessage = `Condition agent returned an error instead of true/false: ${rawOutput.substring(0, 200)}`;
+            this._stateManager.addError(node.id, errorMessage);
+            this.observer.onLog(`     ✗ ${errorMessage}`);
+            throw new Error(errorMessage);
+        }
+
+        const branchResult = rawOutput.toLowerCase() === 'true' || rawOutput.toLowerCase() === 'yes' || rawOutput.toLowerCase() === '1';
+
+        this._stateManager.addLog(node.id, `Condition agent responded: ${rawOutput} → ${branchResult}`);
         this._stateManager.set(`${node.id}_result`, branchResult);
         this._stateManager.set(`${node.id}_output`, result.output);
 
@@ -813,6 +839,27 @@ export class WorkflowExecutor {
         } catch {
             return output;
         }
+    }
+
+    /**
+     * Detect if a condition agent's output is an error message rather than a valid true/false response.
+     * When the condition agent fails (network error, timeout, etc.), it may return an error message
+     * wrapped in its output instead of throwing — we need to detect this and fail the node.
+     */
+    private isConditionAgentError(output: string): boolean {
+        const trimmed = output.trim();
+        // Check for common error patterns in agent output
+        const errorPatterns = [
+            /^agent error:/i,
+            /^error:/i,
+            /^failed:/i,
+            /network request aborted/i,
+            /request failed/i,
+            /connection refused/i,
+            /etimedout/i,
+            /econnreset/i,
+        ];
+        return errorPatterns.some(pattern => pattern.test(trimmed));
     }
 
     private notifyExecutionUpdate(): void {

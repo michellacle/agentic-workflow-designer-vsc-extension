@@ -645,10 +645,10 @@
             ctx.textAlign = 'left';
             ctx.fillText('True', x + w + 8, y + h / 2 + 3);
 
-            // False port (bottom vertex)
+            // False port (left vertex)
             ctx.fillStyle = '#f44336';
             ctx.beginPath();
-            ctx.arc(x + w / 2, y + h, portRadius, 0, Math.PI * 2);
+            ctx.arc(x, y + h / 2, portRadius, 0, Math.PI * 2);
             ctx.fill();
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
@@ -656,8 +656,8 @@
 
             ctx.fillStyle = '#f44336';
             ctx.font = 'bold 9px system-ui';
-            ctx.textAlign = 'center';
-            ctx.fillText('False', x + w / 2, y + h + 14);
+            ctx.textAlign = 'right';
+            ctx.fillText('False', x - 8, y + h / 2 + 3);
         }
     }
 
@@ -785,8 +785,8 @@
                 sx = sourceNode.position.x + w;
                 sy = sourceNode.position.y + h / 2;
             } else if (sourcePort === 'false') {
-                sx = sourceNode.position.x + w / 2;
-                sy = sourceNode.position.y + h;
+                sx = sourceNode.position.x;
+                sy = sourceNode.position.y + h / 2;
             } else {
                 sx = sourceNode.position.x + w;
                 sy = sourceNode.position.y + h / 2;
@@ -1046,7 +1046,7 @@
                         // Determine sourceSide based on condition port
                         let sourceSide = 'right';
                         if (sourceNode.type === 'condition') {
-                            sourceSide = state.creatingEdge.sourcePort === 'true' ? 'right' : 'bottom';
+                            sourceSide = state.creatingEdge.sourcePort === 'true' ? 'right' : 'left';
                         }
                         state.workflow.edges.push({
                             id: `${state.creatingEdge.sourceNodeId}->${portHit.nodeId}`,
@@ -1296,9 +1296,9 @@
                 if (dx1 * dx1 + dy1 * dy1 < 64) {
                     return { nodeId: node.id, port: 'true' };
                 }
-                // False port (bottom vertex of diamond)
-                const dx2 = pos.x - (x + w / 2);
-                const dy2 = pos.y - (y + h);
+                // False port (left vertex of diamond)
+                const dx2 = pos.x - x;
+                const dy2 = pos.y - (y + h / 2);
                 if (dx2 * dx2 + dy2 * dy2 < 64) {
                     return { nodeId: node.id, port: 'false' };
                 }
@@ -1325,9 +1325,9 @@
                 if (dx1 * dx1 + dy1 * dy1 < 64) {
                     return { nodeId: node.id, port: 'true' };
                 }
-                // False port (bottom vertex of diamond)
-                const dx2 = pos.x - (x + w / 2);
-                const dy2 = pos.y - (y + h);
+                // False port (left vertex of diamond)
+                const dx2 = pos.x - x;
+                const dy2 = pos.y - (y + h / 2);
                 if (dx2 * dx2 + dy2 * dy2 < 64) {
                     return { nodeId: node.id, port: 'false' };
                 }

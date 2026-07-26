@@ -607,12 +607,13 @@ describe('UI regression suite', () => {
         expect(fnBody).toMatch(/node\.type\s*===\s*'condition'/);
         expect(fnBody).toMatch(/x\s*\+\s*w[\s\S]*?y\s*\+\s*h\s*\/\s*2/);
 
-        // False port hit test should be at bottom vertex (x + w / 2, y + h)
-        expect(fnBody).toMatch(/x\s*\+\s*w\s*\/\s*2[\s\S]*?y\s*\+\s*h/);
+        // False port hit test should be at left vertex (x, y + h / 2)
+        expect(fnBody).toMatch(/pos\.x\s*-\s*x[\s\S]*?y\s*\+\s*h\s*\/\s*2/);
 
-        // Should NOT use the old wrong positions (y + 15, y + h - 15)
+        // Should NOT use the old wrong positions (y + 15, y + h - 15, or bottom vertex)
         expect(fnBody).not.toMatch(/y\s*\+\s*15/);
         expect(fnBody).not.toMatch(/y\s*\+\s*h\s*-\s*15/);
+        expect(fnBody).not.toMatch(/x\s*\+\s*w\s*\/\s*2.*y\s*\+\s*h[^\/]*/);
     });
 
     it('regression: drawCreatingEdge uses correct port position for condition nodes', () => {
@@ -629,8 +630,26 @@ describe('UI regression suite', () => {
         expect(fnBody).toMatch(/===\s*'true'/);
         expect(fnBody).toMatch(/===\s*'false'/);
 
-        // Should use different positions for true (right) vs false (bottom)
-        expect(fnBody).toMatch(/x\s*\+\s*w\s*\//); // bottom vertex for false
+        // Should use different positions for true (right: x + w) vs false (left: x)
+        expect(fnBody).toMatch(/sourcePort\s*===\s*'false'/);
+        expect(fnBody).toMatch(/position\.x[\s\S]*?position\.y\s*\+\s*h\s*\/\s*2/); // left vertex for false
+    });
+
+    it('regression: executor has infinite loop protection with max execution count', () => {
+        const executorSource = readFile('src/runtime/workflowExecutor.ts');
+
+        // Should define a max execution count constant
+        expect(executorSource).toMatch(/MAX_NODE_EXECUTIONS/);
+
+        // Should check execution count against the limit
+        expect(executorSource).toMatch(/execCount.*MAX_NODE_EXECUTIONS|MAX_NODE_EXECUTIONS.*execCount/);
+
+        // Should log a clear warning when triggered
+        expect(executorSource).toMatch(/Loop protection triggered|infinite.*loop/i);
+
+        // Should detect condition agent errors
+        expect(executorSource).toMatch(/isConditionAgentError/);
+        expect(executorSource).toMatch(/agent error:/i);
     });
 });
 

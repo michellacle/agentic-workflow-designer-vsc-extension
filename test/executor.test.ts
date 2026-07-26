@@ -472,4 +472,196 @@ describe('WorkflowExecutor integration', () => {
             expect(ctx.nodeExecutionCounts.get('end')).toBe(1);
         });
     });
+
+    describe('infinite loop protection', () => {
+        it('should stop workflow when a node exceeds max execution count', async () => {
+            // Create a workflow where a condition always returns false,
+            // routing back to itself — simulating an infinite loop.
+            const workflow: Workflow = {
+                name: 'infinite-loop',
+                nodes: [
+                    { id: 'start', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
+                    {
+                        id: 'condition',
+                        type: NodeType.Condition,
+                        position: { x: 100, y: 0 },
+                        data: { prompt: 'Always fail' } as ConditionNodeData,
+                    },
+                    { id: 'falseNode', type: NodeType.Delay, position: { x: 200, y: 50 }, data: { duration: 0 } as DelayNodeData },
+                    { id: 'end', type: NodeType.End, position: { x: 300, y: 0 }, data: { summary: false } as EndNodeData },
+                ],
+                edges: [
+                    { id: 'e1', source: 'start', target: 'condition' },
+                    { id: 'e2', source: 'condition', target: 'falseNode', label: 'False' },
+                    { id: 'e3', source: 'falseNode', target: 'condition' }, // loops back!
+                    { id: 'e4', source: 'condition', target: 'end', label: 'True' },
+                ],
+            };
+
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'false' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            // Should fail (not hang forever)
+            expect(status).toBe(ExecutionStatus.Failed);
+            const logText = observer.logs.join('\n');
+            expect(logText).toContain('max');
+            expect(logText).toContain('execution');
+        }, 10000);
+
+        it('should log a clear warning when loop protection triggers', async () => {
+            // Two nodes that loop back to each other (no End reachable)
+            const workflow: Workflow = {
+                name: 'loop-protection-test',
+                nodes: [
+                    { id: 'start', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
+                    {
+                        id: 'loopNodeA',
+                        type: NodeType.Delay,
+                        position: { x: 100, y: 0 },
+                        data: { duration: 0 } as DelayNodeData,
+                    },
+                    {
+                        id: 'loopNodeB',
+                        type: NodeType.Delay,
+                        position: { x: 200, y: 0 },
+                        data: { duration: 0 } as DelayNodeData,
+                    },
+                    { id: 'end', type: NodeType.End, position: { x: 300, y: 0 }, data: { summary: false } as EndNodeData },
+                ],
+                edges: [
+                    { id: 'e1', source: 'start', target: 'loopNodeA' },
+                    { id: 'e2', source: 'loopNodeA', target: 'loopNodeB' },
+                    { id: 'e3', source: 'loopNodeB', target: 'loopNodeA' }, // loops back
+                ],
+            };
+
+            const mockExecutor = new WorkflowExecutor(observer);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Failed);
+            const logText = observer.logs.join('\n');
+            expect(logText).toMatch(/loop.*protection|infinite.*loop|max.*execution/i);
+        }, 10000);
+    });
+
+    describe('condition node error detection', () => {
+        it('should fail workflow when condition agent returns an error message', async () => {
+            const workflow: Workflow = {
+                name: 'condition-error',
+                nodes: [
+                    { id: 'start', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
+                    {
+                        id: 'condition',
+                        type: NodeType.Condition,
+                        position: { x: 100, y: 0 },
+                        data: { prompt: 'Check something' } as ConditionNodeData,
+                    },
+                    { id: 'trueNode', type: NodeType.Delay, position: { x: 200, y: -50 }, data: { duration: 0 } as DelayNodeData },
+                    { id: 'falseNode', type: NodeType.Delay, position: { x: 200, y: 50 }, data: { duration: 0 } as DelayNodeData },
+                    { id: 'end', type: NodeType.End, position: { x: 300, y: 0 }, data: { summary: false } as EndNodeData },
+                ],
+                edges: [
+                    { id: 'e1', source: 'start', target: 'condition' },
+                    { id: 'e2', source: 'condition', target: 'trueNode', label: 'True' },
+                    { id: 'e3', source: 'condition', target: 'falseNode', label: 'False' },
+                    { id: 'e4', source: 'trueNode', target: 'end' },
+                    { id: 'e5', source: 'falseNode', target: 'end' },
+                ],
+            };
+
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return {
+                        success: true,
+                        output: 'Agent error: Sorry, your request failed. Please try again.\n\nClient Request Id: 7566eaf5-ee1a-4313-af87-8678ebaf4e2c\n\nReason: network request aborted',
+                    };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            // Should fail because the condition agent returned an error
+            expect(status).toBe(ExecutionStatus.Failed);
+            const logText = observer.logs.join('\n');
+            expect(logText).toContain('error');
+        });
+
+        it('should fail when condition agent output starts with "Agent error"', async () => {
+            const workflow = createBranchWorkflow();
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return {
+                        success: true,
+                        output: 'Agent error: network request aborted: Error: network request aborted',
+                    };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Failed);
+        });
+
+        it('should still route correctly when condition agent returns "true"', async () => {
+            const workflow = createBranchWorkflow();
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'true' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Completed);
+            const ctx = mockExecutor.getExecutionContext();
+            expect(ctx.nodeRecords.get('trueNode')?.status).toBe(NodeStatus.Completed);
+            expect(ctx.nodeRecords.get('falseNode')?.status).toBe(NodeStatus.Skipped);
+        });
+
+        it('should still route correctly when condition agent returns "false"', async () => {
+            const workflow = createBranchWorkflow();
+            const mockInvoker: IAgentInvoker = {
+                async invokeAgent() {
+                    return { success: true, output: 'false' };
+                },
+            };
+            const mockExecutor = new WorkflowExecutor(observer, mockInvoker);
+            const status = await mockExecutor.run({
+                workflow,
+                executionContext: createMockExecutionContext(),
+                workspaceRoot: '/tmp',
+            });
+
+            expect(status).toBe(ExecutionStatus.Completed);
+            const ctx = mockExecutor.getExecutionContext();
+            expect(ctx.nodeRecords.get('falseNode')?.status).toBe(NodeStatus.Completed);
+            expect(ctx.nodeRecords.get('trueNode')?.status).toBe(NodeStatus.Skipped);
+        });
+    });
 });
