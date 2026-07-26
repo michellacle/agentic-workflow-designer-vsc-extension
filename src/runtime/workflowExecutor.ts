@@ -232,8 +232,11 @@ export class WorkflowExecutor {
 
     private async execute(workflow: Workflow, chatContext?: ChatRequestContext, workspaceRoot?: string): Promise<void> {
         this._stateManager.initialize(workflow.initialState);
-        // Initialize all node execution counts to 0 so every node shows a counter
-        this._stateManager.initializeNodeExecutionCounts(workflow.nodes.map(n => n.id));
+        // Initialize node execution counts to 0 so every executable node shows a counter.
+        // Annotation nodes are non-executable — they skip the counter entirely.
+        this._stateManager.initializeNodeExecutionCounts(
+            workflow.nodes.filter(n => !isAnnotationNode(n.type)).map(n => n.id)
+        );
         this._abortController = new AbortController();
         if (workspaceRoot) {this._workspaceRoot = workspaceRoot;}
         this.observer.onStatusChange(ExecutionStatus.Running);

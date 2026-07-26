@@ -213,6 +213,62 @@ describe('Runtime skips annotation nodes', () => {
         executor = new WorkflowExecutor(observer);
     });
 
+    it('should not initialize execution counts for annotation nodes', async () => {
+        const workflow = {
+            name: 'annotated',
+            nodes: [
+                { id: 'start', type: NodeType.Start, position: { x: 0, y: 0 }, data: {} },
+                {
+                    id: 'note1',
+                    type: NodeType.Note,
+                    position: { x: 50, y: 0 },
+                    data: { text: 'A note' },
+                },
+                {
+                    id: 'proc1',
+                    type: NodeType.Process,
+                    position: { x: 100, y: 0 },
+                    data: { title: 'A process' },
+                },
+                {
+                    id: 'dec1',
+                    type: NodeType.Decision,
+                    position: { x: 150, y: 0 },
+                    data: { question: 'A decision?' },
+                },
+                { id: 'end', type: NodeType.End, position: { x: 200, y: 0 }, data: { summary: false } },
+            ],
+            edges: [
+                { id: 'e1', source: 'start', target: 'end' },
+            ],
+        };
+
+        const mockContext = {
+            toolInvocationToken: {} as any,
+            cancellationToken: {
+                isCancellationRequested: false,
+                onCancellationRequested: (_listener: () => void) => ({ dispose: () => {} }),
+            },
+        };
+
+        await executor.run({
+            workflow,
+            executionContext: mockContext as any,
+            workspaceRoot: '/tmp',
+        });
+
+        const ctx = executor.getExecutionContext();
+
+        // Executable nodes should have execution counts
+        expect(ctx.nodeExecutionCounts.has('start')).toBe(true);
+        expect(ctx.nodeExecutionCounts.has('end')).toBe(true);
+
+        // Annotation nodes should NOT have execution counts
+        expect(ctx.nodeExecutionCounts.has('note1')).toBe(false);
+        expect(ctx.nodeExecutionCounts.has('proc1')).toBe(false);
+        expect(ctx.nodeExecutionCounts.has('dec1')).toBe(false);
+    });
+
     it('executes workflow with annotation nodes without executing them', async () => {
         const workflow = {
             name: 'annotated',

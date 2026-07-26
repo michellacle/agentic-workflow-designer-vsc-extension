@@ -1036,6 +1036,56 @@ describe('UI regression suite', () => {
         // Should be a yellow shade (FFD54F or similar yellow hex)
         expect(noteColor).toMatch(/^#FF[0-9A-Fa-f]/);
     });
+
+    it('regression: annotation nodes (note/process/decision) should not render an execution count badge', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Annotation nodes are non-executable visual-only nodes.
+        // They should NOT have an execution count badge rendered.
+
+        // Extract the drawNode function body
+        const drawNodeBody = (() => {
+            const fnStart = designerSource.indexOf('function drawNode(');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(drawNodeBody).not.toBeNull();
+
+        // Get the section between the header fill and the "// Icon and label" comment
+        // This is where badge rendering lives.
+        const badgeSection = (() => {
+            const iconLabelIdx = drawNodeBody!.indexOf('// Icon and label');
+            if (iconLabelIdx < 0) return null;
+            // Find the start of the badge section (after the purple header fill block)
+            const badgeCommentIdx = drawNodeBody!.indexOf('// Execution count badge');
+            if (badgeCommentIdx < 0) return null;
+            return drawNodeBody!.substring(badgeCommentIdx, iconLabelIdx);
+        })();
+        expect(badgeSection).not.toBeNull();
+
+        // Should NOT have the old purple badge color (#7B1FA2) used for annotation badges
+        expect(badgeSection).not.toMatch(/#7B1FA2/);
+
+        // Should have a guard that excludes annotation nodes from badge rendering
+        expect(badgeSection).toMatch(/!isAnnotation/);
+    });
+
+    it('regression: executor should not initialize execution counts for annotation nodes', () => {
+        const executorSource = readFile('src/runtime/workflowExecutor.ts');
+
+        // The executor should filter out annotation nodes when initializing execution counts.
+        // This ensures annotation nodes (note/process/decision) get no counter at all,
+        // not just a hidden badge.
+        expect(executorSource).toMatch(/initializeNodeExecutionCounts[\s\S]*?filter[\s\S]*?isAnnotationNode/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {

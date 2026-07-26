@@ -554,26 +554,8 @@
             ctx.fill();
         }
 
-        // Execution count badge for annotation nodes (outside top border)
-        if (isAnnotation) {
-            const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
-            const badgeText = String(executionCount);
-            ctx.font = 'bold 10px system-ui, sans-serif';
-            const badgeMetrics = ctx.measureText(badgeText);
-            const badgeW = badgeMetrics.width + 10;
-            const badgeH = 16;
-            const badgeX = x + w - badgeW - 6;
-            const badgeY = y - badgeH - 2;
-
-            ctx.fillStyle = '#7B1FA2';
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
-            ctx.fill();
-
-            ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center';
-            ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
-        } else if (!isDiamond && node.type !== 'note' && !isAnnotation) {
+        // Execution count badge — annotation nodes skip this (non-executable)
+        if (!isAnnotation && !isDiamond && node.type !== 'note') {
             // Execution count badge (top-right of header, always shown)
             const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
             const badgeText = String(executionCount);
