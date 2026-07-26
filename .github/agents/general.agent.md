@@ -1,5 +1,5 @@
 ---
-name: general agent
+name: general
 description: a general agent with no restrictions
 
 # instructions
