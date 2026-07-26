@@ -738,7 +738,8 @@ export class WorkflowExecutor {
     // ---- Graph traversal helpers ----
 
     private getNextNodes(nodeId: string, node: Node, workflow: Workflow, branchResult?: boolean): string[] {
-        const allEdges = workflow.edges.filter(e => e.source === nodeId);
+        // Filter out annotation edges — they are visual-only and should not drive execution
+        const allEdges = workflow.edges.filter(e => e.source === nodeId && e.type !== 'annotation');
 
         if (branchResult !== undefined && (node.type === NodeType.Condition || node.type === NodeType.HumanApproval || node.type === NodeType.Loop)) {
             return allEdges
@@ -750,8 +751,9 @@ export class WorkflowExecutor {
     }
 
     private getAllNextNodes(nodeId: string, workflow: Workflow): string[] {
+        // Filter out annotation edges — they are visual-only and should not drive execution
         return workflow.edges
-            .filter(e => e.source === nodeId)
+            .filter(e => e.source === nodeId && e.type !== 'annotation')
             .map(e => e.target);
     }
 

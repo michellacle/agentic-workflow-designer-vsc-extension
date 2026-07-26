@@ -144,32 +144,39 @@ edges:
     target: agent_3
     sourceSide: bottom
     targetSide: top
+    type: agentic
   - source: agent_3
     target: condition_6
     sourceSide: bottom
     targetSide: top
+    type: agentic
   - source: condition_6
     target: agent_1
     label: 'True'
     sourceSide: right
     targetSide: top
+    type: agentic
   - source: condition_6
     target: agent_3
     label: 'False'
     sourceSide: left
     targetSide: left
+    type: agentic
   - source: condition_20
     target: agent_1
     label: 'False'
     sourceSide: left
     targetSide: left
+    type: agentic
   - source: condition_20
     target: end_2
     label: 'True'
     sourceSide: right
     targetSide: left
+    type: agentic
   - source: agent_1
     target: condition_20
     sourceSide: bottom
     targetSide: top
+    type: agentic
 description: A new workflow

@@ -20,6 +20,10 @@
         draggingOffset: { x: 0, y: 0 },
         resizingNode: null, // { nodeId, startW, startH, startMouseX, startMouseY }
         creatingEdge: null, // { sourceNodeId, sourcePort, currentX, currentY }
+        // Annotation edge creation state (drag from annotation node border)
+        creatingAnnotationEdge: null as { nodeId: string; borderX: number; borderY: number; currentX: number; currentY: number } | null,
+        // Hover position for annotation border handle
+        annotationBorderHover: null as { nodeId: string; borderX: number; borderY: number } | null,
         panning: false,
         panStart: { x: 0, y: 0 },
         viewport: { x: 0, y: 0, zoom: 1 },
@@ -339,11 +343,27 @@
             drawCreatingEdge();
         }
 
+        // Draw creating annotation edge (in progress)
+        if (state.creatingAnnotationEdge) {
+            drawCreatingAnnotationEdge();
+        }
+
         // Draw arrowheads last so they are visible on top of both edges and node backgrounds
         drawArrowheads();
 
+        // Draw annotation border handle when hovering annotation node border
+        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.creatingAnnotationEdge) {
+            if (state.annotationBorderHover) {
+                drawAnnotationHandle(
+                    state.annotationBorderHover.nodeId,
+                    state.annotationBorderHover.borderX,
+                    state.annotationBorderHover.borderY
+                );
+            }
+        }
+
         // Draw hovered port highlight (both edit and view mode)
-        if (!state.draggingNode && !state.panning && !state.creatingEdge) {
+        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.creatingAnnotationEdge) {
             const mousePos = getCanvasPositionFromLastEvent();
             if (mousePos) {
                 const portHover = hitTestDraggablePorts(mousePos);
@@ -477,8 +497,51 @@
             }
         }
 
-        // Header bar (skip for diamond-shaped nodes and note nodes)
-        if (!isDiamond && node.type !== 'note') {
+        // Purple header bar for annotation nodes (note/process/decision)
+        if (isAnnotation) {
+            const annotationPurple = '#7B1FA2';
+            const headerHeight = 22;
+            ctx.fillStyle = annotationPurple;
+            ctx.beginPath();
+            if (isDiamond) {
+                // For diamond annotation nodes, draw a purple band across the top portion
+                const cx = x + w / 2;
+                const cy = y + h / 2;
+                // Top portion of diamond clipped to header height
+                const topY = y;
+                const clipY = y + headerHeight;
+                const ratio = (clipY - topY) / (cy - topY);
+                const halfW = ratio * (w / 2);
+                ctx.moveTo(cx, topY);
+                ctx.lineTo(cx + halfW, clipY);
+                ctx.lineTo(cx - halfW, clipY);
+                ctx.closePath();
+            } else {
+                ctx.moveTo(x + 8, y);
+                ctx.lineTo(x + w - 8, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + 8);
+                ctx.lineTo(x + w, Math.min(y + headerHeight, y + h * 0.3));
+                ctx.lineTo(x, Math.min(y + headerHeight, y + h * 0.3));
+                ctx.lineTo(x, y + 8);
+                ctx.quadraticCurveTo(x, y, x + 8, y);
+                ctx.closePath();
+            }
+            ctx.fill();
+
+            // Type label in white on purple header
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            const typeLabel = config.label || node.type;
+            if (isDiamond) {
+                ctx.fillText(typeLabel, x + w / 2, y + headerHeight - 6);
+            } else {
+                ctx.fillText(typeLabel, x + w / 2, y + headerHeight - 5);
+            }
+        }
+
+        // Header bar (skip for diamond-shaped nodes, note nodes, and annotation nodes)
+        if (!isDiamond && node.type !== 'note' && !isAnnotation) {
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.moveTo(x + 8, y);
@@ -489,7 +552,28 @@
             ctx.lineTo(x, y + 8);
             ctx.quadraticCurveTo(x, y, x + 8, y);
             ctx.fill();
+        }
 
+        // Execution count badge for annotation nodes (outside top border)
+        if (isAnnotation) {
+            const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
+            const badgeText = String(executionCount);
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            const badgeMetrics = ctx.measureText(badgeText);
+            const badgeW = badgeMetrics.width + 10;
+            const badgeH = 16;
+            const badgeX = x + w - badgeW - 6;
+            const badgeY = y - badgeH - 2;
+
+            ctx.fillStyle = '#7B1FA2';
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+            ctx.fill();
+
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + 12);
+        } else if (!isDiamond && node.type !== 'note' && !isAnnotation) {
             // Execution count badge (top-right of header, always shown)
             const executionCount = state.nodeExecutionCounts[node.id] ?? 0;
             const badgeText = String(executionCount);
@@ -890,24 +974,32 @@
         // Determine if this edge is selected
         const isSelected = state.selectedEdgeId === edge.id;
 
-        // Set styles based on selection and animation state
-        if (isSelected) {
+        // Check if this is an annotation edge (visual-only, dashed purple)
+        const isAnnotationEdge = edge.type === 'annotation';
+
+        // Set styles based on edge type, selection, and animation state
+        if (isAnnotationEdge) {
+            // Annotation edges: dashed purple
+            ctx.strokeStyle = isSelected ? getThemeColor('focusBorder') : '#7B1FA2';
+            ctx.lineWidth = isSelected ? 4 : 2;
+            ctx.setLineDash([8, 5]);
+        } else if (isSelected) {
             ctx.strokeStyle = getThemeColor('focusBorder');
             ctx.lineWidth = 4;
+            ctx.setLineDash([]);
         } else {
             ctx.strokeStyle = getThemeColor('descriptionForeground');
             ctx.lineWidth = 2;
+            ctx.setLineDash([]);
         }
 
-        // Animate execution handoff only for edges explicitly scheduled by runtime events.
-        if (isEdgeAnimating) {
+        // Animate execution handoff only for agentic edges explicitly scheduled by runtime events.
+        if (isEdgeAnimating && !isAnnotationEdge) {
             const elapsed = Math.max(0, state.nowMs - edgeAnimation.startTime);
             ctx.strokeStyle = getThemeColor('buttonBackground');
             ctx.lineWidth = isSelected ? 4 : 3;
             ctx.setLineDash([8, 4]);
             ctx.lineDashOffset = -(elapsed / state.animationConfig.edgeDashSpeed);
-        } else {
-            ctx.setLineDash([]);
         }
 
         ctx.beginPath();
@@ -1043,6 +1135,7 @@
             const edgeAnimation = state.edgeAnimations[edge.id];
             const isEdgeAnimating = !!edgeAnimation && state.nowMs >= edgeAnimation.startTime && state.nowMs <= edgeAnimation.endTime;
             const isSelected = state.selectedEdgeId === edge.id;
+            const isAnnotationEdge = edge.type === 'annotation';
 
             // Tangent direction at the target (direction of curve travel as it arrives).
             const tangentAngle = Math.atan2(ty - cp2y, tx - cp2x);
@@ -1052,11 +1145,13 @@
             const ax = tx - tipOffset * Math.cos(tangentAngle);
             const ay = ty - tipOffset * Math.sin(tangentAngle);
             // Arrowhead points in the direction of travel; base extends opposite.
-            ctx.fillStyle = isEdgeAnimating
-                ? getThemeColor('buttonBackground')
-                : isSelected
-                    ? getThemeColor('focusBorder')
-                    : getThemeColor('descriptionForeground');
+            ctx.fillStyle = isAnnotationEdge
+                ? (isSelected ? getThemeColor('focusBorder') : '#7B1FA2')
+                : isEdgeAnimating
+                    ? getThemeColor('buttonBackground')
+                    : isSelected
+                        ? getThemeColor('focusBorder')
+                        : getThemeColor('descriptionForeground');
             ctx.beginPath();
             ctx.moveTo(ax, ay);
             ctx.lineTo(ax - 10 * Math.cos(tangentAngle - Math.PI / 6), ay - 10 * Math.sin(tangentAngle - Math.PI / 6));
@@ -1096,6 +1191,21 @@
                 nodeId: portDragHit.nodeId
             };
             canvas.style.cursor = 'grabbing';
+            return;
+        }
+
+        // Check if clicking on an annotation node border (start annotation edge creation)
+        const borderHit = hitTestAnnotationBorder(pos);
+        if (borderHit) {
+            state.creatingAnnotationEdge = {
+                nodeId: borderHit.nodeId,
+                borderX: borderHit.borderX,
+                borderY: borderHit.borderY,
+                currentX: pos.x,
+                currentY: pos.y
+            };
+            state.annotationBorderHover = null;
+            canvas.style.cursor = 'crosshair';
             return;
         }
 
@@ -1196,13 +1306,33 @@
         }
 
         // Cursor feedback for resize handle hover (note/process nodes)
-        if (!state.draggingNode && !state.panning && !state.creatingEdge && !draggingPort) {
+        if (!state.draggingNode && !state.panning && !state.creatingEdge && !state.creatingAnnotationEdge && !draggingPort) {
             const resizeHit = hitTestResizeHandle(pos);
             if (resizeHit) {
                 canvas.style.cursor = 'nwse-resize';
             } else {
-                const portHover = hitTestDraggablePorts(pos);
-                canvas.style.cursor = portHover ? 'grab' : 'default';
+                // Check for annotation node border hover
+                const borderHit = hitTestAnnotationBorder(pos);
+                if (borderHit) {
+                    canvas.style.cursor = 'crosshair';
+                    state.annotationBorderHover = {
+                        nodeId: borderHit.nodeId,
+                        borderX: borderHit.borderX,
+                        borderY: borderHit.borderY
+                    };
+                    render();
+                } else {
+                    const portHover = hitTestDraggablePorts(pos);
+                    if (portHover) {
+                        canvas.style.cursor = 'grab';
+                    } else {
+                        canvas.style.cursor = 'default';
+                        if (state.annotationBorderHover) {
+                            state.annotationBorderHover = null;
+                            render();
+                        }
+                    }
+                }
             }
         }
 
@@ -1230,6 +1360,14 @@
         if (state.creatingEdge) {
             state.creatingEdge.currentX = pos.x;
             state.creatingEdge.currentY = pos.y;
+            render();
+            return;
+        }
+
+        // Annotation edge creation in progress
+        if (state.creatingAnnotationEdge) {
+            state.creatingAnnotationEdge.currentX = pos.x;
+            state.creatingAnnotationEdge.currentY = pos.y;
             render();
             return;
         }
@@ -1308,6 +1446,43 @@
                 }
             }
             state.creatingEdge = null;
+            render();
+            return;
+        }
+
+        // Annotation edge creation completed
+        if (state.creatingAnnotationEdge) {
+            // Check if we released on a valid target node
+            const targetNode = hitTestNodes(pos);
+            if (targetNode && targetNode.id !== state.creatingAnnotationEdge.nodeId) {
+                const sourceNode = state.workflow.nodes.find(n => n.id === state.creatingAnnotationEdge.nodeId);
+                if (sourceNode) {
+                    // Check for duplicate annotation edge
+                    const exists = state.workflow.edges.some(
+                        e => e.source === state.creatingAnnotationEdge.nodeId &&
+                            e.target === targetNode.id &&
+                            e.type === 'annotation'
+                    );
+                    if (!exists) {
+                        // Determine best source/target sides based on border position
+                        const sourceSide = determineSideFromPosition(sourceNode, state.creatingAnnotationEdge.borderX, state.creatingAnnotationEdge.borderY);
+                        const targetSide = determineSideFromPosition(targetNode, pos.x, pos.y);
+
+                        state.workflow.edges.push({
+                            id: `${state.creatingAnnotationEdge.nodeId}->${targetNode.id}`,
+                            source: state.creatingAnnotationEdge.nodeId,
+                            target: targetNode.id,
+                            sourceSide,
+                            targetSide,
+                            type: 'annotation'
+                        });
+                        saveHistory();
+                        notifyWorkflowUpdate();
+                    }
+                }
+            }
+            state.creatingAnnotationEdge = null;
+            canvas.style.cursor = 'default';
             render();
             return;
         }
@@ -1612,6 +1787,114 @@
             }
         }
         return null;
+    }
+
+    /**
+     * Hit test for annotation node borders.
+     * Returns the closest point on the node's border if the mouse is within 8px of it.
+     * Only works on annotation nodes (note, process, decision).
+     */
+    function hitTestAnnotationBorder(pos) {
+        const threshold = 8; // pixels
+
+        for (let i = state.workflow.nodes.length - 1; i >= 0; i--) {
+            const node = state.workflow.nodes[i];
+            if (!['note', 'process', 'decision'].includes(node.type)) continue;
+
+            const config = NODE_CONFIGS[node.type];
+            if (!config) continue;
+
+            const x = node.position.x;
+            const y = node.position.y;
+            // Use custom width/height for note/process nodes if set
+            const w = (node.type === 'note' || node.type === 'process')
+                ? (node.data.width || config.width)
+                : config.width;
+            const h = (node.type === 'note' || node.type === 'process')
+                ? (node.data.height || config.height)
+                : config.height;
+
+            // Check if position is outside the node
+            if (pos.x < x || pos.x > x + w || pos.y < y || pos.y > y + h) {
+                // Find closest point on the rectangle border
+                const closestX = Math.max(x, Math.min(pos.x, x + w));
+                const closestY = Math.max(y, Math.min(pos.y, y + h));
+                const dx = pos.x - closestX;
+                const dy = pos.y - closestY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist <= threshold) {
+                    return { nodeId: node.id, borderX: closestX, borderY: closestY };
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Draw a small purple dot at the annotation border hover position.
+     */
+    function drawAnnotationHandle(nodeId, borderX, borderY) {
+        ctx.fillStyle = '#7B1FA2';
+        ctx.beginPath();
+        ctx.arc(borderX, borderY, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    /**
+     * Draw the annotation edge being created (dashed purple line from border to cursor).
+     */
+    function drawCreatingAnnotationEdge() {
+        const { nodeId, borderX, borderY, currentX, currentY } = state.creatingAnnotationEdge;
+        ctx.strokeStyle = '#7B1FA2';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 5]);
+        ctx.beginPath();
+        ctx.moveTo(borderX, borderY);
+        ctx.lineTo(currentX, currentY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw arrowhead at the current mouse position
+        const angle = Math.atan2(currentY - borderY, currentX - borderX);
+        ctx.fillStyle = '#7B1FA2';
+        ctx.beginPath();
+        ctx.moveTo(currentX, currentY);
+        ctx.lineTo(currentX - 10 * Math.cos(angle - Math.PI / 6), currentY - 10 * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(currentX - 10 * Math.cos(angle + Math.PI / 6), currentY - 10 * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    /**
+     * Determine which side of a node a given position is closest to.
+     */
+    function determineSideFromPosition(node, px, py) {
+        const config = NODE_CONFIGS[node.type];
+        if (!config) return 'right';
+
+        const x = node.position.x;
+        const y = node.position.y;
+        const w = (node.type === 'note' || node.type === 'process')
+            ? (node.data.width || config.width)
+            : config.width;
+        const h = (node.type === 'note' || node.type === 'process')
+            ? (node.data.height || config.height)
+            : config.height;
+
+        const distTop = Math.abs(py - y);
+        const distBottom = Math.abs(py - (y + h));
+        const distLeft = Math.abs(px - x);
+        const distRight = Math.abs(px - (x + w));
+
+        const min = Math.min(distTop, distBottom, distLeft, distRight);
+        if (min === distTop) return 'top';
+        if (min === distBottom) return 'bottom';
+        if (min === distLeft) return 'left';
+        return 'right';
     }
 
     // ===== Toolbox =====

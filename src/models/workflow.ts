@@ -164,6 +164,16 @@ export const DEFAULT_SOURCE_SIDE: PortSide = 'right';
 export const DEFAULT_TARGET_SIDE: PortSide = 'left';
 
 /**
+ * Edge type distinguishes execution edges from visual annotation edges.
+ */
+export enum EdgeType {
+    /** Standard edge that drives workflow execution flow. */
+    Agentic = 'agentic',
+    /** Purely visual edge for human-readable workflow documentation. */
+    Annotation = 'annotation'
+}
+
+/**
  * Edge (connection) between nodes
  */
 export interface Edge {
@@ -176,6 +186,8 @@ export interface Edge {
     sourceSide?: PortSide;
     /** Which side of the target node the edge enters from. Defaults to 'left'. */
     targetSide?: PortSide;
+    /** Visual-only annotation edges are ignored by the runtime. Defaults to 'agentic'. */
+    type?: EdgeType;
 }
 
 /**

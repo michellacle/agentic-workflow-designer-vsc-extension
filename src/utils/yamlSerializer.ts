@@ -1,6 +1,6 @@
 import * as yaml from 'js-yaml';
 import {
-    Workflow, Node, Edge, NodeType,
+    Workflow, Node, Edge, NodeType, EdgeType,
     NodeData, StartNodeData, EndNodeData,
     AgentNodeData, ConditionNodeData,
     HumanApprovalNodeData, DelayNodeData, LoopNodeData,
@@ -33,6 +33,7 @@ interface YamlEdgeObject {
     priority?: number;
     sourceSide?: PortSide;
     targetSide?: PortSide;
+    type?: 'agentic' | 'annotation';
 }
 
 /**
@@ -154,6 +155,9 @@ export function workflowToYaml(workflow: Workflow): string {
         if (edge.targetSide) {
             edgeObj.targetSide = edge.targetSide;
         }
+        if (edge.type) {
+            edgeObj.type = edge.type;
+        }
         yamlObj.edges.push(edgeObj);
     }
 
@@ -198,7 +202,8 @@ export function yamlToWorkflow(yamlStr: string): Workflow {
                 label: e.label,
                 priority: e.priority,
                 sourceSide: e.sourceSide,
-                targetSide: e.targetSide
+                targetSide: e.targetSide,
+                type: e.type === 'annotation' ? EdgeType.Annotation : EdgeType.Agentic
             };
             workflow.edges.push(edge);
         }
