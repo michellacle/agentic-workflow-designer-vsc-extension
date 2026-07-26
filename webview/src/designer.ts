@@ -532,19 +532,22 @@
         } else {
             ctx.textAlign = 'center';
             if (node.type === 'agent') {
-                // Agent nodes: "Agent:" in white, model name in blue
+                // Agent nodes: "Agent: <model>" with model name in blue on same line
                 const model = node.data.model || '';
                 const labelY = y + h * 0.3 + 14;
+                ctx.font = 'bold 12px system-ui, sans-serif';
                 if (model) {
                     const truncated = model.substring(0, 22);
-                    ctx.font = 'bold 12px system-ui, sans-serif';
+                    const prefix = displayLabel + ': ';
+                    const prefixWidth = ctx.measureText(prefix).width;
+                    const totalWidth = ctx.measureText(prefix + truncated).width;
+                    const startX = x + w / 2 - totalWidth / 2;
                     ctx.fillStyle = '#fff';
-                    ctx.fillText(displayLabel + ':', x + w / 2, labelY);
+                    ctx.fillText(prefix, startX, labelY);
                     ctx.fillStyle = '#64B5F6';
-                    ctx.fillText(truncated, x + w / 2, labelY + 16);
+                    ctx.fillText(truncated, startX + prefixWidth, labelY);
                 } else {
                     ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 12px system-ui, sans-serif';
                     ctx.fillText(displayLabel, x + w / 2, labelY);
                 }
             } else {

@@ -710,10 +710,10 @@ describe('UI regression suite', () => {
         expect(labelBlock![1]).toMatch(/displayLabel/);
     });
 
-    it('regression: agent node displays "Agent: <model>" with model name in blue and no robot icon', () => {
+    it('regression: agent node displays "Agent: <model>" with model name in blue on same line and no robot icon', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
-        // Agent nodes should render "Agent:" in white and model name in blue on the canvas
+        // Agent nodes should render "Agent: <model>" on the same line with model in blue
         // Robot icon (🤖) should be removed from agent node config
         const nodeConfigMatch = designerSource.match(/agent:\s*\{[^}]*\}/);
         expect(nodeConfigMatch).not.toBeNull();
@@ -721,14 +721,15 @@ describe('UI regression suite', () => {
         expect(nodeConfigMatch![0]).not.toMatch(/🤖/);
         expect(nodeConfigMatch![0]).toMatch(/icon:\s*['"]['"]/);
 
-        // Canvas draw section should render agent label with colon and model in blue
-        const agentDrawMatch = designerSource.match(/Agent nodes: "Agent:" in white[\s\S]*?\}/);
+        // Canvas draw section should render agent label with colon and model in blue on same line
+        const agentDrawMatch = designerSource.match(/Agent nodes: "Agent: <model>"[\s\S]*?\}\s*\}\s*else/);
         expect(agentDrawMatch).not.toBeNull();
         const drawSection = agentDrawMatch![0];
         // Should render "Agent:" with colon
-        expect(drawSection).toMatch(/displayLabel\s*\+\s*['"]:['"]/);
-        // Should render model name in blue
+        expect(drawSection).toMatch(/displayLabel\s*\+\s*['"]: ['"]/);
+        // Should render model name in blue on same line (using measureText for positioning)
         expect(drawSection).toMatch(/#64B5F6/);
+        expect(drawSection).toMatch(/measureText/);
         expect(drawSection).toMatch(/node\.data\.model/);
     });
 
