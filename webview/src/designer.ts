@@ -144,7 +144,7 @@
         start: { label: 'Start', color: '#4CAF50', width: 108, height: 45, icon: '●' },
         end: { label: 'End', color: '#f44336', width: 108, height: 45, icon: '●' },
         agent: { label: 'Agent', color: '#2196F3', width: 140, height: 90, icon: '🤖' },
-        condition: { label: 'Condition', color: '#FF9800', width: 140, height: 70, icon: '◇' },
+        condition: { label: 'Condition', color: '#FF9800', width: 140, height: 140, icon: '◇' },
         human_approval: { label: 'Approval', color: '#9C27B0', width: 140, height: 70, icon: '👤' },
         delay: { label: 'Delay', color: '#607D8B', width: 140, height: 70, icon: '⏱' },
         // Outer loop annotation nodes - muted colors
