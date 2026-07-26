@@ -538,6 +538,7 @@
                 ctx.font = 'bold 12px system-ui, sans-serif';
                 if (model) {
                     const prefix = displayLabel + ': ';
+                    ctx.font = 'bold 12px system-ui, sans-serif';
                     const prefixWidth = ctx.measureText(prefix).width;
                     // Available width: node width minus padding on both sides
                     const availableWidth = w - 16;
@@ -550,11 +551,13 @@
                     if (truncated !== model) truncated += '…';
                     const totalWidth = ctx.measureText(prefix + truncated).width;
                     // Clamp start so text never overflows the left edge
+                    ctx.textAlign = 'left';
                     const startX = Math.max(x + 8, x + w / 2 - totalWidth / 2);
                     ctx.fillStyle = '#fff';
                     ctx.fillText(prefix, startX, labelY);
                     ctx.fillStyle = '#64B5F6';
                     ctx.fillText(truncated, startX + prefixWidth, labelY);
+                    ctx.textAlign = 'center';
                 } else {
                     ctx.fillStyle = '#fff';
                     ctx.fillText(displayLabel, x + w / 2, labelY);
