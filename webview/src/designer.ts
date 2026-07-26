@@ -537,9 +537,17 @@
                 const labelY = y + h * 0.3 + 14;
                 ctx.font = 'bold 12px system-ui, sans-serif';
                 if (model) {
-                    const truncated = model.substring(0, 22);
                     const prefix = displayLabel + ': ';
                     const prefixWidth = ctx.measureText(prefix).width;
+                    // Available width: node width minus padding on both sides
+                    const availableWidth = w - 16;
+                    const maxWidthForModel = Math.max(20, availableWidth - prefixWidth);
+                    // Truncate model name by measured width, not character count
+                    let truncated = model;
+                    while (truncated.length > 0 && ctx.measureText(truncated + '…').width > maxWidthForModel) {
+                        truncated = truncated.substring(0, truncated.length - 1);
+                    }
+                    if (truncated !== model) truncated += '…';
                     const totalWidth = ctx.measureText(prefix + truncated).width;
                     const startX = x + w / 2 - totalWidth / 2;
                     ctx.fillStyle = '#fff';

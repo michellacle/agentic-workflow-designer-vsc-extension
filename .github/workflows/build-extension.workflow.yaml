@@ -107,6 +107,14 @@ nodes:
     data:
       text: Feature, exception handling, route to fix last execution agent.
       description: ''
+  - id: note_18
+    type: note
+    position:
+      x: 540
+      'y': 290
+    data:
+      text: Build a feature refining loop that goes into a grill me session
+      description: ''
 edges:
   - source: agent_1
     target: end_2

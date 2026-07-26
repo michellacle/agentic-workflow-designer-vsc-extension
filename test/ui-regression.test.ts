@@ -792,6 +792,24 @@ describe('UI regression suite', () => {
         // The invokeAgent call should have data.timeout || 120 as the timeout param
         expect(fnBody).toMatch(/invokeAgent[\s\S]*data\.timeout/);
     });
+
+    it('regression: agent node label truncates model name by width not character count to prevent overflow', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // The agent node draw section should truncate model names based on measured width,
+        // not a fixed character count, to prevent "Agent: <model>" from overflowing the node bounds.
+        const agentDrawMatch = designerSource.match(/Agent nodes: "Agent: <model>"[\s\S]*?\}\s*\}\s*else/);
+        expect(agentDrawMatch).not.toBeNull();
+        const drawSection = agentDrawMatch![0];
+
+        // Should NOT use fixed character truncation like substring(0, 22)
+        expect(drawSection).not.toMatch(/\.substring\s*\(\s*0\s*,\s*\d+\s*\)\s*;/);
+
+        // Should use measureText-based truncation to fit within available width
+        expect(drawSection).toMatch(/measureText/);
+        // Should compute available width from node dimensions
+        expect(drawSection).toMatch(/availableWidth|maxWidth|maxLabelWidth/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {
