@@ -1193,6 +1193,138 @@ describe('UI regression suite', () => {
         // Should call getAnnotationEdgeColor
         expect(drawCreatingAnnotationEdgeSection).toMatch(/getAnnotationEdgeColor/);
     });
+
+    it('regression: Label node can be created, rendered, selected, and deleted', () => {
+        const api = (window as any).__workflowDesignerTestApi;
+
+        // Init with a workflow that includes a label node
+        api.simulateMessage({
+            type: 'init',
+            workflow: {
+                name: 'label-test',
+                nodes: [
+                    { id: 'start_1', type: 'start', position: { x: 50, y: 50 }, data: { label: 'Start' } },
+                    { id: 'label_1', type: 'label', position: { x: 300, y: 30 }, data: { text: 'Section Header' } },
+                    { id: 'agent_1', type: 'agent', position: { x: 240, y: 120 }, data: { agent: 'builder' } },
+                ],
+                edges: [],
+            },
+            animationConfig: {
+                startNodeFlashMs: 3000,
+                edgeHandoffMs: 3000,
+                endNodeFlashMs: 1200,
+                edgeDashSpeed: 20,
+            },
+        });
+
+        // Verify label node exists in workflow snapshot
+        const workflow = api.getWorkflowSnapshot();
+        const labelNode = workflow.nodes.find((n: any) => n.type === 'label');
+        expect(labelNode).toBeDefined();
+        expect(labelNode.data.text).toBe('Section Header');
+
+        // Verify label node is in NODE_CONFIGS with correct properties
+        const designerSource = readFile('webview/src/designer.ts');
+        const labelConfigMatch = designerSource.match(/label:\s*\{[^}]*\}/);
+        expect(labelConfigMatch).not.toBeNull();
+        expect(labelConfigMatch![0]).toMatch(/color:\s*['"]#9E9E9E['"]/);
+        expect(labelConfigMatch![0]).toMatch(/height:\s*24/);
+        expect(labelConfigMatch![0]).toMatch(/icon:\s*['"]T['"]/);
+
+        // Verify createDefaultNodeData handles label type
+        expect(designerSource).toMatch(/case\s+['"]label['"]:\s*return\s*\{\s*text:/);
+
+        // Verify hitTestNodes auto-sizes label width using measureText
+        const hitTestBody = (() => {
+            const fnStart = designerSource.indexOf('function hitTestNodes');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(hitTestBody).not.toBeNull();
+        expect(hitTestBody).toMatch(/node\.type\s*===\s*['"]label['"]/);
+        expect(hitTestBody).toMatch(/measureText/);
+
+        // Verify drawNode skips body fill/stroke for label nodes (text-only rendering)
+        const drawNodeBody = (() => {
+            const fnStart = designerSource.indexOf('function drawNode(');
+            if (fnStart < 0) return null;
+            const braceStart = designerSource.indexOf('{', fnStart);
+            if (braceStart < 0) return null;
+            let braceCount = 0;
+            for (let i = braceStart; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') braceCount++;
+                if (designerSource[i] === '}') braceCount--;
+                if (braceCount === 0) return designerSource.substring(braceStart + 1, i);
+            }
+            return null;
+        })();
+        expect(drawNodeBody).not.toBeNull();
+        // Label nodes should be in the isAnnotation array and skip body rendering
+        expect(drawNodeBody).toMatch(/isLabel/);
+        // Should render label text with italic styling
+        expect(drawNodeBody).toMatch(/italic/);
+
+        // Verify properties panel has a "Text" field for label nodes
+        const propertiesPanelBody = (() => {
+            const fnStart = designerSource.indexOf('function updatePropertiesPanel');
+            if (fnStart < 0) return null;
+            const fnEnd = designerSource.indexOf('\n    function ', fnStart + 1);
+            return designerSource.substring(fnStart, fnEnd < 0 ? undefined : fnEnd);
+        })();
+        expect(propertiesPanelBody).not.toBeNull();
+        const labelCase = _extractCaseBody(propertiesPanelBody!, "'label'");
+        expect(labelCase).not.toBeNull();
+        expect(labelCase).toMatch(/propertyField\(\s*['"]Text['"]/);
+
+        // Verify label is included in isAnnotationNode check in the model
+        const modelSource = readFile('src/models/workflow.ts');
+        expect(modelSource).toMatch(/NodeType\.Label/);
+        expect(modelSource).toMatch(/isAnnotationNode[\s\S]*?NodeType\.Label/);
+
+        // Verify label node appears in toolbox (in Annotations section)
+        const providerSource = readFile('src/designer/workflowDesignerProvider.ts');
+        expect(providerSource).toMatch(/data-type=["']label["']/);
+
+        // Verify YAML serialization handles label nodes
+        const yamlSource = readFile('src/utils/yamlSerializer.ts');
+        expect(yamlSource).toMatch(/LabelNodeData/);
+        expect(yamlSource).toMatch(/NodeType\.Label/);
+
+        // Verify label node is draggable (inherits from base node dragging)
+        // and deletable via Delete/Backspace key (inherited from existing node deletion)
+        // The hitTest confirms it's selectable; delete key handler applies to all selected nodes
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        expect(canvas).not.toBeNull();
+
+        // Click on label node position to select it
+        canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 300, clientY: 30, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 300, clientY: 30, bubbles: true }));
+
+        // Verify label node is selected
+        const selectedIds = api.getSelectedNodeIds();
+        expect(selectedIds).toContain('label_1');
+
+        // Enable edit mode (required for delete key to work)
+        const btnEditMode = document.getElementById('btn-edit-mode');
+        expect(btnEditMode).not.toBeNull();
+        btnEditMode!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        // Delete the selected label node
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+
+        // Verify label node is removed from workflow
+        const workflowAfterDelete = api.getWorkflowSnapshot();
+        const labelNodeAfterDelete = workflowAfterDelete.nodes.find((n: any) => n.type === 'label');
+        expect(labelNodeAfterDelete).toBeUndefined();
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {

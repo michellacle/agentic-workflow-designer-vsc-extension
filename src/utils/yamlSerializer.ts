@@ -4,7 +4,7 @@ import {
     NodeData, StartNodeData, EndNodeData,
     AgentNodeData, ConditionNodeData,
     HumanApprovalNodeData, DelayNodeData, LoopNodeData,
-    NoteNodeData, ProcessNodeData, DecisionNodeData,
+    NoteNodeData, ProcessNodeData, DecisionNodeData, LabelNodeData,
     PortSide
 } from '../models/workflow';
 
@@ -131,6 +131,12 @@ export function workflowToYaml(workflow: Workflow): string {
                 nodeObj.data = {
                     question: decisionData.question,
                     options: decisionData.options
+                };
+                break;
+            case NodeType.Label:
+                const labelData = node.data as LabelNodeData;
+                nodeObj.data = {
+                    text: labelData.text
                 };
                 break;
         }
@@ -265,6 +271,10 @@ function parseNodeData(type: NodeType, raw: Record<string, unknown>): NodeData {
                 question: raw.question || '',
                 options: raw.options
             } as DecisionNodeData;
+        case NodeType.Label:
+            return {
+                text: raw.text || ''
+            } as LabelNodeData;
         default:
             return {} as NodeData;
     }

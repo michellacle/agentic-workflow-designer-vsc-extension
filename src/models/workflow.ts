@@ -14,14 +14,16 @@ export enum NodeType {
     /** Outer loop annotation - process description */
     Process = 'process',
     /** Outer loop annotation - decision point */
-    Decision = 'decision'
+    Decision = 'decision',
+    /** Outer loop annotation - short single-line text label for section headings */
+    Label = 'label'
 }
 
 /**
  * Check if a node type is an outer loop annotation (non-executable).
  */
 export function isAnnotationNode(type: NodeType): boolean {
-    return type === NodeType.Note || type === NodeType.Process || type === NodeType.Decision;
+    return type === NodeType.Note || type === NodeType.Process || type === NodeType.Decision || type === NodeType.Label;
 }
 
 /**
@@ -55,7 +57,8 @@ export type NodeData =
     | LoopNodeData
     | NoteNodeData
     | ProcessNodeData
-    | DecisionNodeData;
+    | DecisionNodeData
+    | LabelNodeData;
 
 /**
  * Start node data
@@ -150,6 +153,13 @@ export interface ProcessNodeData {
 export interface DecisionNodeData {
     question: string;
     options?: string[];
+}
+
+/**
+ * Label node data — short, single-line text label for section headings (outer loop)
+ */
+export interface LabelNodeData {
+    text: string;
 }
 
 /**

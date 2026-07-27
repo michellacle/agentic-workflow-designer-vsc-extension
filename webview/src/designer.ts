@@ -172,7 +172,8 @@
         // Outer loop annotation nodes - muted colors
         note: { label: 'Note', color: '#FFD54F', width: 140, height: 70, icon: '📝' },
         process: { label: 'Process', color: '#78909C', width: 140, height: 70, icon: '⚙' },
-        decision: { label: 'Decision', color: '#A1887F', width: 140, height: 70, icon: '⬡' }
+        decision: { label: 'Decision', color: '#A1887F', width: 140, height: 70, icon: '⬡' },
+        label: { label: 'Label', color: '#9E9E9E', width: 120, height: 24, icon: 'T' }
     };
 
     // Execution status colors
@@ -437,6 +438,12 @@
         const h = (node.type === 'note' || node.type === 'process')
             ? (node.data.height || config.height)
             : config.height;
+        // Label nodes: auto-size width based on text content
+        const isLabel = node.type === 'label';
+        const labelW = isLabel
+            ? Math.max(config.width, ctx.measureText((node.data as any).text || 'Label').width + 24)
+            : w;
+        const labelH = isLabel ? config.height : h;
         const now = state.nowMs;
 
         // Determine color
@@ -456,23 +463,35 @@
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
 
-        // Node body
-        const isAnnotation = ['note', 'process', 'decision'].includes(node.type);
-        ctx.fillStyle = getThemeColor('inputBackground');
-        ctx.strokeStyle = color;
-        ctx.lineWidth = state.selectedNodeIds.has(node.id) ? 3 : 2;
+        // Node body (skip for label nodes — they are text-only, no border or fill)
+        const isAnnotation = ['note', 'process', 'decision', 'label'].includes(node.type);
         const isDiamond = node.type === 'condition' || node.type === 'decision';
-        if (isAnnotation) {
-            ctx.setLineDash([6, 4]);
-        }
-        if (isDiamond) {
-            drawDiamond(ctx, x, y, w, h);
+        if (!isLabel) {
+            ctx.fillStyle = getThemeColor('inputBackground');
+            ctx.strokeStyle = color;
+            ctx.lineWidth = state.selectedNodeIds.has(node.id) ? 3 : 2;
+            if (isAnnotation) {
+                ctx.setLineDash([6, 4]);
+            }
+            if (isDiamond) {
+                drawDiamond(ctx, x, y, w, h);
+            } else {
+                roundRect(ctx, x, y, w, h, 8);
+            }
+            ctx.fill();
+            ctx.stroke();
+            ctx.setLineDash([]);
         } else {
-            roundRect(ctx, x, y, w, h, 8);
+            // Label: show subtle selection outline when selected
+            if (state.selectedNodeIds.has(node.id)) {
+                ctx.strokeStyle = getThemeColor('focusBorder') || '#007fd4';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 3]);
+                roundRect(ctx, x - 4, y - 4, labelW + 8, labelH + 8, 4);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
         }
-        ctx.fill();
-        ctx.stroke();
-        ctx.setLineDash([]);
 
         // Reset shadow
         ctx.shadowColor = 'transparent';
@@ -511,8 +530,8 @@
             }
         }
 
-        // Purple header bar for annotation nodes (process/decision only — note nodes skip this)
-        if (isAnnotation && node.type !== 'note') {
+        // Purple header bar for annotation nodes (process/decision only — note nodes skip this, label nodes skip too)
+        if (isAnnotation && node.type !== 'note' && node.type !== 'label') {
             const annotationPurple = '#7B1FA2';
             const headerHeight = 22;
             ctx.fillStyle = annotationPurple;
@@ -622,7 +641,14 @@
         ctx.font = 'bold 12px system-ui, sans-serif';
         ctx.textAlign = 'center';
         const displayLabel = getDisplayLabel(node);
-        if (isDiamond) {
+        if (isLabel) {
+            // Label nodes: text-only, centered, muted color
+            ctx.fillStyle = '#9E9E9E';
+            ctx.font = 'italic 13px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            const labelText = (node.data as any).text || 'Label';
+            ctx.fillText(labelText, x + labelW / 2, y + labelH / 2 + 5);
+        } else if (isDiamond) {
             // Center label inside diamond (no icon - diamond shape is the symbol)
             ctx.fillText(displayLabel, x + w / 2, y + h / 2 + 5);
         } else if (node.type === 'note') {
@@ -786,8 +812,10 @@
             }
         }
 
-        // Ports
-        drawPorts(node, x, y, w, h);
+        // Ports (skip for label nodes — no connections)
+        if (!isLabel) {
+            drawPorts(node, x, y, w, h);
+        }
 
         // Resize handle for note/process nodes
         drawResizeHandle(node, x, y, w, h, color);
@@ -1566,8 +1594,13 @@
 
             const x = node.position.x;
             const y = node.position.y;
-            const w = config.width;
-            const h = config.height;
+            let w = config.width;
+            let h = config.height;
+
+            // Label nodes: auto-size width based on text content
+            if (node.type === 'label') {
+                w = Math.max(config.width, ctx.measureText((node.data as any).text || 'Label').width + 24);
+            }
 
             // Diamond-shaped nodes use point-in-diamond hit test
             if (node.type === 'condition' || node.type === 'decision') {
@@ -1964,6 +1997,7 @@
             case 'note': return { text: 'Note text here', description: '' };
             case 'process': return { title: 'Process name', description: '' };
             case 'decision': return { question: 'Decision question?', options: [] };
+            case 'label': return { text: 'Label' };
             default: return {};
         }
     }
@@ -2065,6 +2099,9 @@
             case 'decision':
                 html += propertyField('Question', 'text', node.data.question || '', 'Decision question');
                 html += renderDecisionOptions(node);
+                break;
+            case 'label':
+                html += propertyField('Text', 'text', node.data.text || '', 'Label text');
                 break;
         }
 
@@ -2795,7 +2832,8 @@
             }),
             getVisualStatus: (nodeId, runtimeStatus) => getVisualNodeStatus(nodeId, runtimeStatus)
             ,
-            getWorkflowSnapshot: () => JSON.parse(JSON.stringify(state.workflow))
+            getWorkflowSnapshot: () => JSON.parse(JSON.stringify(state.workflow)),
+            getSelectedNodeIds: () => Array.from(state.selectedNodeIds)
         };
     }
 
