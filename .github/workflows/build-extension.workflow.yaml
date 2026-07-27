@@ -194,4 +194,9 @@ edges:
     sourceSide: left
     targetSide: bottom
     type: annotation
+  - source: note_17
+    target: start
+    sourceSide: left
+    targetSide: right
+    type: annotation
 description: A new workflow

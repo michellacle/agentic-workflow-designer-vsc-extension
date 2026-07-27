@@ -1086,6 +1086,113 @@ describe('UI regression suite', () => {
         // not just a hidden badge.
         expect(executorSource).toMatch(/initializeNodeExecutionCounts[\s\S]*?filter[\s\S]*?isAnnotationNode/);
     });
+
+    it('regression: annotation edges leaving Note nodes should be yellow', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Edges leaving Note annotation nodes should be yellow to match the sticky-note theme.
+        // The getAnnotationEdgeColor function maps node types to colors.
+
+        // Extract the getAnnotationEdgeColor function
+        const colorFunctionSection = (() => {
+            const idx = designerSource.indexOf('function getAnnotationEdgeColor');
+            if (idx < 0) return null;
+            let braceCount = 0;
+            let startIdx = -1;
+            for (let i = idx; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') {
+                    if (startIdx < 0) startIdx = i;
+                    braceCount++;
+                }
+                if (designerSource[i] === '}') {
+                    braceCount--;
+                    if (braceCount === 0) return designerSource.substring(idx, i + 1);
+                }
+            }
+            return designerSource.substring(idx, idx + 500);
+        })();
+        expect(colorFunctionSection).not.toBeNull();
+
+        // Should map 'note' to a yellow shade (#F9A825)
+        expect(colorFunctionSection).toMatch(/note.*#F9A825/);
+
+        // drawEdge should call getAnnotationEdgeColor with sourceNode.type
+        const annotationEdgeSection = (() => {
+            const idx = designerSource.indexOf('isAnnotationEdge = edge.type === \'annotation\'');
+            if (idx < 0) return null;
+            return designerSource.substring(idx, idx + 500);
+        })();
+        expect(annotationEdgeSection).not.toBeNull();
+        expect(annotationEdgeSection).toMatch(/getAnnotationEdgeColor\(sourceNode\.type\)/);
+    });
+
+    it('regression: annotation edges leaving Process nodes should be purple', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // Edges leaving Process annotation nodes should be purple.
+
+        // Extract the getAnnotationEdgeColor function
+        const colorFunctionSection = (() => {
+            const idx = designerSource.indexOf('function getAnnotationEdgeColor');
+            if (idx < 0) return null;
+            let braceCount = 0;
+            let startIdx = -1;
+            for (let i = idx; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') {
+                    if (startIdx < 0) startIdx = i;
+                    braceCount++;
+                }
+                if (designerSource[i] === '}') {
+                    braceCount--;
+                    if (braceCount === 0) return designerSource.substring(idx, i + 1);
+                }
+            }
+            return designerSource.substring(idx, idx + 500);
+        })();
+        expect(colorFunctionSection).not.toBeNull();
+
+        // Should map 'process' to a purple shade (#9C27B0)
+        expect(colorFunctionSection).toMatch(/process.*#9C27B0/);
+
+        // drawEdge should call getAnnotationEdgeColor with sourceNode.type
+        const annotationEdgeSection = (() => {
+            const idx = designerSource.indexOf('isAnnotationEdge = edge.type === \'annotation\'');
+            if (idx < 0) return null;
+            return designerSource.substring(idx, idx + 500);
+        })();
+        expect(annotationEdgeSection).not.toBeNull();
+        expect(annotationEdgeSection).toMatch(/getAnnotationEdgeColor\(sourceNode\.type\)/);
+    });
+
+    it('regression: annotation edge creation uses color matching source node type', () => {
+        const designerSource = readFile('webview/src/designer.ts');
+
+        // drawCreatingAnnotationEdge should use getAnnotationEdgeColor based on the source node type,
+        // not a single hardcoded green.
+
+        const drawCreatingAnnotationEdgeSection = (() => {
+            const idx = designerSource.indexOf('function drawCreatingAnnotationEdge');
+            if (idx < 0) return null;
+            // Find the full function body
+            let braceCount = 0;
+            let startIdx = -1;
+            for (let i = idx; i < designerSource.length; i++) {
+                if (designerSource[i] === '{') {
+                    if (startIdx < 0) startIdx = i;
+                    braceCount++;
+                }
+                if (designerSource[i] === '}') {
+                    braceCount--;
+                    if (braceCount === 0) return designerSource.substring(idx, i + 1);
+                }
+            }
+            return designerSource.substring(idx, idx + 1000);
+        })();
+        expect(drawCreatingAnnotationEdgeSection).not.toBeNull();
+
+        // Should call getAnnotationEdgeColor
+        expect(drawCreatingAnnotationEdgeSection).toMatch(/getAnnotationEdgeColor/);
+    });
 });
 
 function _extractCaseBody(source: string, caseLabel: string): string | null {

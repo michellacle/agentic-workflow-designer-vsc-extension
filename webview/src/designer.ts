@@ -185,6 +185,20 @@
         skipped: '#BDBDBD'
     };
 
+    /**
+     * Return the annotation-edge color for a given source node type.
+     * - note    → yellow  (sticky-note theme)
+     * - process → purple  (matches process header)
+     * - others  → green   (decision, fallback)
+     */
+    function getAnnotationEdgeColor(nodeType: string): string {
+        switch (nodeType) {
+            case 'note': return '#F9A825';
+            case 'process': return '#9C27B0';
+            default: return '#4CAF50';
+        }
+    }
+
     // ===== Theme Colors (read from VS Code CSS variables) =====
     let themeColors: Record<string, string> = {};
 
@@ -956,13 +970,13 @@
         // Determine if this edge is selected
         const isSelected = state.selectedEdgeId === edge.id;
 
-        // Check if this is an annotation edge (visual-only, dashed purple)
+        // Check if this is an annotation edge (visual-only, colored by source node type)
         const isAnnotationEdge = edge.type === 'annotation';
 
         // Set styles based on edge type, selection, and animation state
         if (isAnnotationEdge) {
-            // Annotation edges: dashed purple
-            ctx.strokeStyle = isSelected ? getThemeColor('focusBorder') : '#7B1FA2';
+            // Annotation edges: dashed, colored by source node type
+            ctx.strokeStyle = isSelected ? getThemeColor('focusBorder') : getAnnotationEdgeColor(sourceNode.type);
             ctx.lineWidth = isSelected ? 4 : 2;
             ctx.setLineDash([8, 5]);
         } else if (isSelected) {
@@ -1128,7 +1142,7 @@
             const ay = ty - tipOffset * Math.sin(tangentAngle);
             // Arrowhead points in the direction of travel; base extends opposite.
             ctx.fillStyle = isAnnotationEdge
-                ? (isSelected ? getThemeColor('focusBorder') : '#7B1FA2')
+                ? (isSelected ? getThemeColor('focusBorder') : getAnnotationEdgeColor(sourceNode.type))
                 : isEdgeAnimating
                     ? getThemeColor('buttonBackground')
                     : isSelected
@@ -1814,10 +1828,14 @@
     }
 
     /**
-     * Draw a small purple dot at the annotation border hover position.
+     * Draw a small colored dot at the annotation border hover position.
+     * Color matches the edge color for the source node type.
      */
     function drawAnnotationHandle(nodeId, borderX, borderY) {
-        ctx.fillStyle = '#7B1FA2';
+        const node = state.workflow.nodes.find(n => n.id === nodeId);
+        const nodeType = node?.type || 'note';
+        const edgeColor = getAnnotationEdgeColor(nodeType);
+        ctx.fillStyle = edgeColor;
         ctx.beginPath();
         ctx.arc(borderX, borderY, 5, 0, Math.PI * 2);
         ctx.fill();
@@ -1827,11 +1845,15 @@
     }
 
     /**
-     * Draw the annotation edge being created (dashed purple line from border to cursor).
+     * Draw the annotation edge being created (dashed line from border to cursor).
+     * Color matches the source node type.
      */
     function drawCreatingAnnotationEdge() {
         const { nodeId, borderX, borderY, currentX, currentY } = state.creatingAnnotationEdge;
-        ctx.strokeStyle = '#7B1FA2';
+        const sourceNode = state.workflow.nodes.find(n => n.id === nodeId);
+        const nodeType = sourceNode?.type || 'note';
+        const edgeColor = getAnnotationEdgeColor(nodeType);
+        ctx.strokeStyle = edgeColor;
         ctx.lineWidth = 2;
         ctx.setLineDash([8, 5]);
         ctx.beginPath();
@@ -1842,7 +1864,7 @@
 
         // Draw arrowhead at the current mouse position
         const angle = Math.atan2(currentY - borderY, currentX - borderX);
-        ctx.fillStyle = '#7B1FA2';
+        ctx.fillStyle = edgeColor;
         ctx.beginPath();
         ctx.moveTo(currentX, currentY);
         ctx.lineTo(currentX - 10 * Math.cos(angle - Math.PI / 6), currentY - 10 * Math.sin(angle - Math.PI / 6));
