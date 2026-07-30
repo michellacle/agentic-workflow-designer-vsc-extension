@@ -197,6 +197,16 @@ Workflows maintain a global state that nodes can read and write:
 | `💾 Save Workflow` | Save current workflow |
 | `✓ Validate Workflow` | Validate workflow structure |
 
+## Automated Pull Request Skill Review
+
+- GitHub Action: `.github/workflows/pr-skill-review.yml`
+- Skill definition: `.github/skills/pr-review/SKILL.md`
+- Headless reviewer runner: `scripts/pr-skill-review.js`
+
+The workflow runs on every PR update, posts/updates a PR comment with pass/fail results, and fails the check when blocking findings are present.
+
+To enforce this for merges, add **PR Skill Review / pr-skill-review** as a required status check in branch protection rules.
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
