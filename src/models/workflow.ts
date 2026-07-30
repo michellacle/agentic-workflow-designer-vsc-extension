@@ -295,3 +295,29 @@ export interface ExecutionContext {
     startTime?: number;
     endTime?: number;
 }
+
+/**
+ * A member workflow within a Project, with its canvas offset position.
+ */
+export interface ProjectMember {
+    /** Relative path to the `.workflow.yaml` file. */
+    path: string;
+    /** Top-left offset of the workflow's container on the shared canvas. */
+    position: Position;
+}
+
+/**
+ * A collection of Workflows viewed and edited together on a single Canvas.
+ * Stored as `*.workflow-project.yaml`.
+ */
+export interface Project {
+    name: string;
+    members: ProjectMember[];
+}
+
+/**
+ * Check if a filename is a Project file.
+ */
+export function isProjectFile(filename: string): boolean {
+    return filename.endsWith('.workflow-project.yaml');
+}

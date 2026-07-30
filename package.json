@@ -2,7 +2,7 @@
   "name": "vscode-workflow-designer",
   "displayName": "Agent Workflow Designer & Runtime",
   "description": "Visually design, execute, and debug workflows composed of VS Code custom agents",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "local-dev",
   "repository": "https://github.com/local-dev/agentic-workflows",
   "engines": {
@@ -14,6 +14,7 @@
   ],
   "activationEvents": [
     "onCustomEditor:workflowDesigner.editor",
+    "onCustomEditor:workflowProject.editor",
     "onChatParticipant:workflowDesigner.workflow"
   ],
   "main": "./out/extension.js",
@@ -72,6 +73,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "workflowProject.editor",
+        "displayName": "Project Designer",
+        "selector": [
+          {
+            "filenamePattern": "*.workflow-project.yaml"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "commands": [
@@ -89,6 +100,14 @@
         "icon": {
           "light": "resources/light/add.svg",
           "dark": "resources/dark/add.svg"
+        }
+      },
+      {
+        "command": "workflowDesigner.newProject",
+        "title": "New Project",
+        "icon": {
+          "light": "resources/light/library.svg",
+          "dark": "resources/dark/library.svg"
         }
       },
       {
@@ -140,6 +159,14 @@
         }
       },
       {
+        "command": "workflowDesigner.addWorkflowToProject",
+        "title": "Add Workflow To Project"
+      },
+      {
+        "command": "workflowDesigner.removeWorkflowFromProject",
+        "title": "Remove Workflow From Project"
+      },
+      {
         "command": "workflowDesigner.listModels",
         "title": "List Available Models"
       }
@@ -175,13 +202,59 @@
           "command": "workflowDesigner.validateWorkflow",
           "when": "customEditorId == 'workflowDesigner.editor'",
           "group": "navigation"
+        },
+        {
+          "command": "workflowDesigner.runWorkflow",
+          "when": "customEditorId == 'workflowProject.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "workflowDesigner.pauseWorkflow",
+          "when": "customEditorId == 'workflowProject.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "workflowDesigner.stopWorkflow",
+          "when": "customEditorId == 'workflowProject.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "workflowDesigner.resumeWorkflow",
+          "when": "customEditorId == 'workflowProject.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "workflowDesigner.saveWorkflow",
+          "when": "customEditorId == 'workflowProject.editor'",
+          "group": "navigation"
         }
       ],
       "view/title": [
         {
+          "command": "workflowDesigner.newWorkflow",
+          "when": "view == workflowExplorer.list",
+          "group": "navigation"
+        },
+        {
           "command": "workflowDesigner.addWorkflow",
           "when": "view == workflowExplorer.list",
           "group": "navigation"
+        },
+        {
+          "command": "workflowDesigner.newProject",
+          "when": "view == workflowExplorer.list",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "workflowDesigner.addWorkflowToProject",
+          "when": "view == workflowExplorer.list && viewItem == project",
+          "group": "inline"
+        },
+        {
+          "command": "workflowDesigner.removeWorkflowFromProject",
+          "when": "view == workflowExplorer.list && viewItem == project"
         }
       ]
     },

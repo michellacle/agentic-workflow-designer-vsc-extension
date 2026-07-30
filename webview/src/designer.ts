@@ -15,9 +15,15 @@
     // ===== State =====
     const state = {
         workflow: { name: 'untitled', nodes: [], edges: [] },
+        // Project mode: when viewing a multi-workflow project
+        project: null as { name: string; members: Array<{ path: string; position: { x: number; y: number }; collapsed?: boolean }> } | null,
+        workflows: {} as Record<string, { name: string; nodes: any[]; edges: any[] }>,
         selectedNodeIds: new Set(),
         draggingNode: null,
         draggingOffset: { x: 0, y: 0 },
+        // Container dragging state
+        draggingContainer: null as string | null,
+        containerDragOffset: { x: 0, y: 0 },
         resizingNode: null, // { nodeId, startW, startH, startMouseX, startMouseY }
         creatingEdge: null, // { sourceNodeId, sourcePort, currentX, currentY }
         // Annotation edge creation state (drag from annotation node border)
@@ -80,7 +86,214 @@
     }
 
     // ===== Canvas Setup =====
-    // ===== Canvas Setup =====
+    // ===== Project Mode Helpers =====
+
+    /**
+     * Build a composite workflow from all project members, offsetting node positions
+     * by the container position.
+     */
+    function buildCompositeWorkflow() {
+        const allNodes: any[] = [];
+        const allEdges: any[] = [];
+
+        for (const member of (state.project?.members || [])) {
+            const workflow = state.workflows[member.path];
+            if (!workflow) continue;
+
+            // Skip nodes from collapsed containers
+            if (member.collapsed) continue;
+
+            for (const node of workflow.nodes) {
+                allNodes.push({
+                    ...node,
+                    position: {
+                        x: node.position.x + member.position.x,
+                        y: node.position.y + member.position.y
+                    },
+                    _workflowId: member.path  // tag for drop-target detection
+                });
+            }
+
+            for (const edge of workflow.edges) {
+                allEdges.push({ ...edge, _workflowId: member.path });
+            }
+        }
+
+        return {
+            name: state.project?.name || 'Project',
+            nodes: allNodes,
+            edges: allEdges
+        };
+    }
+
+    /**
+     * Get the bounding box of a workflow container (including all member nodes).
+     */
+    function getContainerBounds(member) {
+        const workflow = state.workflows[member.path];
+        if (!workflow || workflow.nodes.length === 0) {
+            return {
+                x: member.position.x,
+                y: member.position.y,
+                w: 300,
+                h: 200
+            };
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const node of workflow.nodes) {
+            const config = NODE_CONFIGS[node.type];
+            const w = (node.type === 'note' || node.type === 'process')
+                ? (node.data.width || (config ? config.width : 140))
+                : (config ? config.width : 140);
+            const h = (node.type === 'note' || node.type === 'process')
+                ? (node.data.height || (config ? config.height : 70))
+                : (config ? config.height : 70);
+            const nx = node.position.x + member.position.x;
+            const ny = node.position.y + member.position.y;
+            minX = Math.min(minX, nx);
+            minY = Math.min(minY, ny);
+            maxX = Math.max(maxX, nx + w);
+            maxY = Math.max(maxY, ny + h);
+        }
+
+        const padding = 30;
+        const headerHeight = 32;
+        return {
+            x: minX - padding,
+            y: minY - padding - headerHeight,
+            w: (maxX - minX) + padding * 2,
+            h: (maxY - minY) + padding * 2 + headerHeight
+        };
+    }
+
+    /**
+     * Draw a workflow container (group box with label).
+     */
+    function drawWorkflowContainer(member) {
+        const bounds = getContainerBounds(member);
+        const isCollapsed = member.collapsed;
+        const headerHeight = 32;
+
+        // Container background
+        ctx.fillStyle = 'rgba(128, 128, 128, 0.06)';
+        ctx.strokeStyle = 'rgba(128, 128, 128, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+
+        // Draw container body (skip if collapsed — only draw header)
+        if (!isCollapsed) {
+            roundRect(ctx, bounds.x, bounds.y, bounds.w, bounds.h, 8);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // Header bar
+        ctx.fillStyle = 'rgba(128, 128, 128, 0.15)';
+        ctx.beginPath();
+        const headerW = bounds.w;
+        ctx.moveTo(bounds.x + 8, bounds.y);
+        ctx.lineTo(bounds.x + headerW - 8, bounds.y);
+        ctx.quadraticCurveTo(bounds.x + headerW, bounds.y, bounds.x + headerW, bounds.y + 8);
+        if (isCollapsed) {
+            ctx.lineTo(bounds.x + headerW, bounds.y + headerHeight);
+            ctx.lineTo(bounds.x, bounds.y + headerHeight);
+        } else {
+            ctx.lineTo(bounds.x + headerW, bounds.y + headerHeight);
+            ctx.lineTo(bounds.x, bounds.y + headerHeight);
+            ctx.lineTo(bounds.x, bounds.y + 8);
+            ctx.quadraticCurveTo(bounds.x, bounds.y, bounds.x + 8, bounds.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Collapse/expand chevron
+        ctx.fillStyle = getThemeColor('foreground') || '#cccccc';
+        ctx.font = 'bold 11px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isCollapsed ? '▶' : '▼', bounds.x + 10, bounds.y + headerHeight / 2 + 1);
+
+        // Workflow name
+        ctx.fillStyle = getThemeColor('foreground') || '#cccccc';
+        ctx.font = 'bold 12px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const workflowName = state.workflows[member.path]?.name || member.path.replace('.workflow.yaml', '').replace('./', '');
+        ctx.fillText(workflowName, bounds.x + 26, bounds.y + headerHeight / 2 + 1);
+
+        // Node count badge
+        const workflow = state.workflows[member.path];
+        if (workflow) {
+            const count = workflow.nodes.length;
+            const badgeText = String(count);
+            const badgeW = ctx.measureText(badgeText).width + 12;
+            const badgeH = 16;
+            const badgeX = bounds.x + headerW - badgeW - 8;
+            const badgeY = bounds.y + (headerHeight - badgeH) / 2;
+
+            ctx.fillStyle = 'rgba(128, 128, 128, 0.3)';
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+            ctx.fill();
+
+            ctx.fillStyle = getThemeColor('descriptionForeground') || '#858585';
+            ctx.font = 'bold 10px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1);
+        }
+    }
+
+    /**
+     * Get the project member (workflow) that contains a given canvas position.
+     */
+    function getMemberAtPosition(pos) {
+        if (!state.project || !state.project.members) return null;
+
+        for (const member of state.project.members) {
+            const bounds = getContainerBounds(member);
+            if (pos.x >= bounds.x && pos.x <= bounds.x + bounds.w &&
+                pos.y >= bounds.y && pos.y <= bounds.y + bounds.h) {
+                return member;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a position is within a container's header (for dragging/collapsing).
+     */
+    function hitTestContainerHeader(pos) {
+        if (!state.project || !state.project.members) return null;
+
+        for (const member of state.project.members) {
+            const bounds = getContainerBounds(member);
+            const headerHeight = 32;
+            if (pos.x >= bounds.x && pos.x <= bounds.x + bounds.w &&
+                pos.y >= bounds.y && pos.y <= bounds.y + headerHeight) {
+                return { member, bounds };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a position is on the collapse/expand chevron.
+     */
+    function hitTestContainerChevron(pos) {
+        if (!state.project || !state.project.members) return null;
+
+        for (const member of state.project.members) {
+            const bounds = getContainerBounds(member);
+            // Chevron is at bounds.x + 10, bounds.y + headerHeight/2, ~12x12 area
+            if (pos.x >= bounds.x + 4 && pos.x <= bounds.x + 20 &&
+                pos.y >= bounds.y + 4 && pos.y <= bounds.y + 28) {
+                return member;
+            }
+        }
+        return null;
+    }
+
     function getPortPosition(node, side) {
         const config = NODE_CONFIGS[node.type];
         // Use custom width/height for note/process nodes if set
@@ -342,6 +555,13 @@
 
         // Draw grid
         drawGrid(w, h);
+
+        // Draw workflow containers (project mode only)
+        if (state.project && state.project.members) {
+            for (const member of state.project.members) {
+                drawWorkflowContainer(member);
+            }
+        }
 
         // Draw nodes first so edges render on top of them
         for (const node of state.workflow.nodes) {
@@ -1268,6 +1488,32 @@
         // Check if clicking on a node
         const node = hitTestNodes(pos);
         if (node) {
+            // In project mode, check if clicking on a container header instead
+            if (state.project) {
+                const chevronHit = hitTestContainerChevron(pos);
+                if (chevronHit) {
+                    // Toggle collapse
+                    chevronHit.collapsed = !chevronHit.collapsed;
+                    state.workflow = buildCompositeWorkflow();
+                    saveHistory();
+                    render();
+                    notifyProjectUpdate();
+                    return;
+                }
+
+                const headerHit = hitTestContainerHeader(pos);
+                if (headerHit && !node._workflowId) {
+                    // Start dragging container
+                    state.draggingContainer = headerHit.member.path;
+                    state.containerDragOffset = {
+                        x: pos.x - headerHit.member.position.x,
+                        y: pos.y - headerHit.member.position.y
+                    };
+                    canvas.style.cursor = 'grabbing';
+                    return;
+                }
+            }
+
             if (e.shiftKey) {
                 // Toggle selection
                 if (state.selectedNodeIds.has(node.id)) {
@@ -1290,6 +1536,32 @@
             render();
             updatePropertiesPanel(node);
             return;
+        }
+
+        // In project mode, check if clicking on a container header (for dragging)
+        if (state.project) {
+            const chevronHit = hitTestContainerChevron(pos);
+            if (chevronHit) {
+                // Toggle collapse
+                chevronHit.collapsed = !chevronHit.collapsed;
+                state.workflow = buildCompositeWorkflow();
+                saveHistory();
+                render();
+                notifyProjectUpdate();
+                return;
+            }
+
+            const headerHit = hitTestContainerHeader(pos);
+            if (headerHit) {
+                // Start dragging container
+                state.draggingContainer = headerHit.member.path;
+                state.containerDragOffset = {
+                    x: pos.x - headerHit.member.position.x,
+                    y: pos.y - headerHit.member.position.y
+                };
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
         }
 
         // Click on empty canvas - start panning or clear selection
@@ -1406,6 +1678,19 @@
             return;
         }
 
+        // Container dragging (project mode)
+        if (state.draggingContainer && state.editMode) {
+            const member = state.project?.members.find(m => m.path === state.draggingContainer);
+            if (member) {
+                member.position.x = Math.round((pos.x - state.containerDragOffset.x) / 10) * 10;
+                member.position.y = Math.round((pos.y - state.containerDragOffset.y) / 10) * 10;
+                // Rebuild composite workflow with new positions
+                state.workflow = buildCompositeWorkflow();
+                render();
+            }
+            return;
+        }
+
         if (state.panning) {
             state.viewport.x = e.clientX - state.panStart.x;
             state.viewport.y = e.clientY - state.panStart.y;
@@ -1433,6 +1718,16 @@
             canvas.style.cursor = 'default';
             saveHistory();
             notifyWorkflowUpdate();
+            render();
+            return;
+        }
+
+        // Stop container dragging (project mode)
+        if (state.draggingContainer) {
+            state.draggingContainer = null;
+            canvas.style.cursor = 'default';
+            saveHistory();
+            notifyProjectUpdate();
             render();
             return;
         }
@@ -1956,17 +2251,32 @@
             const nodeType = e.dataTransfer.getData('nodeType');
             if (!nodeType || !NODE_CONFIGS[nodeType]) return;
 
-            // Check constraints
-            if (nodeType === 'start' && state.workflow.nodes.some(n => n.type === 'start')) {
+            const pos = getCanvasPosition(e);
+            const config = NODE_CONFIGS[nodeType];
+
+            // In project mode, find which workflow container the drop landed in
+            let targetWorkflowId = null;
+            if (state.project) {
+                const member = getMemberAtPosition(pos);
+                if (member) {
+                    targetWorkflowId = member.path;
+                } else {
+                    vscode.postMessage({ type: 'showInfo', message: 'Drop node inside a workflow container' });
+                    return;
+                }
+            }
+
+            // Check constraints (per-workflow in project mode)
+            const checkNodes = targetWorkflowId
+                ? state.workflow.nodes.filter(n => n._workflowId === targetWorkflowId)
+                : state.workflow.nodes;
+            if (nodeType === 'start' && checkNodes.some(n => n.type === 'start')) {
                 vscode.postMessage({ type: 'showError', message: 'Workflow can only have one Start node' });
                 return;
             }
 
-            const pos = getCanvasPosition(e);
-            const config = NODE_CONFIGS[nodeType];
-
             state.nodeCounter++;
-            const node = {
+            const node: any = {
                 id: `${nodeType}_${state.nodeCounter}`,
                 type: nodeType,
                 position: {
@@ -1976,13 +2286,24 @@
                 data: createDefaultNodeData(nodeType)
             };
 
+            // In project mode, tag the node with the workflow id
+            if (targetWorkflowId) {
+                node._workflowId = targetWorkflowId;
+            }
+
             state.workflow.nodes.push(node);
             state.selectedNodeIds.clear();
             state.selectedNodeIds.add(node.id);
             saveHistory();
             render();
             updatePropertiesPanel(node);
-            notifyWorkflowUpdate();
+
+            // Notify using the appropriate method
+            if (targetWorkflowId) {
+                notifyWorkflowUpdateForProject(node);
+            } else {
+                notifyWorkflowUpdate();
+            }
         });
     }
 
@@ -2465,6 +2786,28 @@
                 saveHistory();
                 render();
                 break;
+            case 'initProject':
+                state.project = msg.project;
+                state.workflows = msg.workflows || {};
+                state.agentFiles = msg.agentFiles || [];
+                if (msg.animationConfig) {
+                    state.animationConfig.startNodeFlashMs = sanitizeAnimationNumber(msg.animationConfig.startNodeFlashMs, 3000, 0);
+                    state.animationConfig.edgeHandoffMs = sanitizeAnimationNumber(msg.animationConfig.edgeHandoffMs, 3000, 0);
+                    state.animationConfig.endNodeFlashMs = sanitizeAnimationNumber(msg.animationConfig.endNodeFlashMs, 1200, 0);
+                    state.animationConfig.edgeDashSpeed = sanitizeAnimationNumber(msg.animationConfig.edgeDashSpeed, 20, 1);
+                }
+                // Build a composite workflow from all members for rendering
+                state.workflow = buildCompositeWorkflow();
+                // Initialize node counter
+                for (const node of state.workflow.nodes) {
+                    const match = node.id.match(/_(\d+)$/);
+                    if (match) {
+                        state.nodeCounter = Math.max(state.nodeCounter, parseInt(match[1]));
+                    }
+                }
+                saveHistory();
+                render();
+                break;
             case 'themeColor':
             case 'vscode:theme-color':
                 // VS Code sends this when the user switches themes (dark ↔ light)
@@ -2517,6 +2860,46 @@
         });
         // Update VS Code state for title dirty indicator
         vscode.setState(state.workflow);
+    }
+
+    /** Notify extension host that project membership/positions changed. */
+    function notifyProjectUpdate() {
+        if (!state.project) return;
+        vscode.postMessage({
+            type: 'updateProject',
+            project: state.project
+        });
+        vscode.setState(state.project);
+    }
+
+    /**
+     * In project mode, find the original (non-offset) workflow and notify update.
+     */
+    function notifyWorkflowUpdateForProject(node) {
+        if (!state.project || !node?._workflowId) {
+            notifyWorkflowUpdate();
+            return;
+        }
+        // Find the original workflow and send it back
+        const originalWorkflow = state.workflows[node._workflowId];
+        if (originalWorkflow) {
+            // Rebuild the original workflow from the composite nodes
+            const memberNodes = state.workflow.nodes.filter(n => n._workflowId === node._workflowId);
+            const memberEdges = state.workflow.edges.filter(e => e._workflowId === node._workflowId);
+            // Strip offsets to get original positions
+            const member = state.project.members.find(m => m.path === node._workflowId);
+            const offset = member ? member.position : { x: 0, y: 0 };
+            const cleanNodes = memberNodes.map(n => ({
+                ...n,
+                position: { x: n.position.x - offset.x, y: n.position.y - offset.y }
+            }));
+            const cleanEdges = memberEdges.map(e => ({ ...e }));
+            vscode.postMessage({
+                type: 'updateWorkflow',
+                workflowId: node._workflowId,
+                workflow: { name: originalWorkflow.name, nodes: cleanNodes, edges: cleanEdges }
+            });
+        }
     }
 
     function notifySave() {

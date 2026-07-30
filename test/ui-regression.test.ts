@@ -675,8 +675,10 @@ describe('UI regression suite', () => {
         const designerSource = readFile('webview/src/designer.ts');
 
         // The header bar rendering should skip note nodes (like diamonds)
-        // Check that the header bar condition excludes 'note' type
-        const headerBarMatch = designerSource.match(/Header bar[\s\S]*?if\s*\(([^)]+)\)/);
+        // Check that the node header bar condition excludes 'note' type
+        // Use a more specific pattern that matches the node-level header bar comment
+        // (not the container-level "Header bar" comment which uses isCollapsed)
+        const headerBarMatch = designerSource.match(/Header bar \(skip for[\s\S]*?if\s*\(([^)]+)\)/);
         expect(headerBarMatch).not.toBeNull();
         const headerCondition = headerBarMatch![1];
         // Should exclude note nodes from header rendering
@@ -1324,6 +1326,163 @@ describe('UI regression suite', () => {
         const workflowAfterDelete = api.getWorkflowSnapshot();
         const labelNodeAfterDelete = workflowAfterDelete.nodes.find((n: any) => n.type === 'label');
         expect(labelNodeAfterDelete).toBeUndefined();
+    });
+
+    describe('project view (ADR 0001)', () => {
+        it('regression: project mode renders workflow containers with headers and collapse chevrons', () => {
+            const api = (window as any).__workflowDesignerTestApi;
+
+            api.simulateMessage({
+                type: 'initProject',
+                project: {
+                    name: 'my-project',
+                    members: [
+                        { path: './workflow-a.workflow.yaml', position: { x: 100, y: 100 }, collapsed: false },
+                        { path: './workflow-b.workflow.yaml', position: { x: 600, y: 100 }, collapsed: false },
+                    ],
+                },
+                workflows: {
+                    './workflow-a.workflow.yaml': {
+                        name: 'Workflow A',
+                        nodes: [
+                            { id: 'start_1', type: 'start', position: { x: 0, y: 0 }, data: { label: 'Start' } },
+                            { id: 'end_1', type: 'end', position: { x: 0, y: 200 }, data: { label: 'End' } },
+                        ],
+                        edges: [{ id: 'start_1->end_1', source: 'start_1', target: 'end_1' }],
+                    },
+                    './workflow-b.workflow.yaml': {
+                        name: 'Workflow B',
+                        nodes: [
+                            { id: 'start_2', type: 'start', position: { x: 0, y: 0 }, data: { label: 'Start' } },
+                        ],
+                        edges: [],
+                    },
+                },
+                animationConfig: {
+                    startNodeFlashMs: 3000,
+                    edgeHandoffMs: 3000,
+                    endNodeFlashMs: 1200,
+                    edgeDashSpeed: 20,
+                },
+            });
+
+            // Verify composite workflow was built with offset positions
+            const workflow = api.getWorkflowSnapshot();
+            expect(workflow.nodes.length).toBeGreaterThan(0);
+
+            // Nodes from workflow-a should be offset by (100, 100)
+            const start1 = workflow.nodes.find((n: any) => n.id === 'start_1');
+            expect(start1).toBeDefined();
+            expect(start1.position.x).toBe(100);
+            expect(start1.position.y).toBe(100);
+
+            // Nodes from workflow-b should be offset by (600, 100)
+            const start2 = workflow.nodes.find((n: any) => n.id === 'start_2');
+            expect(start2).toBeDefined();
+            expect(start2.position.x).toBe(600);
+            expect(start2.position.y).toBe(100);
+        });
+
+        it('regression: collapsing a container hides its nodes from composite workflow', () => {
+            const api = (window as any).__workflowDesignerTestApi;
+
+            api.simulateMessage({
+                type: 'initProject',
+                project: {
+                    name: 'collapse-test',
+                    members: [
+                        { path: './wf.workflow.yaml', position: { x: 50, y: 50 }, collapsed: false },
+                    ],
+                },
+                workflows: {
+                    './wf.workflow.yaml': {
+                        name: 'Test WF',
+                        nodes: [
+                            { id: 'start_1', type: 'start', position: { x: 0, y: 0 }, data: { label: 'Start' } },
+                            { id: 'agent_1', type: 'agent', position: { x: 0, y: 150 }, data: { agent: 'builder' } },
+                        ],
+                        edges: [{ id: 'start_1->agent_1', source: 'start_1', target: 'agent_1' }],
+                    },
+                },
+                animationConfig: {
+                    startNodeFlashMs: 3000,
+                    edgeHandoffMs: 3000,
+                    endNodeFlashMs: 1200,
+                    edgeDashSpeed: 20,
+                },
+            });
+
+            // Initially should have 2 nodes
+            let workflow = api.getWorkflowSnapshot();
+            expect(workflow.nodes.length).toBe(2);
+
+            // Simulate clicking the chevron area to toggle collapse
+            // Container bounds calculation:
+            //   nodes at (0,0) and (0,150) + member position (50,50) → local (50,50) and (50,200)
+            //   start node: 108x45, agent node: 140x90
+            //   minX=50, minY=50, maxX=190, maxY=290
+            //   padding=30, headerHeight=32
+            //   bounds = { x: 20, y: -12, w: 200, h: 322 }
+            // Chevron hit area: x from bounds.x+4 (24) to bounds.x+20 (40),
+            //                   y from bounds.y+4 (-8) to bounds.y+28 (16)
+            // Click at (32, 8) which is safely inside the chevron hit area
+            const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+            canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: 32, clientY: 8, bubbles: true }));
+            canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: 32, clientY: 8, bubbles: true }));
+
+            // After collapse, composite workflow should have 0 nodes from collapsed container
+            workflow = api.getWorkflowSnapshot();
+            expect(workflow.nodes.length).toBe(0);
+        });
+
+        it('regression: dropping a toolbox item into a container adds node to that workflow', () => {
+            const designerSource = readFile('webview/src/designer.ts');
+
+            // The drop handler should check getMemberAtPosition in project mode
+            expect(designerSource).toMatch(/getMemberAtPosition/);
+            // Should tag nodes with _workflowId in project mode
+            expect(designerSource).toMatch(/_workflowId/);
+            // Should notify using notifyWorkflowUpdateForProject
+            expect(designerSource).toMatch(/notifyWorkflowUpdateForProject/);
+        });
+
+        it('regression: container dragging updates member positions and rebuilds composite', () => {
+            const designerSource = readFile('webview/src/designer.ts');
+
+            // onMouseMove should handle draggingContainer state
+            expect(designerSource).toMatch(/draggingContainer/);
+            // Should update member.position during drag
+            const mmMatch = designerSource.match(/draggingContainer[\s\S]*?member\.position\.x/);
+            expect(mmMatch).not.toBeNull();
+            // Should rebuild composite workflow
+            expect(designerSource).toMatch(/buildCompositeWorkflow/);
+        });
+
+        it('regression: project editor toolbar has run and save buttons', () => {
+            const pkg = JSON.parse(readFile('package.json'));
+            const editorTitleMenus = pkg.contributes.menus['editor/title'] || [];
+            const projectMenus = editorTitleMenus.filter(
+                (m: any) => m.when && m.when.includes("workflowProject.editor")
+            );
+            const commands = new Set(projectMenus.map((m: any) => m.command));
+            expect(commands).toContain('workflowDesigner.runWorkflow');
+            expect(commands).toContain('workflowDesigner.saveWorkflow');
+        });
+
+        it('regression: explorer context menu has add/remove workflow for project items', () => {
+            const pkg = JSON.parse(readFile('package.json'));
+            const itemContextMenus = pkg.contributes.menus['view/item/context'] || [];
+            const addMenu = itemContextMenus.find(
+                (m: any) => m.command === 'workflowDesigner.addWorkflowToProject' &&
+                    m.when && m.when.includes('viewItem == project')
+            );
+            const removeMenu = itemContextMenus.find(
+                (m: any) => m.command === 'workflowDesigner.removeWorkflowFromProject' &&
+                    m.when && m.when.includes('viewItem == project')
+            );
+            expect(addMenu).toBeDefined();
+            expect(removeMenu).toBeDefined();
+        });
     });
 });
 

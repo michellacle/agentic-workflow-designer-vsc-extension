@@ -87,3 +87,7 @@ _Avoid_: Business step, task, activity
 **Decision Node**:
 An Annotation Node marking a human decision point. Rendered as a diamond shape. Properties: `question` and optional `options` (array of strings).
 _Avoid_: Choice, fork, branch point
+
+**Project**:
+A collection of Workflows viewed and edited together on a single Canvas. Stored as `*.workflow-project.yaml`. Workflows within a Project remain independent execution units. The Project defines spatial layout and membership, not execution order.
+_Avoid_: Workspace, collection, suite, bundle

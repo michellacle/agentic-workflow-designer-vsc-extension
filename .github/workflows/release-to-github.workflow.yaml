@@ -10,7 +10,7 @@ nodes:
   - id: compile_ts
     type: agent
     position:
-      x: 300
+      x: 290
       'y': 120
     data:
       agent: builder
@@ -25,7 +25,7 @@ nodes:
       'y': 260
     data:
       agent: builder
-      prompt: Build the webview assets by running `npm run build-webview`. Verify the build succeeds and that webview/dist/ contains the expected designer.js and designer.css files.
+      prompt: Increment the package minor version. Build the webview assets by running `npm run build-webview`. Verify the build succeeds and that webview/dist/ contains the expected designer.js and designer.css files.
       model: qwen3.6-27b
       timeout: 120
       retries: 1
@@ -43,7 +43,7 @@ nodes:
   - id: commit_assets
     type: agent
     position:
-      x: 300
+      x: 290
       'y': 540
     data:
       agent: builder

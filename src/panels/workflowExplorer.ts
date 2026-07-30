@@ -66,14 +66,47 @@ export class WorkflowExplorerProvider implements vscode.TreeDataProvider<Workflo
         const workflowsPath = vscode.Uri.joinPath(folderUri, '.github', 'workflows');
         const items: WorkflowTreeItem[] = [];
 
+        // Add Workflows section header
+        items.push(new WorkflowTreeItem(
+            'WORKFLOWS',
+            'sectionHeader',
+            folderUri,
+            vscode.TreeItemCollapsibleState.None
+        ));
+
         try {
             const entries = await vscode.workspace.fs.readDirectory(workflowsPath);
             for (const [name, type] of entries) {
-                if (type === vscode.FileType.File && name.endsWith('.workflow.yaml')) {
+                if (type === vscode.FileType.File && name.endsWith('.workflow.yaml') && !name.endsWith('.workflow-project.yaml')) {
                     const uri = vscode.Uri.joinPath(workflowsPath, name);
                     items.push(new WorkflowTreeItem(
                         name.replace('.workflow.yaml', ''),
                         'workflow',
+                        uri,
+                        vscode.TreeItemCollapsibleState.None
+                    ));
+                }
+            }
+        } catch {
+            // Directory doesn't exist
+        }
+
+        // Add Projects section header
+        items.push(new WorkflowTreeItem(
+            'PROJECTS',
+            'sectionHeader',
+            folderUri,
+            vscode.TreeItemCollapsibleState.None
+        ));
+
+        try {
+            const entries = await vscode.workspace.fs.readDirectory(workflowsPath);
+            for (const [name, type] of entries) {
+                if (type === vscode.FileType.File && name.endsWith('.workflow-project.yaml')) {
+                    const uri = vscode.Uri.joinPath(workflowsPath, name);
+                    items.push(new WorkflowTreeItem(
+                        name.replace('.workflow-project.yaml', ''),
+                        'project',
                         uri,
                         vscode.TreeItemCollapsibleState.None
                     ));
@@ -90,7 +123,7 @@ export class WorkflowExplorerProvider implements vscode.TreeDataProvider<Workflo
 class WorkflowTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
-        public readonly kind: 'folder' | 'workflow' | 'workflowsDir',
+        public readonly kind: 'folder' | 'workflow' | 'project' | 'workflowsDir' | 'sectionHeader',
         public readonly folderUri: vscode.Uri,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
@@ -101,11 +134,20 @@ class WorkflowTreeItem extends vscode.TreeItem {
 
         if (kind === 'workflow') {
             this.command = {
-                command: 'vscode.open',
+                command: 'vscode.openWith',
                 title: 'Open Workflow',
-                arguments: [folderUri]
+                arguments: [folderUri, 'workflowDesigner.editor']
             };
             this.iconPath = new vscode.ThemeIcon('layers');
+        } else if (kind === 'project') {
+            this.command = {
+                command: 'vscode.openWith',
+                title: 'Open Project',
+                arguments: [folderUri, 'workflowProject.editor']
+            };
+            this.iconPath = new vscode.ThemeIcon('library');
+        } else if (kind === 'sectionHeader') {
+            this.iconPath = new vscode.ThemeIcon('symbol-namespace');
         } else {
             this.iconPath = new vscode.ThemeIcon('folder');
         }

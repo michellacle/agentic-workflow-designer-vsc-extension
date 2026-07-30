@@ -46,8 +46,8 @@ nodes:
   - id: note_10
     type: note
     position:
-      x: 750
-      'y': -10
+      x: 940
+      'y': -100
     data:
       text: Remove Note header, note should only have body.
       description: ''
@@ -62,24 +62,24 @@ nodes:
   - id: note_12
     type: note
     position:
-      x: 870
-      'y': 240
+      x: 970
+      'y': 90
     data:
       text: Double the height of the condition node
       description: ''
   - id: note_13
     type: note
     position:
-      x: 800
-      'y': 130
+      x: 950
+      'y': 0
     data:
       text: The Condition times out too quickly, increase the note timeout.
       description: ''
   - id: note_14
     type: note
     position:
-      x: 590
-      'y': 90
+      x: 550
+      'y': 80
     data:
       text: Feature, review last workflow execution log, identify issue, and fix error if there are any.
       description: ''
@@ -94,32 +94,32 @@ nodes:
   - id: note_16
     type: note
     position:
-      x: 580
-      'y': 190
+      x: 750
+      'y': -110
     data:
       text: 'Feature: factory, a canvas that shows all workflows, can execute one or more workflows in parallel.'
       description: ''
   - id: note_17
     type: note
     position:
-      x: 490
-      'y': -40
+      x: 550
+      'y': -110
     data:
       text: Feature, exception handling, route to fix last execution agent.
       description: ''
   - id: note_18
     type: note
     position:
-      x: 670
-      'y': 310
+      x: 560
+      'y': -10
     data:
       text: Build a feature refining loop that goes into a grill me session
       description: ''
   - id: note_19
     type: note
     position:
-      x: 630
-      'y': 430
+      x: 550
+      'y': 180
     data:
       text: add quality checks agent followed by a verifier
       description: ''
@@ -131,14 +131,35 @@ nodes:
     data:
       prompt: Return false if the build failed, true otherwise.
       model: qwen3.6-27b
-  - id: note_21
+  - id: label_22
+    type: label
+    position:
+      x: 560
+      'y': -170
+    data:
+      text: TODO
+  - id: label_23
+    type: label
+    position:
+      x: 950
+      'y': -170
+    data:
+      text: DONE
+  - id: note_24
     type: note
     position:
-      x: 860
-      'y': 390
+      x: 550
+      'y': 280
     data:
-      text: Note text here
+      text: Allow nodes to be moved and auto save position in view mode.
       description: ''
+  - id: label_26
+    type: label
+    position:
+      x: 740
+      'y': -170
+    data:
+      text: In progress
 edges:
   - source: start
     target: agent_3
@@ -193,10 +214,5 @@ edges:
     target: process_15
     sourceSide: left
     targetSide: bottom
-    type: annotation
-  - source: note_17
-    target: start
-    sourceSide: left
-    targetSide: right
     type: annotation
 description: A new workflow

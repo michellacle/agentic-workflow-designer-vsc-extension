@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { WorkflowDesignerProvider } from './designer/workflowDesignerProvider';
+import { ProjectDesignerProvider } from './designer/projectDesignerProvider';
 import { WorkflowRuntime } from './runtime/workflowRuntime';
 import { WorkflowExplorerProvider } from './panels/workflowExplorer';
 import {
@@ -27,6 +28,16 @@ export function activate(context: vscode.ExtensionContext) {
         )
     );
 
+    // Register custom editor for project files (multi-workflow)
+    const projectProvider = new ProjectDesignerProvider(context);
+    context.subscriptions.push(
+        vscode.window.registerCustomEditorProvider(
+            'workflowProject.editor',
+            projectProvider,
+            { webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: false }
+        )
+    );
+
     // Initialize runtime
     runtime = new WorkflowRuntime(context);
     context.subscriptions.push(runtime);
@@ -38,9 +49,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Genuine Copilot subagents require the Chat participant's tool token.
     context.subscriptions.push(registerWorkflowChatParticipant(context, runtime));
 
-    // Wire runtime into designer provider so toolbar buttons work
+    // Wire runtime into designer providers so toolbar buttons work
     designerProvider.setRuntime(runtime);
     designerProvider.setDiagnosticsCollection(diagnosticsCollection);
+    projectProvider.setRuntime(runtime);
 
     // Register workflow explorer
     explorerProvider = new WorkflowExplorerProvider(context);
@@ -60,6 +72,53 @@ export function activate(context: vscode.ExtensionContext) {
                     vscode.commands.executeCommand('vscode.open', uri);
                 }
             });
+        }),
+        vscode.commands.registerCommand('workflowDesigner.newProject', async () => {
+            const name = await vscode.window.showInputBox({
+                prompt: 'Enter a name for the new project',
+                placeHolder: 'my-project',
+                validateInput: value => {
+                    if (!value || !value.trim()) {return 'Project name is required';}
+                    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(value)) {return 'Use only letters, numbers, hyphens, and underscores (start with a letter or number)';}
+                    return null;
+                }
+            });
+            if (!name) {
+                return;
+            }
+
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder open. Open a folder first.');
+                return;
+            }
+
+            const folder = workspaceFolders[0];
+            const workflowsPath = vscode.Uri.joinPath(folder.uri, '.github', 'workflows');
+            const filePath = `${name.trim()}.workflow-project.yaml`;
+            const fileUri = vscode.Uri.joinPath(workflowsPath, filePath);
+
+            // Ensure .github/workflows directory exists
+            try {
+                await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, '.github'));
+                await vscode.workspace.fs.createDirectory(workflowsPath);
+            } catch {
+                // Directory may already exist
+            }
+
+            // Create the project file
+            const yamlContent = `name: ${name.trim()}
+members: []
+`;
+            await vscode.workspace.fs.writeFile(fileUri, Buffer.from(yamlContent));
+
+            // Refresh the explorer tree
+            if (explorerProvider) {
+                explorerProvider.refresh();
+            }
+
+            // Open in the project designer (custom editor)
+            await vscode.commands.executeCommand('vscode.openWith', fileUri, 'workflowProject.editor');
         }),
         vscode.commands.registerCommand('workflowDesigner.addWorkflow', async () => {
             const name = await vscode.window.showInputBox({
@@ -155,6 +214,185 @@ export function activate(context: vscode.ExtensionContext) {
                 await vscode.workspace.fs.writeFile(uri, Buffer.from(logs, 'utf-8'));
                 vscode.window.showInformationMessage(`Execution logs exported to ${uri.fsPath}`);
             }
+        }),
+        vscode.commands.registerCommand('workflowDesigner.addWorkflowToProject', async () => {
+            // Discover available workflow files in .github/workflows/
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder open.');
+                return;
+            }
+
+            const folder = workspaceFolders[0];
+            const workflowsPath = vscode.Uri.joinPath(folder.uri, '.github', 'workflows');
+
+            let workflowFiles: { label: string; path: string; uri: vscode.Uri }[] = [];
+            try {
+                const entries = await vscode.workspace.fs.readDirectory(workflowsPath);
+                for (const [name, type] of entries) {
+                    if (type === vscode.FileType.File && name.endsWith('.workflow.yaml') && !name.endsWith('.workflow-project.yaml')) {
+                        workflowFiles.push({
+                            label: name.replace('.workflow.yaml', ''),
+                            path: `./${name}`,
+                            uri: vscode.Uri.joinPath(workflowsPath, name)
+                        });
+                    }
+                }
+            } catch {
+                vscode.window.showErrorMessage('Could not read workflows directory.');
+                return;
+            }
+
+            if (workflowFiles.length === 0) {
+                vscode.window.showInformationMessage('No workflow files found. Create a workflow first.');
+                return;
+            }
+
+            // Quick pick to select workflow(s) to add
+            const selected = await vscode.window.showQuickPick(
+                workflowFiles.map(wf => ({
+                    label: wf.label,
+                    description: wf.path,
+                    detail: wf.uri.fsPath,
+                    workflow: wf
+                })),
+                {
+                    placeHolder: 'Select workflows to add to the project',
+                    canPickMany: true
+                }
+            );
+
+            if (!selected || selected.length === 0) {
+                return;
+            }
+
+            // Find the active project file
+            const activeEditor = vscode.window.activeTextEditor;
+            let projectUri: vscode.Uri | undefined;
+
+            if (activeEditor && activeEditor.document.uri.fsPath.endsWith('.workflow-project.yaml')) {
+                projectUri = activeEditor.document.uri;
+            }
+
+            // If no active project editor, prompt to select one
+            if (!projectUri) {
+                const projectFiles: vscode.Uri[] = [];
+                try {
+                    const entries = await vscode.workspace.fs.readDirectory(workflowsPath);
+                    for (const [name, type] of entries) {
+                        if (type === vscode.FileType.File && name.endsWith('.workflow-project.yaml')) {
+                            projectFiles.push(vscode.Uri.joinPath(workflowsPath, name));
+                        }
+                    }
+                } catch { /* ignore */ }
+
+                if (projectFiles.length === 0) {
+                    vscode.window.showInformationMessage('No project files found. Create a project first.');
+                    return;
+                }
+
+                const pickedProject = await vscode.window.showQuickPick(
+                    projectFiles.map(p => ({
+                        label: p.fsPath.replace(/.*\//, '').replace('.workflow-project.yaml', ''),
+                        uri: p
+                    })),
+                    { placeHolder: 'Select a project to add workflows to' }
+                );
+                if (!pickedProject) return;
+                projectUri = pickedProject.uri;
+            }
+
+            // Read current project
+            const { yamlToProject, projectToYaml } = await import('./utils/projectSerializer');
+            let project = yamlToProject(Buffer.from(await vscode.workspace.fs.readFile(projectUri)).toString('utf-8'));
+
+            // Add selected workflows (skip duplicates)
+            let addedCount = 0;
+            for (const item of selected) {
+                const wf = (item as any).workflow;
+                if (!project.members.find(m => m.path === wf.path)) {
+                    const position = { x: project.members.length * 400, y: 0 };
+                    project.members.push({ path: wf.path, position });
+                    addedCount++;
+                }
+            }
+
+            // Save updated project
+            await vscode.workspace.fs.writeFile(projectUri, Buffer.from(projectToYaml(project), 'utf-8'));
+            if (explorerProvider) explorerProvider.refresh();
+            vscode.window.showInformationMessage(`Added ${addedCount} workflow(s) to '${project.name}'.`);
+        }),
+        vscode.commands.registerCommand('workflowDesigner.removeWorkflowFromProject', async () => {
+            // Find the active project file
+            const activeEditor = vscode.window.activeTextEditor;
+            let projectUri: vscode.Uri | undefined;
+
+            if (activeEditor && activeEditor.document.uri.fsPath.endsWith('.workflow-project.yaml')) {
+                projectUri = activeEditor.document.uri;
+            }
+
+            if (!projectUri) {
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                if (!workspaceFolders) return;
+                const workflowsPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.github', 'workflows');
+                const projectFiles: vscode.Uri[] = [];
+                try {
+                    const entries = await vscode.workspace.fs.readDirectory(workflowsPath);
+                    for (const [name, type] of entries) {
+                        if (type === vscode.FileType.File && name.endsWith('.workflow-project.yaml')) {
+                            projectFiles.push(vscode.Uri.joinPath(workflowsPath, name));
+                        }
+                    }
+                } catch { /* ignore */ }
+
+                if (projectFiles.length === 0) {
+                    vscode.window.showInformationMessage('No project files found.');
+                    return;
+                }
+
+                const pickedProject = await vscode.window.showQuickPick(
+                    projectFiles.map(p => ({
+                        label: p.fsPath.replace(/.*\//, '').replace('.workflow-project.yaml', ''),
+                        uri: p
+                    })),
+                    { placeHolder: 'Select a project to remove workflows from' }
+                );
+                if (!pickedProject) return;
+                projectUri = pickedProject.uri;
+            }
+
+            // Read current project
+            const { yamlToProject, projectToYaml } = await import('./utils/projectSerializer');
+            let project = yamlToProject(Buffer.from(await vscode.workspace.fs.readFile(projectUri)).toString('utf-8'));
+
+            if (project.members.length === 0) {
+                vscode.window.showInformationMessage('This project has no workflows to remove.');
+                return;
+            }
+
+            // Quick pick to select workflow(s) to remove
+            const selected = await vscode.window.showQuickPick(
+                project.members.map(m => ({
+                    label: m.path.replace('.workflow.yaml', '').replace('./', ''),
+                    description: m.path,
+                    path: m.path
+                })),
+                {
+                    placeHolder: 'Select workflows to remove from the project',
+                    canPickMany: true
+                }
+            );
+
+            if (!selected || selected.length === 0) return;
+
+            // Remove selected workflows
+            const pathsToRemove = new Set((selected as any[]).map(s => s.path));
+            project.members = project.members.filter(m => !pathsToRemove.has(m.path));
+
+            // Save updated project
+            await vscode.workspace.fs.writeFile(projectUri, Buffer.from(projectToYaml(project), 'utf-8'));
+            if (explorerProvider) explorerProvider.refresh();
+            vscode.window.showInformationMessage(`Removed ${selected.length} workflow(s) from '${project.name}'.`);
         }),
         vscode.commands.registerCommand('workflowDesigner.listModels', async () => {
             try {
