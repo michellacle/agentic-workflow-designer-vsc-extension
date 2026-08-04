@@ -1,0 +1,161 @@
+name: implement feature
+nodes:
+  - id: start_1
+    type: start
+    position:
+      x: 80
+      'y': -150
+    data:
+      label: Start
+  - id: agent_11
+    type: agent
+    position:
+      x: 260
+      'y': -170
+    data:
+      agent: implementer
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: agent_14
+    type: agent
+    position:
+      x: 260
+      'y': -10
+    data:
+      agent: general
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+      stateWrites:
+        - source: passed
+          target: state.review_passed
+        - source: reason
+          target: state.review_reason
+        - source: review_attempts
+          target: state.review_attempts
+  - id: agent_15
+    type: agent
+    position:
+      x: 300
+      'y': 130
+    data:
+      agent: tester
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: agent_16
+    type: agent
+    position:
+      x: 360
+      'y': 540
+    data:
+      agent: builder
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 0
+  - id: end_17
+    type: end
+    position:
+      x: 620
+      'y': 540
+    data:
+      label: End
+      summary: true
+  - id: agent_18
+    type: agent
+    position:
+      x: 280
+      'y': 430
+    data:
+      agent: qa
+      prompt: ''
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 0
+  - id: note_20
+    type: note
+    position:
+      x: -290
+      'y': -10
+    data:
+      text: |
+        This is Agentic Designer. This is a simple note, it doesn't do anyhting
+      description: Test
+  - id: process_21
+    type: process
+    position:
+      x: -300
+      'y': 200
+    data:
+      title: Project Deliveries
+      description: A businesss process
+  - id: note_22
+    type: note
+    position:
+      x: -160
+      'y': -160
+    data:
+      text: Design new feature ideas
+      description: ''
+  - id: decision_23
+    type: decision
+    position:
+      x: -290
+      'y': 390
+    data:
+      question: Decision question?
+      options: []
+  - id: note_24
+    type: note
+    position:
+      x: -280
+      'y': 550
+    data:
+      text: Note text here
+      description: ''
+  - id: note_25
+    type: note
+    position:
+      x: 590
+      'y': 710
+    data:
+      text: Ship software to customer
+      description: ''
+  - id: process_26
+    type: process
+    position:
+      x: 830
+      'y': 730
+    data:
+      title: Work with customer
+      description: ''
+edges:
+  - source: agent_11
+    target: agent_14
+    sourceSide: bottom
+    targetSide: top
+  - source: agent_16
+    target: end_17
+  - source: start_1
+    target: agent_11
+  - source: agent_15
+    target: agent_18
+    sourceSide: bottom
+    targetSide: top
+  - source: agent_18
+    target: agent_16
+    targetSide: top
+  - source: process_21
+    target: note_20
+  - source: note_20
+    target: agent_14
+  - source: note_24
+    target: note_25
+  - source: note_25
+    target: process_26
+description: Implement workflow with review loop - reviewer can send back to implementer once before continuing

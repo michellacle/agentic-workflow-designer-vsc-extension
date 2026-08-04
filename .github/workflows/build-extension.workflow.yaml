@@ -1,0 +1,218 @@
+name: build-extension
+nodes:
+  - id: start
+    type: start
+    position:
+      x: 120
+      'y': -60
+  - id: agent_1
+    type: agent
+    position:
+      x: 290
+      'y': 330
+    data:
+      agent: builder
+      prompt: Build the VSC extension
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 3
+  - id: end_2
+    type: end
+    position:
+      x: 580
+      'y': 640
+    data:
+      label: End
+      summary: true
+  - id: agent_3
+    type: agent
+    position:
+      x: 110
+      'y': 40
+    data:
+      agent: implementer
+      prompt: implement feature
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: condition_6
+    type: condition
+    position:
+      x: 110
+      'y': 200
+    data:
+      prompt: Sanity check the the previous agent worked the issue provided to the workflow.
+      model: qwen3.6-27b
+  - id: note_10
+    type: note
+    position:
+      x: 940
+      'y': -100
+    data:
+      text: Remove Note header, note should only have body.
+      description: ''
+  - id: process_11
+    type: process
+    position:
+      x: 190
+      'y': 770
+    data:
+      title: michel tests extension by reloading VSC
+      description: ''
+  - id: note_12
+    type: note
+    position:
+      x: 970
+      'y': 90
+    data:
+      text: Double the height of the condition node
+      description: ''
+  - id: note_13
+    type: note
+    position:
+      x: 950
+      'y': 0
+    data:
+      text: The Condition times out too quickly, increase the note timeout.
+      description: ''
+  - id: note_14
+    type: note
+    position:
+      x: 550
+      'y': 80
+    data:
+      text: Feature, review last workflow execution log, identify issue, and fix error if there are any.
+      description: ''
+  - id: process_15
+    type: process
+    position:
+      x: -140
+      'y': 370
+    data:
+      title: Michel prompts agent in chat to review last execution logs and fix issues.
+      description: ''
+  - id: note_16
+    type: note
+    position:
+      x: 750
+      'y': -110
+    data:
+      text: 'Feature: factory, a canvas that shows all workflows, can execute one or more workflows in parallel.'
+      description: ''
+  - id: note_17
+    type: note
+    position:
+      x: 550
+      'y': -110
+    data:
+      text: Feature, exception handling, route to fix last execution agent.
+      description: ''
+  - id: note_18
+    type: note
+    position:
+      x: 560
+      'y': -10
+    data:
+      text: Build a feature refining loop that goes into a grill me session
+      description: ''
+  - id: note_19
+    type: note
+    position:
+      x: 550
+      'y': 180
+    data:
+      text: add quality checks agent followed by a verifier
+      description: ''
+  - id: condition_20
+    type: condition
+    position:
+      x: 340
+      'y': 490
+    data:
+      prompt: Return false if the build failed, true otherwise.
+      model: qwen3.6-27b
+  - id: label_22
+    type: label
+    position:
+      x: 560
+      'y': -170
+    data:
+      text: TODO
+  - id: label_23
+    type: label
+    position:
+      x: 950
+      'y': -170
+    data:
+      text: DONE
+  - id: note_24
+    type: note
+    position:
+      x: 550
+      'y': 280
+    data:
+      text: Allow nodes to be moved and auto save position in view mode.
+      description: ''
+  - id: label_26
+    type: label
+    position:
+      x: 740
+      'y': -170
+    data:
+      text: In progress
+edges:
+  - source: start
+    target: agent_3
+    sourceSide: bottom
+    targetSide: top
+    type: agentic
+  - source: agent_3
+    target: condition_6
+    sourceSide: bottom
+    targetSide: top
+    type: agentic
+  - source: condition_6
+    target: agent_1
+    label: 'True'
+    sourceSide: right
+    targetSide: top
+    type: agentic
+  - source: condition_6
+    target: agent_3
+    label: 'False'
+    sourceSide: left
+    targetSide: left
+    type: agentic
+  - source: condition_20
+    target: agent_1
+    label: 'False'
+    sourceSide: left
+    targetSide: left
+    type: agentic
+  - source: condition_20
+    target: end_2
+    label: 'True'
+    sourceSide: right
+    targetSide: left
+    type: agentic
+  - source: agent_1
+    target: condition_20
+    sourceSide: bottom
+    targetSide: top
+    type: agentic
+  - source: process_11
+    target: end_2
+    sourceSide: right
+    targetSide: bottom
+    type: annotation
+  - source: process_15
+    target: start
+    sourceSide: left
+    targetSide: left
+    type: annotation
+  - source: process_11
+    target: process_15
+    sourceSide: left
+    targetSide: bottom
+    type: annotation
+description: A new workflow

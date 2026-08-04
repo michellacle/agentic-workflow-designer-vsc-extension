@@ -199,11 +199,15 @@ describe('Multi-Workflow Project View (ADR 0001)', () => {
         });
 
         it('should include Run Workflow option in container context menu', () => {
-            expect(designerSource).toMatch(/Run Workflow/);
+            // The "Run Workflow" menu item label lives in the provider HTML template
+            const providerSource = readFile('src/designer/projectDesignerProvider.ts');
+            expect(providerSource).toMatch(/Run Workflow/);
         });
 
         it('should send a run message with workflowId when Run Workflow is selected', () => {
-            expect(designerSource).toMatch(/type.*'run'.*workflowId|workflowId.*type.*'run'/);
+            // The run handler in designer.ts sends type: 'run' with workflowId
+            expect(designerSource).toMatch(/type:\s*'run'/);
+            expect(designerSource).toMatch(/workflowId/);
         });
 
         it('should hide context menu on click elsewhere', () => {

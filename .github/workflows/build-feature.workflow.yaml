@@ -1,0 +1,260 @@
+name: build-feature
+nodes:
+  - id: start
+    type: start
+    position:
+      x: 300
+      'y': 0
+    data:
+      label: Start Feature Build
+  - id: implement
+    type: agent
+    position:
+      x: 290
+      'y': 120
+    data:
+      agent: implementer
+      prompt: Implement the feature described in state.feature_description. Follow TDD (Red-Green-Refactor), write tests first, then implement. Ensure all code is well-structured, documented, and follows project conventions. Commit your changes with a detailed commit message.
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+      stateWrites:
+        - source: success
+          target: state.implement_success
+  - id: run-unit-tests
+    type: agent
+    position:
+      x: 290
+      'y': 290
+    data:
+      agent: tester
+      prompt: Run all unit tests in the test/ directory using `npx jest test/ --testPathIgnorePatterns=.*integration.*`. Report the pass/fail count and any failures. Set state.tests_passed to true if all tests pass, false otherwise.
+      model: qwen3.6-27b
+      timeout: 180
+      retries: 0
+      stateWrites:
+        - source: tests_passed
+          target: state.tests_passed
+  - id: run-integration-tests
+    type: agent
+    position:
+      x: 290
+      'y': 470
+    data:
+      agent: tester
+      prompt: Run all integration tests using `npx jest --testMatch="**/*.integration.test.ts"`. If no integration tests exist, run the full test suite with `npx jest` to ensure all tests pass. Report results and set state.tests_passed accordingly.
+      model: qwen3.6-27b
+      timeout: 180
+      retries: 0
+      stateWrites:
+        - source: tests_passed
+          target: state.tests_passed
+  - id: check-tests
+    type: condition
+    position:
+      x: 290
+      'y': 640
+    data:
+      expression: state.tests_passed === true
+      description: Did all tests pass?
+  - id: static-analysis
+    type: agent
+    position:
+      x: 290
+      'y': 800
+    data:
+      agent: reviewer
+      prompt: Perform static analysis on the codebase. Run `npx tsc --noEmit` to check for TypeScript errors, then run `npx eslint src/ --max-warnings=0` if eslint is configured. Review the latest git diff for code quality, security issues, and adherence to project conventions. Set state.review_passed to true if all checks pass, false otherwise. Provide specific actionable feedback for any issues found.
+      model: qwen3.6-27b
+      timeout: 180
+      retries: 0
+      stateWrites:
+        - source: review_passed
+          target: state.review_passed
+  - id: check-review
+    type: condition
+    position:
+      x: 290
+      'y': 970
+    data:
+      expression: state.review_passed === true
+      description: Did static analysis pass?
+  - id: fix-and-retest
+    type: agent
+    position:
+      x: -30
+      'y': 630
+    data:
+      agent: implementer
+      prompt: Tests or static analysis failed. Review the error messages from the tester and reviewer agents. Fix the identified issues, ensuring the changes address the root cause. Commit the fixes with a descriptive message.
+      model: qwen3.6-27b
+      timeout: 300
+      retries: 0
+  - id: build-extension
+    type: agent
+    position:
+      x: 290
+      'y': 1140
+    data:
+      agent: builder
+      prompt: 'Build the extension following the standard build steps: compile TypeScript, build webview assets, package into .vsix, and install locally. Report whether the build succeeded or failed.'
+      model: qwen3.6-27b
+      timeout: 180
+      retries: 1
+      stateWrites:
+        - source: success
+          target: state.build_succeeded
+  - id: check-build
+    type: condition
+    position:
+      x: 290
+      'y': 1290
+    data:
+      expression: state.build_succeeded === true
+      description: Did the build succeed?
+  - id: release-to-github
+    type: agent
+    position:
+      x: 290
+      'y': 1440
+    data:
+      agent: builder
+      prompt: Release the extension to GitHub. First, get the version from package.json. Then create a GitHub release using `gh release create v<VERSION> --generate-notes --prerelease` or attach the .vsix file to an existing release. If a release for this version already exists, update it by deleting and recreating. Report the release URL.
+      model: qwen3.6-27b
+      timeout: 120
+      retries: 1
+  - id: end-success
+    type: end
+    position:
+      x: 570
+      'y': 1460
+    data:
+      label: Feature Built & Released
+      summary: true
+  - id: end-failed
+    type: end
+    position:
+      x: -30
+      'y': 1300
+    data:
+      label: Build Failed
+      summary: true
+  - id: note-overview
+    type: note
+    position:
+      x: 550
+      'y': 130
+    data:
+      text: |
+        Feature Build Pipeline:
+        1. Implement feature (TDD)
+        2. Run unit tests
+        3. Run integration tests
+        4. Static analysis & code review
+        5. Build extension
+        6. Release to GitHub
+
+        If tests or review fail, loop back to fix.
+      description: Pipeline overview
+  - id: process-feature
+    type: process
+    position:
+      x: 600
+      'y': 480
+    data:
+      title: Test & Analyze
+      description: Validate the implementation through automated testing and static code analysis before building.
+  - id: decision-release
+    type: decision
+    position:
+      x: 600
+      'y': 1080
+    data:
+      question: Build succeeded?
+      options:
+        - Yes → Release to GitHub
+        - No → Stop & report
+edges:
+  - source: start
+    target: implement
+    label: implement feature
+    sourceSide: bottom
+    targetSide: top
+  - source: implement
+    target: run-unit-tests
+    label: run unit tests
+    sourceSide: bottom
+    targetSide: top
+  - source: run-unit-tests
+    target: run-integration-tests
+    label: run integration tests
+    sourceSide: bottom
+    targetSide: top
+  - source: run-integration-tests
+    target: check-tests
+    label: check results
+    sourceSide: bottom
+    targetSide: top
+  - source: check-tests
+    target: static-analysis
+    label: 'True'
+    sourceSide: bottom
+    targetSide: top
+  - source: check-tests
+    target: fix-and-retest
+    label: 'False'
+    sourceSide: left
+    targetSide: right
+  - source: fix-and-retest
+    target: run-unit-tests
+    label: re-run tests
+    sourceSide: top
+    targetSide: left
+  - source: static-analysis
+    target: check-review
+    label: check results
+    sourceSide: bottom
+    targetSide: top
+  - source: check-review
+    target: build-extension
+    label: 'True'
+    sourceSide: bottom
+    targetSide: top
+  - source: check-review
+    target: fix-and-retest
+    label: 'False'
+    sourceSide: left
+    targetSide: bottom
+  - source: build-extension
+    target: check-build
+    label: check results
+    sourceSide: bottom
+    targetSide: top
+  - source: check-build
+    target: release-to-github
+    label: 'True'
+    sourceSide: bottom
+    targetSide: top
+  - source: check-build
+    target: end-failed
+    label: 'False'
+    sourceSide: left
+    targetSide: right
+  - source: release-to-github
+    target: end-success
+    label: complete
+    sourceSide: right
+    targetSide: left
+  - source: note-overview
+    target: implement
+    sourceSide: left
+    targetSide: right
+  - source: process-feature
+    target: run-integration-tests
+    sourceSide: left
+    targetSide: right
+  - source: decision-release
+    target: build-extension
+    sourceSide: left
+    targetSide: right
+description: 'Multi-agent workflow: implement → test → static analysis → build → release to GitHub'

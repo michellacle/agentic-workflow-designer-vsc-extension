@@ -1565,8 +1565,9 @@ describe('UI regression suite', () => {
             // Should have a showContainerContextMenu function
             expect(designerSource).toMatch(/showContainerContextMenu/);
 
-            // Should include "Run Workflow" as a menu item
-            expect(designerSource).toMatch(/Run Workflow/);
+            // Should include "Run Workflow" as a menu item (lives in provider HTML template)
+            const providerSource = readFile('src/designer/projectDesignerProvider.ts');
+            expect(providerSource).toMatch(/Run Workflow/);
 
             // Context menu should be triggered on contextmenu event (right-click)
             expect(designerSource).toMatch(/contextmenu/);
