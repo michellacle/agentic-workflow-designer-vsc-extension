@@ -1,0 +1,14 @@
+name: mother-project
+members:
+  - path: ./build-extension-full.workflow.yaml
+    position:
+      x: 0
+      'y': 0
+  - path: ./release-to-github.workflow.yaml
+    position:
+      x: 400
+      'y': 0
+  - path: ./implement-feature.workflow.yaml
+    position:
+      x: 800
+      'y': 0

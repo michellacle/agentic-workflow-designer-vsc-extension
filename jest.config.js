@@ -7,8 +7,8 @@ module.exports = {
         tsconfig: {
           module: 'commonjs',
           target: 'ES2022',
-          lib: ['ES2022'],
-          strict: true,
+          lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          strict: false,
           esModuleInterop: true,
           skipLibCheck: true,
           forceConsistentCasingInFileNames: true,

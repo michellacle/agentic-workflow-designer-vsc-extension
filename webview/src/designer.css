@@ -394,3 +394,47 @@ textarea.property-input {
     opacity: 1;
     border-style: solid;
 }
+
+/* Container Context Menu */
+#container-context-menu {
+    position: absolute;
+    display: none;
+    background: var(--vscode-menu-background, #252526);
+    border: 1px solid var(--vscode-menu-border, #454545);
+    border-radius: 4px;
+    padding: 4px 0;
+    min-width: 180px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    font-size: 13px;
+}
+
+#container-context-menu.visible {
+    display: block;
+}
+
+#container-context-menu .menu-item {
+    padding: 6px 16px;
+    cursor: pointer;
+    color: var(--vscode-foreground, #cccccc);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+#container-context-menu .menu-item:hover {
+    background: var(--vscode-list-hoverBackground, #2a2d2e);
+}
+
+#container-context-menu .menu-item .menu-icon {
+    width: 16px;
+    text-align: center;
+    font-size: 12px;
+}
+
+#container-context-menu .menu-separator {
+    height: 1px;
+    background: var(--vscode-menu-separatorBackground, #454545);
+    margin: 4px 0;
+}

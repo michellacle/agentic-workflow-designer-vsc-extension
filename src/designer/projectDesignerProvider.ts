@@ -77,10 +77,16 @@ export class ProjectDesignerProvider implements vscode.CustomEditorProvider<Proj
             edgeDashSpeed: config.get<number>('edgeDashSpeed', 20)
         };
 
+        // Convert Map to plain object — postMessage can't serialize Map
+        const workflowsObj: Record<string, Workflow> = {};
+        for (const [path, workflow] of document.workflows) {
+            workflowsObj[path] = workflow;
+        }
+
         this.postMessage(webviewPanel.webview, {
             type: 'initProject',
             project: document.project,
-            workflows: document.workflows,
+            workflows: workflowsObj,
             agentFiles,
             animationConfig
         });
@@ -215,6 +221,18 @@ export class ProjectDesignerProvider implements vscode.CustomEditorProvider<Proj
             </div>
             <div id="canvas-container">
                 <canvas id="canvas"></canvas>
+                <div id="container-context-menu">
+                    <div class="menu-item" data-action="run">
+                        <span class="menu-icon">▶</span> Run Workflow
+                    </div>
+                    <div class="menu-item" data-action="collapse">
+                        <span class="menu-icon">▼</span> Toggle Collapse
+                    </div>
+                    <div class="menu-separator"></div>
+                    <div class="menu-item" data-action="remove">
+                        <span class="menu-icon">✕</span> Remove From Project
+                    </div>
+                </div>
             </div>
             <div id="properties-panel">
                 <div class="properties-header">Properties</div>
@@ -379,7 +397,9 @@ export class ProjectDocument implements vscode.CustomDocument {
      */
     getMemberUri(path: string): vscode.Uri | undefined {
         const member = this._project.members.find(m => m.path === path);
-        if (!member) return undefined;
+        if (!member) {
+            return undefined;
+        }
         return this.resolveMemberPath(member.path);
     }
 

@@ -187,4 +187,27 @@ describe('Multi-Workflow Project View (ADR 0001)', () => {
             expect(explorerSource).toMatch(/kind.*project/);
         });
     });
+
+    describe('container context menu', () => {
+        let designerSource: string;
+        beforeAll(() => {
+            designerSource = readFile('webview/src/designer.ts');
+        });
+
+        it('should show a context menu when right-clicking a workflow container', () => {
+            expect(designerSource).toMatch(/showContainerContextMenu/);
+        });
+
+        it('should include Run Workflow option in container context menu', () => {
+            expect(designerSource).toMatch(/Run Workflow/);
+        });
+
+        it('should send a run message with workflowId when Run Workflow is selected', () => {
+            expect(designerSource).toMatch(/type.*'run'.*workflowId|workflowId.*type.*'run'/);
+        });
+
+        it('should hide context menu on click elsewhere', () => {
+            expect(designerSource).toMatch(/hideContextMenu|removeContextMenu|contextMenu.*remove|contextMenu.*hide/);
+        });
+    });
 });

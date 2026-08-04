@@ -250,11 +250,17 @@
         {
           "command": "workflowDesigner.addWorkflowToProject",
           "when": "view == workflowExplorer.list && viewItem == project",
-          "group": "inline"
+          "group": "inline",
+          "arguments": [
+            "${viewItem}"
+          ]
         },
         {
           "command": "workflowDesigner.removeWorkflowFromProject",
-          "when": "view == workflowExplorer.list && viewItem == project"
+          "when": "view == workflowExplorer.list && viewItem == project",
+          "arguments": [
+            "${viewItem}"
+          ]
         }
       ]
     },
@@ -287,6 +293,7 @@
     "rebuild": "rm -rf out && npm run compile && npm run build-webview && npx vsce package --out vscode-workflow-designer-0.1.0.vsix 2>/dev/null && code --install-extension vscode-workflow-designer-0.1.0.vsix 2>/dev/null && echo '✅ Extension rebuilt and installed! Reload VS Code window to activate.'",
     "watch:webview": "node scripts/watch-webview.js",
     "dev:watch": "npm-run-all -p watch watch:webview",
+    "dev:standalone": "vite --config vite.standalone.config.js",
     "test": "jest --forceExit"
   },
   "devDependencies": {
@@ -296,10 +303,12 @@
     "@types/vscode": "^1.96.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "esbuild": "^0.28.1",
     "eslint": "^9.0.0",
     "npm-run-all": "^4.1.5",
     "ts-jest": "^29.4.11",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vite": "^8.2.0"
   },
   "dependencies": {
     "jest-environment-jsdom": "^30.4.1",

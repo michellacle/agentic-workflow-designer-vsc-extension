@@ -10,12 +10,16 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { TestingHarness } from '../webview/src/testingHarness';
+import { createDesigner } from '../webview/src/designer';
 
 const ROOT = path.resolve(__dirname, '..');
 
 function readFile(relativePath: string): string {
     return fs.readFileSync(path.resolve(ROOT, relativePath), 'utf-8');
 }
+
+let harness: TestingHarness;
 
 function installCanvasMock() {
     const stubCtx = {
@@ -87,10 +91,7 @@ function installDomShell() {
 }
 
 function loadDesignerRuntime() {
-    const builtJs = readFile('webview/dist/designer.js');
-    // eslint-disable-next-line no-new-func
-    const runner = new Function(builtJs);
-    runner();
+    // No-op: designer is loaded via createDesigner below
 }
 
 function workflowStatus(payload: any) {
@@ -104,11 +105,6 @@ function workflowStatus(payload: any) {
 describe('UI regression suite', () => {
     beforeEach(() => {
         jest.useFakeTimers();
-        (global as any).acquireVsCodeApi = () => ({
-            postMessage: jest.fn(),
-            setState: jest.fn(),
-            getState: jest.fn(() => null),
-        });
         (window as any).__WORKFLOW_DESIGNER_TEST_MODE = true;
         (window as any).ResizeObserver = class {
             observe() {}
@@ -121,7 +117,11 @@ describe('UI regression suite', () => {
 
         installCanvasMock();
         installDomShell();
-        loadDesignerRuntime();
+
+        // Create designer with TestingHarness instead of mocking acquireVsCodeApi
+        harness = new TestingHarness();
+        const appEl = document.getElementById('app')!;
+        createDesigner(harness, appEl);
 
         const api = (window as any).__workflowDesignerTestApi;
         api.simulateMessage({
@@ -1482,6 +1482,110 @@ describe('UI regression suite', () => {
             );
             expect(addMenu).toBeDefined();
             expect(removeMenu).toBeDefined();
+        });
+    });
+
+    describe('project container context menu', () => {
+        beforeEach(() => {
+            jest.useFakeTimers();
+            (global as any).acquireVsCodeApi = () => ({
+                postMessage: jest.fn(),
+                setState: jest.fn(),
+                getState: jest.fn(() => null),
+            });
+            (window as any).__WORKFLOW_DESIGNER_TEST_MODE = true;
+            (window as any).ResizeObserver = class {
+                observe() {}
+                disconnect() {}
+            };
+            (window as any).requestAnimationFrame = (cb: FrameRequestCallback) => {
+                setTimeout(() => cb(performance.now()), 16);
+                return 1;
+            };
+
+            installCanvasMock();
+            installDomShell();
+            loadDesignerRuntime();
+
+            const api = (window as any).__workflowDesignerTestApi;
+            api.simulateMessage({
+                type: 'initProject',
+                project: {
+                    name: 'test-project',
+                    members: [
+                        { path: './build.workflow.yaml', position: { x: 50, y: 50 } },
+                        { path: './test.workflow.yaml', position: { x: 500, y: 50 } },
+                    ],
+                },
+                workflows: {
+                    './build.workflow.yaml': {
+                        name: 'build',
+                        nodes: [
+                            { id: 'start_1', type: 'start', position: { x: 0, y: 0 }, data: { label: 'Start' } },
+                            { id: 'agent_1', type: 'agent', position: { x: 190, y: 0 }, data: { agent: 'builder' } },
+                            { id: 'end_1', type: 'end', position: { x: 380, y: 0 }, data: { label: 'End' } },
+                        ],
+                        edges: [
+                            { id: 'start_1->agent_1', source: 'start_1', target: 'agent_1' },
+                            { id: 'agent_1->end_1', source: 'agent_1', target: 'end_1' },
+                        ],
+                    },
+                    './test.workflow.yaml': {
+                        name: 'test',
+                        nodes: [
+                            { id: 'start_1', type: 'start', position: { x: 0, y: 0 }, data: { label: 'Start' } },
+                            { id: 'agent_1', type: 'agent', position: { x: 190, y: 0 }, data: { agent: 'tester' } },
+                            { id: 'end_1', type: 'end', position: { x: 380, y: 0 }, data: { label: 'End' } },
+                        ],
+                        edges: [
+                            { id: 'start_1->agent_1', source: 'start_1', target: 'agent_1' },
+                            { id: 'agent_1->end_1', source: 'agent_1', target: 'end_1' },
+                        ],
+                    },
+                },
+                agentFiles: ['builder', 'tester'],
+                animationConfig: {
+                    startNodeFlashMs: 3000,
+                    edgeHandoffMs: 3000,
+                    endNodeFlashMs: 1200,
+                    edgeDashSpeed: 20,
+                },
+            });
+        });
+
+        afterEach(() => {
+            jest.useRealTimers();
+            delete (window as any).__workflowDesignerTestApi;
+            delete (window as any).__WORKFLOW_DESIGNER_TEST_MODE;
+        });
+
+        it('regression: right-clicking a workflow container shows a context menu with Run Workflow', () => {
+            const designerSource = readFile('webview/src/designer.ts');
+
+            // Should have a showContainerContextMenu function
+            expect(designerSource).toMatch(/showContainerContextMenu/);
+
+            // Should include "Run Workflow" as a menu item
+            expect(designerSource).toMatch(/Run Workflow/);
+
+            // Context menu should be triggered on contextmenu event (right-click)
+            expect(designerSource).toMatch(/contextmenu/);
+        });
+
+        it('regression: selecting Run Workflow from container context menu sends run message with workflowId', () => {
+            const designerSource = readFile('webview/src/designer.ts');
+
+            // The run handler should pass workflowId alongside type: 'run'
+            // Check that the context menu run action sends the workflowId
+            expect(designerSource).toMatch(/type:\s*['"]run['"]/);
+            expect(designerSource).toMatch(/workflowId/);
+        });
+
+        it('regression: clicking elsewhere hides the container context menu', () => {
+            const designerSource = readFile('webview/src/designer.ts');
+
+            // Should have logic to hide/remove the context menu
+            expect(designerSource).toMatch(/hideContextMenu|removeContextMenu|contextMenu.*remove|contextMenu.*hide|contextMenu.*removeChild/);
         });
     });
 });

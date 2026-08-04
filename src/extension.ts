@@ -213,9 +213,10 @@ members: []
             if (uri) {
                 await vscode.workspace.fs.writeFile(uri, Buffer.from(logs, 'utf-8'));
                 vscode.window.showInformationMessage(`Execution logs exported to ${uri.fsPath}`);
+            } {
             }
         }),
-        vscode.commands.registerCommand('workflowDesigner.addWorkflowToProject', async () => {
+        vscode.commands.registerCommand('workflowDesigner.addWorkflowToProject', async (treeItem?: any) => {
             // Discover available workflow files in .github/workflows/
             const workspaceFolders = vscode.workspace.workspaceFolders;
             if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -226,7 +227,7 @@ members: []
             const folder = workspaceFolders[0];
             const workflowsPath = vscode.Uri.joinPath(folder.uri, '.github', 'workflows');
 
-            let workflowFiles: { label: string; path: string; uri: vscode.Uri }[] = [];
+            const workflowFiles: { label: string; path: string; uri: vscode.Uri }[] = [];
             try {
                 const entries = await vscode.workspace.fs.readDirectory(workflowsPath);
                 for (const [name, type] of entries) {
@@ -253,8 +254,7 @@ members: []
                 workflowFiles.map(wf => ({
                     label: wf.label,
                     description: wf.path,
-                    detail: wf.uri.fsPath,
-                    workflow: wf
+                    detail: wf.uri.fsPath
                 })),
                 {
                     placeHolder: 'Select workflows to add to the project',
@@ -266,15 +266,23 @@ members: []
                 return;
             }
 
-            // Find the active project file
-            const activeEditor = vscode.window.activeTextEditor;
+            // Determine project URI: prefer label from context menu tree item, then fall back to quick pick
             let projectUri: vscode.Uri | undefined;
 
-            if (activeEditor && activeEditor.document.uri.fsPath.endsWith('.workflow-project.yaml')) {
-                projectUri = activeEditor.document.uri;
+            // Context menu passes the tree item label (project name without extension)
+            // We use this to find the corresponding .workflow-project.yaml file
+            if (treeItem && treeItem.label) {
+                const projectName = treeItem.label;
+                const candidateUri = vscode.Uri.joinPath(workflowsPath, `${projectName}.workflow-project.yaml`);
+                try {
+                    await vscode.workspace.fs.stat(candidateUri);
+                    projectUri = candidateUri;
+                } catch {
+                    // File doesn't exist, fall through to quick pick
+                }
             }
 
-            // If no active project editor, prompt to select one
+            // Last resort: prompt to select one
             if (!projectUri) {
                 const projectFiles: vscode.Uri[] = [];
                 try {
@@ -298,18 +306,22 @@ members: []
                     })),
                     { placeHolder: 'Select a project to add workflows to' }
                 );
-                if (!pickedProject) return;
+                if (!pickedProject) {
+                    return;
+                }
                 projectUri = pickedProject.uri;
             }
 
             // Read current project
             const { yamlToProject, projectToYaml } = await import('./utils/projectSerializer');
-            let project = yamlToProject(Buffer.from(await vscode.workspace.fs.readFile(projectUri)).toString('utf-8'));
+            const project = yamlToProject(Buffer.from(await vscode.workspace.fs.readFile(projectUri)).toString('utf-8'));
 
             // Add selected workflows (skip duplicates)
+            // VS Code only preserves standard QuickPickItem properties, so match by label back to workflowFiles
             let addedCount = 0;
             for (const item of selected) {
-                const wf = (item as any).workflow;
+                const wf = workflowFiles.find(w => w.label === item.label);
+                if (!wf) continue;
                 if (!project.members.find(m => m.path === wf.path)) {
                     const position = { x: project.members.length * 400, y: 0 };
                     project.members.push({ path: wf.path, position });
@@ -319,21 +331,36 @@ members: []
 
             // Save updated project
             await vscode.workspace.fs.writeFile(projectUri, Buffer.from(projectToYaml(project), 'utf-8'));
-            if (explorerProvider) explorerProvider.refresh();
+            if (explorerProvider) {
+                explorerProvider.refresh();
+            }
             vscode.window.showInformationMessage(`Added ${addedCount} workflow(s) to '${project.name}'.`);
         }),
-        vscode.commands.registerCommand('workflowDesigner.removeWorkflowFromProject', async () => {
-            // Find the active project file
-            const activeEditor = vscode.window.activeTextEditor;
+        vscode.commands.registerCommand('workflowDesigner.removeWorkflowFromProject', async (treeItem?: any) => {
+            // Determine project URI: prefer label from context menu tree item
             let projectUri: vscode.Uri | undefined;
 
-            if (activeEditor && activeEditor.document.uri.fsPath.endsWith('.workflow-project.yaml')) {
-                projectUri = activeEditor.document.uri;
+            // Context menu passes the tree item label (project name without extension)
+            if (treeItem && treeItem.label) {
+                const projectName = treeItem.label;
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                if (workspaceFolders) {
+                    const workflowsPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.github', 'workflows');
+                    const candidateUri = vscode.Uri.joinPath(workflowsPath, `${projectName}.workflow-project.yaml`);
+                    try {
+                        await vscode.workspace.fs.stat(candidateUri);
+                        projectUri = candidateUri;
+                    } catch {
+                        // File doesn't exist, fall through to quick pick
+                    }
+                }
             }
 
             if (!projectUri) {
                 const workspaceFolders = vscode.workspace.workspaceFolders;
-                if (!workspaceFolders) return;
+                if (!workspaceFolders) {
+                    return;
+                }
                 const workflowsPath = vscode.Uri.joinPath(workspaceFolders[0].uri, '.github', 'workflows');
                 const projectFiles: vscode.Uri[] = [];
                 try {
@@ -357,13 +384,15 @@ members: []
                     })),
                     { placeHolder: 'Select a project to remove workflows from' }
                 );
-                if (!pickedProject) return;
+                if (!pickedProject) {
+                    return;
+                }
                 projectUri = pickedProject.uri;
             }
 
             // Read current project
             const { yamlToProject, projectToYaml } = await import('./utils/projectSerializer');
-            let project = yamlToProject(Buffer.from(await vscode.workspace.fs.readFile(projectUri)).toString('utf-8'));
+            const project = yamlToProject(Buffer.from(await vscode.workspace.fs.readFile(projectUri)).toString('utf-8'));
 
             if (project.members.length === 0) {
                 vscode.window.showInformationMessage('This project has no workflows to remove.');
@@ -383,7 +412,9 @@ members: []
                 }
             );
 
-            if (!selected || selected.length === 0) return;
+            if (!selected || selected.length === 0) {
+                return;
+            }
 
             // Remove selected workflows
             const pathsToRemove = new Set((selected as any[]).map(s => s.path));
@@ -391,7 +422,9 @@ members: []
 
             // Save updated project
             await vscode.workspace.fs.writeFile(projectUri, Buffer.from(projectToYaml(project), 'utf-8'));
-            if (explorerProvider) explorerProvider.refresh();
+            if (explorerProvider) {
+                explorerProvider.refresh();
+            }
             vscode.window.showInformationMessage(`Removed ${selected.length} workflow(s) from '${project.name}'.`);
         }),
         vscode.commands.registerCommand('workflowDesigner.listModels', async () => {

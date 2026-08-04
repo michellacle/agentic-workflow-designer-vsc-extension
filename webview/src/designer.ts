@@ -1,10 +1,43 @@
+import { MessagingHarness } from './messagingHarness';
+
 /**
  * Workflow Designer - Webview JavaScript
  * Canvas-based visual workflow editor
+ *
+ * Deep module: canvas rendering, state machine, and event handling
+ * behind a small interface (createDesigner factory + MessagingHarness seam).
  */
 
-(function () {
-    'use strict';
+/** Options for creating a designer instance. */
+export interface DesignerOptions {
+    /** Initial workflow to display (optional — may be sent via harness.onMessage instead). */
+    workflow?: any;
+    /** Animation configuration. */
+    animationConfig?: {
+        startNodeFlashMs: number;
+        edgeHandoffMs: number;
+        endNodeFlashMs: number;
+        edgeDashSpeed: number;
+    };
+}
+
+/** API returned by createDesigner for external control. */
+export interface DesignerApi {
+    /** Send an incoming message to the designer (simulates host → designer communication). */
+    send(message: any): void;
+    /** Destroy the designer instance and clean up event listeners. */
+    destroy(): void;
+}
+
+/**
+ * Factory that creates a designer instance.
+ * Accepts a MessagingHarness adapter and DOM container, returns a small DesignerApi.
+ */
+export function createDesigner(
+    harness: MessagingHarness,
+    container?: HTMLElement
+): DesignerApi {
+    const root = container || document.body;
 
     // ===== Error Display =====
     function showError(msg) {
@@ -76,14 +109,18 @@
     // Track last mouse position for hover effects
     let lastMouseCanvasPos = null as { x: number; y: number } | null;
 
-    // ===== VS Code API =====
-    let vscode: any;
-    try {
-        vscode = acquireVsCodeApi();
-    } catch (e: any) {
-        showError('Failed to acquire VS Code API: ' + e.message);
-        return;
-    }
+    // Container context menu state
+    let containerContextMenuTarget = null as { path: string } | null;
+
+    // ===== Messaging Harness (injected at the seam) =====
+    // All external communication goes through the harness adapter.
+    // Production: VSCodeHarness (delegates to acquireVsCodeApi)
+    // Test/Standalone: TestingHarness (captures messages in memory)
+    const vscode = {
+        postMessage: (msg: any) => harness.post(msg),
+        getState: () => harness.getState(),
+        setState: (val: any) => harness.setState(val),
+    };
 
     // ===== Canvas Setup =====
     // ===== Project Mode Helpers =====
@@ -485,6 +522,18 @@
         canvas.addEventListener('wheel', onWheel, { passive: false });
         canvas.addEventListener('contextmenu', e => e.preventDefault());
 
+        // Container context menu (project mode — right-click on workflow containers)
+        canvas.addEventListener('contextmenu', onContainerContextMenu);
+
+        // Hide context menu on click elsewhere
+        document.addEventListener('click', hideContextMenu);
+
+        // Context menu item clicks
+        const contextMenu = document.getElementById('container-context-menu');
+        if (contextMenu) {
+            contextMenu.addEventListener('click', onContextMenuItemClick);
+        }
+
         // Keyboard events
         document.addEventListener('keydown', onKeyDown);
 
@@ -497,8 +546,10 @@
         // Apply initial edit mode (OFF / read-only)
         applyInitialEditMode();
 
-        // VS Code messages
-        window.addEventListener('message', onMessage);
+        // Messages from host (via harness seam)
+        harness.onMessage((msg) => {
+            onMessage({ data: msg } as MessageEvent);
+        });
 
         // Try to size canvas - use multiple strategies for reliability
         function tryResize() {
@@ -2716,7 +2767,7 @@
     }
 
     // Make it globally accessible for onclick
-    window.deleteSelectedNodes = deleteSelectedNodes;
+    (window as any).deleteSelectedNodes = deleteSelectedNodes;
 
     // ===== Edge Operations =====
     function deleteSelectedEdge() {
@@ -2918,6 +2969,96 @@
         vscode.postMessage({ type: 'stop' });
     }
 
+    // ===== Container Context Menu =====
+
+    /**
+     * Show the context menu when right-clicking a workflow container header.
+     */
+    function showContainerContextMenu(member, x, y) {
+        const menu = document.getElementById('container-context-menu');
+        if (!menu) return;
+
+        containerContextMenuTarget = { path: member.path };
+
+        // Position the menu
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        menu.classList.add('visible');
+    }
+
+    /**
+     * Hide the container context menu.
+     */
+    function hideContextMenu() {
+        const menu = document.getElementById('container-context-menu');
+        if (menu) {
+            menu.classList.remove('visible');
+        }
+        containerContextMenuTarget = null;
+    }
+
+    /**
+     * Handler for right-click (contextmenu) on canvas — shows container context menu in project mode.
+     */
+    function onContainerContextMenu(e) {
+        e.preventDefault();
+        if (!state.project) return;
+
+        const pos = getCanvasPosition(e);
+        const headerHit = hitTestContainerHeader(pos);
+        if (headerHit) {
+            showContainerContextMenu(headerHit.member, e.offsetX, e.offsetY);
+        } else {
+            hideContextMenu();
+        }
+    }
+
+    /**
+     * Handler for clicks on context menu items.
+     */
+    function onContextMenuItemClick(e) {
+        const item = e.target.closest('.menu-item');
+        if (!item || !containerContextMenuTarget) return;
+
+        const action = item.getAttribute('data-action');
+        const member = state.project?.members.find(m => m.path === containerContextMenuTarget.path);
+
+        switch (action) {
+            case 'run':
+                // Send run message with workflowId
+                if (member) {
+                    const workflow = state.workflows[member.path];
+                    vscode.postMessage({
+                        type: 'run',
+                        workflowId: member.path,
+                        workflow
+                    });
+                }
+                hideContextMenu();
+                break;
+            case 'collapse':
+                if (member) {
+                    member.collapsed = !member.collapsed;
+                    state.workflow = buildCompositeWorkflow();
+                    saveHistory();
+                    render();
+                    notifyProjectUpdate();
+                }
+                hideContextMenu();
+                break;
+            case 'remove':
+                if (member && state.project) {
+                    state.project.members = state.project.members.filter(m => m.path !== member.path);
+                    state.workflow = buildCompositeWorkflow();
+                    saveHistory();
+                    render();
+                    notifyProjectUpdate();
+                }
+                hideContextMenu();
+                break;
+        }
+    }
+
     function notifyResume() {
         vscode.postMessage({ type: 'resume' });
     }
@@ -3057,10 +3198,10 @@
     }
 
     function getNodeType(nodeId) {
-        return state.workflow.nodes.find(n => n.id === nodeId)?.type;
+        return (state.workflow.nodes.find((n: any) => n.id === nodeId) as any)?.type;
     }
 
-    function getVisualNodeStatus(nodeId, runtimeStatus) {
+    function getVisualNodeStatus(nodeId: string, runtimeStatus: string) {
         // While waiting for edge handoff to finish, keep node visually in waiting state.
         if (runtimeStatus === 'running' && state.pendingNodePulses[nodeId]) {
             return 'waiting';
@@ -3068,14 +3209,14 @@
         return runtimeStatus;
     }
 
-    function updateExecutionStatusUI(status) {
+    function updateExecutionStatusUI(status: any) {
         const badge = document.getElementById('execution-status');
+        if (!badge) return;
         if (!status) {
             badge.textContent = '';
             badge.className = 'status-badge';
             return;
         }
-
         badge.textContent = status.overall || '';
         badge.className = 'status-badge';
 
@@ -3088,7 +3229,7 @@
 
 
     // ===== Utilities =====
-    function getCanvasPosition(e) {
+    function getCanvasPosition(e: MouseEvent) {
         const rect = canvas.getBoundingClientRect();
         return {
             x: (e.clientX - rect.left - state.viewport.x) / state.viewport.zoom,
@@ -3096,7 +3237,7 @@
         };
     }
 
-    function roundRect(ctx, x, y, w, h, r) {
+    function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
         ctx.beginPath();
         ctx.moveTo(x + r, y);
         ctx.lineTo(x + w - r, y);
@@ -3111,7 +3252,7 @@
     }
 
     /** Draw a diamond/rhombus shape centered at (x+w/2, y+h/2) with the given width and height. */
-    function drawDiamond(ctx, x, y, w, h) {
+    function drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
         const cx = x + w / 2;
         const cy = y + h / 2;
         ctx.beginPath();
@@ -3138,7 +3279,7 @@
         });
     }
 
-    function pruneAnimationState(now) {
+    function pruneAnimationState(now: number) {
         for (const [edgeId, edgeAnim] of Object.entries(state.edgeAnimations)) {
             if (now > edgeAnim.endTime) {
                 delete state.edgeAnimations[edgeId];
@@ -3152,7 +3293,7 @@
         }
 
         for (const [nodeId, startAt] of Object.entries(state.pendingNodePulses)) {
-            const runtimeStatus = state.executionStatus?.nodeStatuses?.[nodeId]?.status;
+            const runtimeStatus = (state.executionStatus as any)?.nodeStatuses?.[nodeId]?.status;
             if (runtimeStatus !== 'running') {
                 delete state.pendingNodePulses[nodeId];
                 continue;
@@ -3164,7 +3305,7 @@
         }
     }
 
-    function sanitizeAnimationNumber(value, fallback, minimum) {
+    function sanitizeAnimationNumber(value: number, fallback: number, minimum: number) {
         const parsed = Number(value);
         if (!Number.isFinite(parsed)) {
             return fallback;
@@ -3179,10 +3320,10 @@
         }
 
         host.__workflowDesignerTestApi = {
-            simulateMessage: (msg) => {
+            simulateMessage: (msg: any) => {
                 onMessage({ data: msg } as MessageEvent);
             },
-            simulateExecutionUpdate: (status, nowOverride?) => {
+            simulateExecutionUpdate: (status: any, nowOverride?: number) => {
                 state.executionStatus = status;
                 if (status.nodeExecutionCounts) {
                     state.nodeExecutionCounts = status.nodeExecutionCounts;
@@ -3190,13 +3331,13 @@
                 updateExecutionAnimations(status, nowOverride);
                 render();
             },
-            tickTo: (now) => {
+            tickTo: (now: number) => {
                 state.nowMs = now;
                 pruneAnimationState(now);
                 render();
             },
-            getEdgeSides: (edgeId) => {
-                const edge = state.workflow.edges.find((candidate) => candidate.id === edgeId);
+            getEdgeSides: (edgeId: string) => {
+                const edge = state.workflow.edges.find((candidate: any) => candidate.id === edgeId) as any;
                 if (!edge) {
                     return null;
                 }
@@ -3213,7 +3354,7 @@
                 nowMs: state.nowMs,
                 animationConfig: { ...state.animationConfig }
             }),
-            getVisualStatus: (nodeId, runtimeStatus) => getVisualNodeStatus(nodeId, runtimeStatus)
+            getVisualStatus: (nodeId: string, runtimeStatus: string) => getVisualNodeStatus(nodeId, runtimeStatus)
             ,
             getWorkflowSnapshot: () => JSON.parse(JSON.stringify(state.workflow)),
             getSelectedNodeIds: () => Array.from(state.selectedNodeIds)
@@ -3221,17 +3362,17 @@
     }
 
     // ===== Double Click Handler =====
-    function onDoubleClick(e) {
+    function onDoubleClick(e: MouseEvent) {
         const pos = getCanvasPosition(e);
         const edgeHit = hitTestEdges(pos);
         if (edgeHit) {
             // Request label edit from extension host
             vscode.postMessage({
                 type: 'editEdgeLabel',
-                edgeId: edgeHit.id,
-                currentLabel: edgeHit.label || ''
+                edgeId: (edgeHit as any).id,
+                currentLabel: (edgeHit as any).label || ''
             });
-            state.editingEdgeId = edgeHit.id;
+            state.editingEdgeId = (edgeHit as any).id;
         }
     }
 
@@ -3240,4 +3381,45 @@
     publishTestApi();
     // Start animation loop for edge flow animation
     startAnimationLoop();
-})();
+
+    return {
+        send: (message: any) => {
+            onMessage({ data: message } as MessageEvent);
+        },
+        destroy: () => {
+            if (state.animationFrameId) {
+                cancelAnimationFrame(state.animationFrameId);
+                state.animationFrameId = null;
+            }
+        }
+    };
+}
+
+/**
+ * Bootstrap for VS Code webview environment.
+ * Auto-detects VS Code and creates the designer with VSCodeHarness.
+ */
+function bootstrapVsCode(): void {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const acquireVsCodeApi = (window as any).acquireVsCodeApi;
+        if (!acquireVsCodeApi) {
+            console.warn('Not in VS Code webview — skipping bootstrap');
+            return;
+        }
+        // Dynamic import to avoid bundling VSCodeHarness in standalone builds
+        import('./vscodeHarness').then(({ VSCodeHarness }) => {
+            createDesigner(new VSCodeHarness(acquireVsCodeApi));
+        }).catch((err) => {
+            console.error('Failed to load VSCodeHarness:', err);
+        });
+    } catch (e: any) {
+        console.error('VS Code bootstrap failed:', e.message);
+    }
+}
+
+// Auto-bootstrap when loaded in VS Code webview
+if (typeof window !== 'undefined' && (window as any).acquireVsCodeApi) {
+    bootstrapVsCode();
+}
+

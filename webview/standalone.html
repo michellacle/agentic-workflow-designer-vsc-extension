@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Designer — Standalone</title>
+    <link href="dist/designer.css" rel="stylesheet">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #harness-log {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            height: 120px; overflow-y: auto; background: #1e1e1e;
+            color: #0f0; font-family: monospace; font-size: 11px;
+            padding: 8px; border-top: 2px solid #333;
+            display: none;
+        }
+        #harness-log.visible { display: block; }
+        #harness-log .msg-type { color: #0ff; }
+        #harness-log .msg-data { color: #0f0; }
+        #toggle-log {
+            position: fixed; bottom: 4px; right: 8px;
+            background: #333; color: #fff; border: 1px solid #555;
+            padding: 2px 8px; font-size: 10px; cursor: pointer; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="toolbar">
+            <button id="btn-run" title="Run Workflow">▶ Run</button>
+            <button id="btn-pause" title="Pause Workflow">⏸ Pause</button>
+            <button id="btn-stop" title="Stop Workflow">⏹ Stop</button>
+            <button id="btn-resume" title="Resume Workflow">🔄 Resume</button>
+            <button id="btn-save" title="Save Workflow">💾 Save</button>
+            <button id="btn-validate" title="Validate Workflow">✓ Validate</button>
+            <button id="btn-edit-mode" title="Toggle Edit Mode">✎ Edit</button>
+            <span id="execution-status" class="status-badge"></span>
+        </div>
+        <div id="main-container">
+            <div id="toolbox">
+                <div class="toolbox-header">Components</div>
+                <div class="toolbox-item" draggable="true" data-type="start">
+                    <span class="icon">⬤</span> Start
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="end">
+                    <span class="icon">⬤</span> End
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="agent">
+                    <span class="icon">🤖</span> Agent
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="condition">
+                    <span class="icon">◇</span> Condition
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="human_approval">
+                    <span class="icon">👤</span> Human Approval
+                </div>
+                <div class="toolbox-item" draggable="true" data-type="delay">
+                    <span class="icon">⏱</span> Delay
+                </div>
+                <div class="toolbox-header toolbox-section-divider">Annotations</div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="label">
+                    <span class="icon">T</span> Label
+                </div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="note">
+                    <span class="icon">📝</span> Note
+                </div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="process">
+                    <span class="icon">⚙</span> Process
+                </div>
+                <div class="toolbox-item toolbox-item-annotation" draggable="true" data-type="decision">
+                    <span class="icon">⬡</span> Decision
+                </div>
+            </div>
+            <div id="canvas-container">
+                <canvas id="canvas"></canvas>
+            </div>
+            <div id="properties-panel">
+                <div class="properties-header">Properties</div>
+                <div id="properties-content">
+                    <p class="empty-state">Select a node to edit properties</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Harness message log -->
+    <div id="harness-log"></div>
+    <button id="toggle-log">Toggle Log</button>
+
+    <script type="module">
+        import { createDesigner } from './src/designer.ts';
+        import { TestingHarness } from './src/testingHarness.ts';
+
+        const harness = new TestingHarness();
+        const logEl = document.getElementById('harness-log');
+        const toggleBtn = document.getElementById('toggle-log');
+
+        // Log posted messages
+        const originalPost = harness.post.bind(harness);
+        harness.post = function(msg) {
+            originalPost(msg);
+            const entry = document.createElement('div');
+            entry.innerHTML = `<span class="msg-type">[${msg.type}]</span> <span class="msg-data">${JSON.stringify(msg).substring(0, 200)}</span>`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        };
+
+        toggleBtn.addEventListener('click', () => {
+            logEl.classList.toggle('visible');
+        });
+
+        // Create designer with TestingHarness
+        const designer = createDesigner(harness, document.getElementById('app'));
+
+        // Load a sample workflow for demo
+        const sampleWorkflow = {
+            name: 'standalone-demo',
+            nodes: [
+                { id: 'start_1', type: 'start', position: { x: 350, y: 50 }, data: { label: 'Start' } },
+                { id: 'agent_2', type: 'agent', position: { x: 300, y: 180 }, data: { agent: 'general', prompt: 'Do something', description: 'Agent Node' } },
+                { id: 'condition_3', type: 'condition', position: { x: 300, y: 330 }, data: { prompt: 'Check condition' } },
+                { id: 'end_4', type: 'end', position: { x: 350, y: 500 }, data: { label: 'End' } }
+            ],
+            edges: [
+                { id: 'edge_1', source: 'start_1', target: 'agent_2', sourceSide: 'bottom', targetSide: 'top' },
+                { id: 'edge_2', source: 'agent_2', target: 'condition_3', sourceSide: 'bottom', targetSide: 'top' },
+                { id: 'edge_3', source: 'condition_3', target: 'end_4', sourceSide: 'bottom', targetSide: 'top', label: 'True' }
+            ]
+        };
+
+        // Simulate init message from host
+        harness.send({
+            type: 'init',
+            workflow: sampleWorkflow,
+            agentFiles: ['general', 'reviewer'],
+            animationConfig: {
+                startNodeFlashMs: 3000,
+                edgeHandoffMs: 3000,
+                endNodeFlashMs: 1200,
+                edgeDashSpeed: 20
+            }
+        });
+
+        console.log('Standalone designer loaded. Harness messages logged below.');
+        console.log('TestingHarness:', harness);
+    </script>
+</body>
+</html>

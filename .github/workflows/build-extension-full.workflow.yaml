@@ -22,10 +22,13 @@ nodes:
       'y': 90
     data:
       agent: builder
-      prompt: build the extension
+      prompt: |-
+        1. run the build and fix any errors.
+        2. build the visual code extension
+        3.install the extension
       description: build
       model: qwen3.6-27b
-      timeout: 120
+      timeout: 600
       retries: 0
   - id: condition_4
     type: condition
@@ -34,7 +37,7 @@ nodes:
       'y': 240
     data:
       prompt: |-
-        Build success?
+        Build success? all tests pass? no linting errors? 
 
         If build fails return false, true otherwise. Build fails if there are lint error, compile errors, test failures.
   - id: note_5
@@ -66,18 +69,22 @@ edges:
     target: agent_3
     sourceSide: bottom
     targetSide: top
+    type: agentic
   - source: condition_4
     target: end_2
     label: 'True'
     sourceSide: right
     targetSide: left
+    type: agentic
   - source: condition_4
     target: agent_3
     label: 'False'
-    sourceSide: bottom
+    sourceSide: left
     targetSide: left
+    type: agentic
   - source: agent_3
     target: condition_4
     sourceSide: right
     targetSide: top
+    type: agentic
 description: A new workflow

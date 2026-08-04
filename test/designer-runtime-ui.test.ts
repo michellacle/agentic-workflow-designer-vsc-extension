@@ -7,12 +7,16 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { TestingHarness } from '../webview/src/testingHarness';
+import { createDesigner } from '../webview/src/designer';
 
 const ROOT = path.resolve(__dirname, '..');
 
 function readFile(relativePath: string): string {
     return fs.readFileSync(path.resolve(ROOT, relativePath), 'utf-8');
 }
+
+let harness: TestingHarness;
 
 function installCanvasMock() {
     const stubCtx = {
@@ -86,10 +90,7 @@ function installDomShell() {
 }
 
 function loadDesignerRuntime() {
-    const builtJs = readFile('webview/dist/designer.js');
-    // eslint-disable-next-line no-new-func
-    const runner = new Function(builtJs);
-    runner();
+    // No-op: designer is loaded via createDesigner below
 }
 
 function workflowStatus(payload: any) {
@@ -103,11 +104,6 @@ function workflowStatus(payload: any) {
 describe('designer runtime UI sequencing', () => {
     beforeEach(() => {
         jest.useFakeTimers();
-        (global as any).acquireVsCodeApi = () => ({
-            postMessage: jest.fn(),
-            setState: jest.fn(),
-            getState: jest.fn(() => null),
-        });
         (window as any).__WORKFLOW_DESIGNER_TEST_MODE = true;
         (window as any).ResizeObserver = class {
             observe() {}
@@ -120,7 +116,11 @@ describe('designer runtime UI sequencing', () => {
 
         installCanvasMock();
         installDomShell();
-        loadDesignerRuntime();
+
+        // Create designer with TestingHarness instead of mocking acquireVsCodeApi
+        harness = new TestingHarness();
+        const appEl = document.getElementById('app')!;
+        createDesigner(harness, appEl);
 
         const api = (window as any).__workflowDesignerTestApi;
         api.simulateMessage({
